@@ -13,13 +13,13 @@ async function handleUpload() {
   }
 
   // Allowed file types
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+  const allowedTypes = ['image/jpeg', 'image/jpg'];
 
   // Filter files by allowed types
   const validFiles = Array.from(files).filter(file => allowedTypes.includes(file.type));
 
   if (validFiles.length === 0) {
-    alert("No valid image files detected. Only JPG and PNG are allowed.");
+    alert("The file you selected is invalid");
     return;
   }
 
