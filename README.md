@@ -1,1 +1,0 @@
-# marzipano_virtual_tour_viewer
