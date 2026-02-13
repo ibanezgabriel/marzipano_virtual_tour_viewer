@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const PORT = 3002;
+const PORT = 3000;
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'upload');
