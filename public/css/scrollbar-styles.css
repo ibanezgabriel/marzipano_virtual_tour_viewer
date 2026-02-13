@@ -1,0 +1,15 @@
+/* Scrollbar styling for image list */
+#pano-image-list::-webkit-scrollbar {
+    width: 8px;
+}
+#pano-image-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+#pano-image-list::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+#pano-image-list::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}

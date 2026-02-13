@@ -1,0 +1,48 @@
+#pano-viewer {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+}
+#pano-features {
+    position: fixed;
+    width: 280px;
+    z-index: 1000;
+    padding: 10px;
+    & #pano-action {
+        display: flex;
+    }
+    & #pano-upload-btn {
+        text-align: center;
+    }
+    & #pano-update-btn {
+        margin: 0 .3rem;
+    }
+    & #pano-rename-btn {
+        margin-right: .3rem;
+    }
+    & #pano-upload-btn, 
+      #pano-update-btn,
+      #pano-rename-btn,
+      #pano-delete-btn {
+        cursor: pointer;
+        width: 100%;
+        border-radius: .2rem;
+        padding: .5rem;
+    }
+    & #pano-list-btn {
+        width: 100%;
+        padding: .5rem 0;
+        margin-top: .3rem;
+        text-align: center;
+    }
+    & #pano-image-list {
+        margin: .5rem 0;
+    } 
+    & #pano-image-list li {
+        padding: 10px;
+        border-radius: .1rem;
+        overflow: hidden;
+        margin: .3rem;
+    }
+}
+

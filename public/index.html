@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marzipano Viewer</title>
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+    <main id="pano-panel">
+        <div id="pano-features">
+            <div id="pano-action">
+                <input type="file" id="add-scene" accept="image/*" multiple hidden>
+                <label for="add-scene" id="pano-upload-btn">Upload</label>
+                <button id="pano-update-btn">Update</button>
+                <button id="pano-rename-btn">Rename</button>
+                <button id="pano-delete-btn">Delete</button>
+            </div>
+            <button id="pano-list-btn">Panoramic Images</button>
+            <ul id="pano-image-list"></ul>
+        </div>
+        <div id="pano-viewer"></div>
+    </main>
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

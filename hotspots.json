@@ -1,0 +1,16 @@
+{
+  "living room.jpg": [
+    {
+      "yaw": -0.044915868858286245,
+      "pitch": -0.1350522669823686,
+      "target": "living room.jpg"
+    }
+  ],
+  "1770866637777-pano_image3.jpg": [
+    {
+      "yaw": 0.11256737583315157,
+      "pitch": 0.01914577307372234,
+      "target": "living room.jpg"
+    }
+  ]
+}
