@@ -12,6 +12,17 @@ async function handleUpload() {
     return;
   }
 
+  // Allowed file types
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+
+  // Filter files by allowed types
+  const validFiles = Array.from(files).filter(file => allowedTypes.includes(file.type));
+
+  if (validFiles.length === 0) {
+    alert("No valid image files detected. Only JPG and PNG are allowed.");
+    return;
+  }
+
   const formData = new FormData();
   for (let i = 0; i < files.length; i++) {
     formData.append('panorama', files[i]);
