@@ -9,6 +9,9 @@ const DIALOG_MESSAGE_ID = 'app-dialog-message';
 const DIALOG_INPUT_ID = 'app-dialog-input';
 const DIALOG_ACTIONS_ID = 'app-dialog-actions';
 
+/** @type {HTMLElement | null} Element that had focus before the dialog opened (for restore on close). */
+let previousActiveElement = null;
+
 function getOrCreateDialog() {
   let overlay = document.getElementById(DIALOG_OVERLAY_ID);
   if (overlay) return overlay;
@@ -16,13 +19,14 @@ function getOrCreateDialog() {
   overlay = document.createElement('div');
   overlay.id = DIALOG_OVERLAY_ID;
   overlay.className = 'app-dialog-overlay';
-  overlay.setAttribute('aria-hidden', 'true');
+  // aria-hidden only when overlay is hidden; removed when visible so focused dialog content stays exposed to a11y
 
   const box = document.createElement('div');
   box.id = DIALOG_BOX_ID;
   box.className = 'app-dialog-box';
   box.setAttribute('role', 'dialog');
   box.setAttribute('aria-modal', 'true');
+  box.setAttribute('aria-labelledby', DIALOG_TITLE_ID);
 
   const title = document.createElement('div');
   title.id = DIALOG_TITLE_ID;
@@ -50,20 +54,31 @@ function getOrCreateDialog() {
   box.appendChild(actions);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
+  overlay.setAttribute('aria-hidden', 'true'); // overlay is hidden by CSS until shown
   return overlay;
 }
 
 function showOverlay() {
+  previousActiveElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const overlay = getOrCreateDialog();
-  overlay.setAttribute('aria-hidden', 'false');
+  overlay.removeAttribute('aria-hidden'); // dialog is visible and will receive focus; do not hide from a11y
   overlay.classList.add('app-dialog-visible');
 }
 
 function hideOverlay() {
   const overlay = document.getElementById(DIALOG_OVERLAY_ID);
   if (overlay) {
-    overlay.setAttribute('aria-hidden', 'true');
     overlay.classList.remove('app-dialog-visible');
+    // Move focus out before setting aria-hidden so the focused element is never inside a hidden ancestor
+    if (overlay.contains(document.activeElement)) {
+      if (previousActiveElement && previousActiveElement !== document.body && document.contains(previousActiveElement)) {
+        previousActiveElement.focus({ focusVisible: false });
+      } else {
+        document.body.focus({ focusVisible: false });
+      }
+    }
+    previousActiveElement = null;
+    overlay.setAttribute('aria-hidden', 'true');
   }
 }
 
