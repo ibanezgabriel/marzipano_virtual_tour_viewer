@@ -5,52 +5,72 @@ body {
 #pano-viewer {
     background: #000;
 }
+/* Match dialog theme: #2d2d2d panel, #e0e0e0 text, #4a7ab8 primary, #404040/#505050 secondary */
 #pano-features {
-    background: rgba(90, 90, 90, 0.692);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    background: #2d2d2d;
+    color: #e0e0e0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    border-radius: 8px;
 }
-#pano-upload-btn, 
-#pano-update-btn,
-#pano-rename-btn, 
-#pano-delete-btn {
-    background-color: #f0f0f0;
+#pano-upload-btn {
+    background-color: #4a7ab8;
+    color: #fff;
     font-weight: 600;
-    transition: background 0.2s;
-    background-color: #a7a7a7;
+    border-radius: 4px;
+    transition: background 0.2s, color 0.2s;
+}
+#pano-upload-btn:hover {
+    background-color: #5a8ac8;
+}
+#pano-update-btn,
+#pano-rename-btn,
+#pano-delete-btn {
+    background-color: #404040;
+    color: #e0e0e0;
+    font-weight: 600;
+    border-radius: 4px;
+    transition: background 0.2s, color 0.2s;
+}
+#pano-update-btn:hover,
+#pano-rename-btn:hover,
+#pano-delete-btn:hover {
+    background-color: #505050;
 }
 #pano-list-btn {
     cursor: pointer;
-    transition: background 0.5s;
-    border-radius: .1rem;
+    transition: background 0.2s, color 0.2s;
+    border-radius: 4px;
     font-weight: 600;
-    background-color: #a7a7a7;
+    background-color: #404040;
+    color: #e0e0e0;
 }
 #pano-list-btn:hover {
-    color: #000;
-    background-color: rgb(224, 224, 224);
+    background-color: #505050;
+    color: #e0e0e0;
 }
 #pano-image-list {
     list-style: none;
     overflow-y: auto;
     max-height: 500px;
     display: none;
+    background: #1a1a1a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
 }
 #pano-image-list li {
-    background: #a7a7a7;
-    transition: background 0.2s ease;
-    transition: color 0.2s ease;
+    background: #404040;
+    color: #e0e0e0;
+    transition: background 0.2s ease, color 0.2s ease;
     cursor: pointer;
 }
+#pano-image-list li:hover {
+    background: #505050;
+}
 #pano-image-list li.active {
-    background-color: #616161;
-    color: white;
+    background-color: #4a7ab8;
+    color: #fff;
 }
 #pano-add-scene:hover {
-    border-color: #999;
-    background: #f0f0f0;
-}
-#pano-upload-btn:hover, 
-#pano-update-btn:hover,
-#pano-delete-btn:hover {
-    background-color: rgb(224, 224, 224);
+    border-color: rgba(255, 255, 255, 0.15);
+    background: #404040;
 }

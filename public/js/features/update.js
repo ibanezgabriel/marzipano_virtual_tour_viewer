@@ -1,4 +1,5 @@
 import { getSelectedImageName, loadImages, loadPanorama, clearCurrentPath } from '../marzipano-viewer.js';
+import { showAlert } from '../dialog.js';
 
 const updateBtnEl = document.getElementById('pano-update-btn');
 
@@ -6,10 +7,10 @@ export function initUpdate() {
   updateBtnEl.addEventListener('click', handleUpdate);
 }
 
-function handleUpdate() {
+async function handleUpdate() {
   const selectedImageName = getSelectedImageName();
   if (!selectedImageName) {
-    alert('Please select an image to update');
+    await showAlert('Please select an image to update.', 'Update');
     return;
   }
 
@@ -41,10 +42,10 @@ function handleUpdate() {
         await loadImages();
         loadPanorama(`/upload/${data.newFilename}`, data.newFilename);
       } else {
-        alert('Error updating image: ' + data.message);
+        await showAlert('Error updating image: ' + data.message, 'Update');
       }
     } catch (error) {
-      alert('Error updating image: ' + error);
+      await showAlert('Error updating image: ' + error, 'Update');
     }
 
     document.body.removeChild(updateInput);

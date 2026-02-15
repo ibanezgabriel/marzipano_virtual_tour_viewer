@@ -1,4 +1,5 @@
 import { getSelectedImageName, loadImages, loadPanorama } from '../marzipano-viewer.js';
+import { showAlert, showPrompt } from '../dialog.js';
 
 const renameBtnEl = document.getElementById('pano-rename-btn');
 
@@ -9,7 +10,7 @@ export function initRename() {
 async function handleRename() {
   const selectedImageName = getSelectedImageName();
   if (!selectedImageName) {
-    alert('Please select an image to rename');
+    await showAlert('Please select an image to rename.', 'Rename');
     return;
   }
 
@@ -17,14 +18,14 @@ async function handleRename() {
   const extension = lastDotIndex > -1 ? selectedImageName.substring(lastDotIndex) : '';
   const nameWithoutExt = lastDotIndex > -1 ? selectedImageName.substring(0, lastDotIndex) : selectedImageName;
 
-  const newName = prompt(`Enter new name for "${selectedImageName}":`, nameWithoutExt);
+  const newName = await showPrompt(`Enter new name for "${selectedImageName}":`, nameWithoutExt, 'Rename');
 
-  if (!newName || newName.trim() === '') {
+  if (newName === null || newName === '') {
     return;
   }
   const newFileName = newName.includes('.') ? newName : newName + extension;
   if (newFileName.includes('/') || newFileName.includes('\\') || newFileName.includes('..')) {
-    alert('Invalid filename. Please avoid special characters like / \\ ..');
+    await showAlert('Invalid filename. Please avoid special characters like / \\ ..', 'Rename');
     return;
   }
 
@@ -44,9 +45,9 @@ async function handleRename() {
       await loadImages();
       loadPanorama(`/upload/${newFileName}`, newFileName);
     } else {
-      alert('Error renaming image: ' + data.message);
+      await showAlert('Error renaming image: ' + data.message, 'Rename');
     }
   } catch (error) {
-    alert('Error renaming image: ' + error);
+    await showAlert('Error renaming image: ' + error, 'Rename');
   }
 }

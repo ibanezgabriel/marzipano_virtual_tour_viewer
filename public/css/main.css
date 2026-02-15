@@ -1,6 +1,7 @@
 @import url("scrollbar-styles.css");
 @import url("layout.css");
 @import url("components.css");
+@import url("dialog.css");
 
 /* global styles */
 *, *::before, *::after {

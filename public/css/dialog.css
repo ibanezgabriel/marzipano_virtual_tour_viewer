@@ -1,0 +1,107 @@
+/* Centered dialog overlay and box */
+.app-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.app-dialog-overlay.app-dialog-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.app-dialog-box {
+  background: #2d2d2d;
+  color: #e0e0e0;
+  min-width: 320px;
+  max-width: 90vw;
+  padding: 1.25rem 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  transform: scale(0.95);
+  transition: transform 0.2s ease;
+}
+
+.app-dialog-overlay.app-dialog-visible .app-dialog-box {
+  transform: scale(1);
+}
+
+.app-dialog-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.app-dialog-message {
+  font-size: 0.95rem;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.app-dialog-input-wrap {
+  margin-bottom: 1.25rem;
+}
+
+.app-dialog-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #1a1a1a;
+  color: #e0e0e0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  outline: none;
+}
+
+.app-dialog-input:focus {
+  border-color: #6b9bd1;
+  box-shadow: 0 0 0 2px rgba(107, 155, 209, 0.25);
+}
+
+.app-dialog-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.app-dialog-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 4px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.app-dialog-btn-primary {
+  background: #4a7ab8;
+  color: #fff;
+}
+
+.app-dialog-btn-primary:hover {
+  background: #5a8ac8;
+}
+
+.app-dialog-btn-secondary {
+  background: #404040;
+  color: #e0e0e0;
+}
+
+.app-dialog-btn-secondary:hover {
+  background: #505050;
+}
