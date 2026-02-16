@@ -57,32 +57,47 @@ function saveHotspotsToStorage() {
   }).catch((err) => console.warn('Could not save hotspots to server', err));
 }
 
+/** Parse a payload (from server or localStorage) into hotspotsByImage and set nextHotspotId. */
+function parseHotspotsPayload(obj) {
+  if (typeof obj !== 'object' || obj === null) return;
+  let maxId = -1;
+  Object.entries(obj).forEach(([imageName, list]) => {
+    if (!Array.isArray(list)) return;
+    const entries = list.map((entry) => {
+      const id = Number(entry.id);
+      if (id > maxId) maxId = id;
+      return {
+        id,
+        yaw: Number(entry.yaw),
+        pitch: Number(entry.pitch),
+        linkTo: entry.linkTo || undefined,
+        hotspot: null,
+      };
+    });
+    hotspotsByImage.set(imageName, entries);
+  });
+  if (maxId >= 0) nextHotspotId = maxId + 1;
+}
+
 /** Load from localStorage and populate hotspotsByImage; set nextHotspotId. */
 function loadHotspotsFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
-    const obj = JSON.parse(raw);
-    let maxId = -1;
-    Object.entries(obj).forEach(([imageName, list]) => {
-      if (!Array.isArray(list)) return;
-      const entries = list.map((entry) => {
-        const id = Number(entry.id);
-        if (id > maxId) maxId = id;
-        return {
-          id,
-          yaw: Number(entry.yaw),
-          pitch: Number(entry.pitch),
-          linkTo: entry.linkTo || undefined,
-          hotspot: null,
-        };
-      });
-      hotspotsByImage.set(imageName, entries);
-    });
-    if (maxId >= 0) nextHotspotId = maxId + 1;
+    parseHotspotsPayload(JSON.parse(raw));
   } catch (e) {
     console.warn('Could not load hotspots from localStorage', e);
   }
+}
+
+/** Load hotspots from server so admin on any device sees the same data. Returns a Promise. */
+async function loadHotspotsFromServer() {
+  const res = await fetch('/api/hotspots');
+  if (!res.ok) throw new Error('Hotspots fetch failed');
+  const data = await res.json();
+  hotspotsByImage.clear();
+  parseHotspotsPayload(data);
+  restoreHotspotsForCurrentScene();
 }
 
 /** Update hotspots when an image is renamed: change linkTo and map keys to use the new name. */
@@ -140,7 +155,11 @@ export function cleanupHotspotsForDeletedImages(validImageNames) {
 export function initHotspots() {
   if (!panoViewerEl) return;
 
-  loadHotspotsFromStorage();
+  // Load from server first so all admin devices see the same hotspots; fall back to localStorage if offline
+  loadHotspotsFromServer().catch(() => {
+    loadHotspotsFromStorage();
+    restoreHotspotsForCurrentScene();
+  });
 
   if (hotspotBtnEl) {
     hotspotBtnEl.addEventListener('click', togglePlaceMode);
