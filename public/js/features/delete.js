@@ -1,4 +1,5 @@
 import { getSelectedImageName, loadImages, clearSelection } from '../marzipano-viewer.js';
+import { cleanupHotspotsForDeletedImages } from './hotspots.js';
 import { showAlert, showConfirm } from '../dialog.js';
 
 const deleteBtnEl = document.getElementById('pano-delete-btn');
@@ -28,7 +29,7 @@ async function handleDelete() {
 
     if (data.success) {
       clearSelection();
-      await loadImages();
+      await loadImages(cleanupHotspotsForDeletedImages);
     } else {
       await showAlert('Error deleting image: ' + data.message, 'Delete');
     }

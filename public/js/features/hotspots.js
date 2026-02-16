@@ -8,7 +8,7 @@ import {
   loadPanorama,
   registerOnSceneLoad,
 } from '../marzipano-viewer.js';
-import { showSelect } from '../dialog.js';
+import { showSelect, showAlert } from '../dialog.js';
 
 const HOTSPOT_CLASS = 'app-hotspot-pin';
 const HOTSPOT_REMOVE_CLASS = 'app-hotspot-remove';
@@ -78,14 +78,33 @@ function loadHotspotsFromStorage() {
   }
 }
 
-/** Remove stored hotspots for image names that are no longer in the list (panorama deleted). */
+/** Remove stored hotspots for image names that are no longer in the list (panorama deleted).
+ *  Also remove any hotspot on other images that links to a deleted image (so image 1 shows no hotspot pointing to deleted image 2).
+ */
 export function cleanupHotspotsForDeletedImages(validImageNames) {
   const set = new Set(validImageNames);
   let changed = false;
+  // Remove entire hotspot lists for deleted images
   hotspotsByImage.forEach((_, imageName) => {
     if (!set.has(imageName)) {
       hotspotsByImage.delete(imageName);
       changed = true;
+    }
+  });
+  // Remove hotspots that link to a deleted image (e.g. on image 1, remove pins that linked to image 2)
+  hotspotsByImage.forEach((list, imageName) => {
+    const scene = getCurrentScene();
+    const currentImageName = getSelectedImageName();
+    const container = scene && currentImageName === imageName ? scene.hotspotContainer() : null;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const entry = list[i];
+      if (entry.linkTo && !set.has(entry.linkTo)) {
+        if (entry.hotspot && container && typeof container.hasHotspot === 'function' && container.hasHotspot(entry.hotspot)) {
+          container.destroyHotspot(entry.hotspot);
+        }
+        list.splice(i, 1);
+        changed = true;
+      }
     }
   });
   if (changed) saveHotspotsToStorage();
@@ -232,14 +251,17 @@ async function addHotspotAt(clientX, clientY) {
   let linkTo = null;
   try {
     const imageList = await getImageList();
-    const options = ['None', ...imageList.filter((name) => name !== imageName)];
-    if (options.length <= 1) {
-      linkTo = null;
-    } else {
-      const selected = await showSelect('Link hotspot to image', options);
-      if (selected === null) return;
-      linkTo = selected === 'None' ? undefined : selected;
+    const options = imageList.filter((name) => name !== imageName);
+    if (options.length === 0) {
+      await showAlert(
+        'Hotspot links need at least 2 images. Upload another panorama to link between scenes.',
+        'Hotspot link'
+      );
+      return;
     }
+    const selected = await showSelect('Link hotspot to image', options);
+    if (selected === null) return;
+    linkTo = selected;
   } catch (err) {
     linkTo = undefined;
   }

@@ -5,6 +5,16 @@ body {
 #pano-viewer {
     background: #000;
 }
+#pano-viewer .no-pano-msg {
+    margin: 0;
+    padding: 1rem;
+    color: #888;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    box-sizing: border-box;
+}
 /* Match dialog theme: #2d2d2d panel, #e0e0e0 text, #4a7ab8 primary, #404040/#505050 secondary */
 #pano-features {
     background: #2d2d2d;
@@ -97,15 +107,15 @@ body {
     display: inline-block;
     pointer-events: auto;
     margin-left: -22px;
-    margin-top: -12px;
+    margin-top: -22px;
 }
 
 .app-hotspot-pin-dot {
     display: block;
-    width: 24px;
-    height: 24px;
-    min-width: 24px;
-    min-height: 24px;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
     flex-shrink: 0;
     box-sizing: border-box;
     background-color: #4a7ab8;

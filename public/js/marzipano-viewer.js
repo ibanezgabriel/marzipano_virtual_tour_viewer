@@ -30,6 +30,10 @@ export function initViewer() {
 // Load a panorama image into Marzipano (exported for hotspot links and list)
 export function loadPanorama(imagePath, imageName) {
   if (currentImagePath === imagePath) {
+    // Same image already shown; list may have been rebuilt (e.g. after upload), so re-apply highlight
+    document.querySelectorAll('#pano-image-list li').forEach(li => li.classList.remove('active'));
+    const sameLi = Array.from(document.querySelectorAll('#pano-image-list li')).find(li => li.textContent === imageName);
+    if (sameLi) sameLi.classList.add('active');
     return;
   }
   currentImagePath = imagePath;
@@ -78,11 +82,17 @@ export async function loadImages(onImagesLoaded) {
 
     imageListEl.innerHTML = "";
 
-    if (!viewer) {
-      viewer = initViewer();
+    if (files.length > 0) {
+      // Clear "No panoramas" placeholder so the viewer can show the first image (e.g. after first upload)
+      if (panoViewerEl && panoViewerEl.querySelector('.no-pano-msg')) {
+        panoViewerEl.innerHTML = '';
+      }
       if (!viewer) {
-        console.error('Viewer not initialized');
-        return;
+        viewer = initViewer();
+        if (!viewer) {
+          console.error('Viewer not initialized');
+          return;
+        }
       }
     }
 
@@ -94,10 +104,16 @@ export async function loadImages(onImagesLoaded) {
     });
 
     if (files.length > 0) {
-      loadPanorama(`/upload/${files[0]}`, files[0]);
+      const imageToShow = (selectedImageName && fileList.includes(selectedImageName))
+        ? selectedImageName
+        : fileList[0];
+      loadPanorama(`/upload/${imageToShow}`, imageToShow);
     } else {
+      currentScene = null;
       currentImagePath = null;
       selectedImageName = null;
+      viewer = null;
+      if (panoViewerEl) panoViewerEl.innerHTML = '<p class="no-pano-msg">No panoramas. Upload one to get started.</p>';
     }
   } catch (error) {
     alert('Error loading images: ' + error);
