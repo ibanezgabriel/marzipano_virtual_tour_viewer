@@ -10,6 +10,8 @@ let viewer = null;
 let currentScene = null;
 let currentImagePath = null;
 let selectedImageName = null;
+/** @type {Array<() => void>} Callbacks run when a scene has finished loading (after switchTo). */
+let onSceneLoadCallbacks = [];
 
 const imageListEl = document.getElementById('pano-image-list');
 const panoViewerEl = document.getElementById('pano-viewer');
@@ -25,7 +27,7 @@ export function initViewer() {
   return viewer;
 }
 
-// Load a panorama image into Marzipano
+// Load a panorama image into Marzipano (exported for hotspot links and list)
 export function loadPanorama(imagePath, imageName) {
   if (currentImagePath === imagePath) {
     return;
@@ -51,6 +53,9 @@ export function loadPanorama(imagePath, imageName) {
   currentScene = viewer.createScene({ source, geometry, view });
   currentScene.switchTo();
 
+  // Notify listeners (e.g. hotspot feature) so they can restore or attach to the new scene.
+  onSceneLoadCallbacks.forEach((cb) => cb());
+
   // Update active state in list
   document.querySelectorAll('#pano-image-list li').forEach(li => {
     li.classList.remove('active');
@@ -63,10 +68,13 @@ export function loadPanorama(imagePath, imageName) {
 }
 
 // Load and display list of images
-export async function loadImages() {
+/** @param {(files: string[]) => void} [onImagesLoaded] Called with the list of image names after fetch. */
+export async function loadImages(onImagesLoaded) {
   try {
     const res = await fetch("upload");
     const files = await res.json();
+    const fileList = Array.isArray(files) ? files : [];
+    if (typeof onImagesLoaded === 'function') onImagesLoaded(fileList);
 
     imageListEl.innerHTML = "";
 
@@ -107,4 +115,28 @@ export function clearSelection() {
 
 export function clearCurrentPath() {
   currentImagePath = null;
+}
+
+/** Return the Marzipano viewer instance (for hotspot container, etc.). */
+export function getViewer() {
+  return viewer;
+}
+
+/** Return the current scene (for hotspot container and view). */
+export function getCurrentScene() {
+  return currentScene;
+}
+
+/** Register a callback to run when a new scene has finished loading. */
+export function registerOnSceneLoad(callback) {
+  if (typeof callback === 'function') {
+    onSceneLoadCallbacks.push(callback);
+  }
+}
+
+/** Fetch and return the list of uploaded image file names. */
+export async function getImageList() {
+  const res = await fetch('upload');
+  const files = await res.json();
+  return Array.isArray(files) ? files : [];
 }

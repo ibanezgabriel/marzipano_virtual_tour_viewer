@@ -3,6 +3,7 @@ import { initRename } from './features/rename.js';
 import { initUpdate } from './features/update.js';
 import { initDelete } from './features/delete.js';
 import { initUpload } from './features/upload.js';
+import { initHotspots, cleanupHotspotsForDeletedImages } from './features/hotspots.js';
 
 const imageListEl = document.getElementById('pano-image-list');
 const listBtnEl = document.getElementById('pano-list-btn');
@@ -18,9 +19,10 @@ initRename();
 initUpdate();
 initDelete();
 initUpload();
+initHotspots();
 
 // Initialize on DOM load
 document.addEventListener('DOMContentLoaded', () => {
   initViewer();
-  loadImages();
+  loadImages(cleanupHotspotsForDeletedImages);
 });

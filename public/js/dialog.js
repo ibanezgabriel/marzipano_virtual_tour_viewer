@@ -47,10 +47,14 @@ function getOrCreateDialog() {
   actions.id = DIALOG_ACTIONS_ID;
   actions.className = 'app-dialog-actions';
 
+  const selectWrap = document.createElement('div');
+  selectWrap.className = 'app-dialog-select-wrap';
+
   inputWrap.appendChild(input);
   box.appendChild(title);
   box.appendChild(message);
   box.appendChild(inputWrap);
+  box.appendChild(selectWrap);
   box.appendChild(actions);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
@@ -100,6 +104,10 @@ function getInput() {
 
 function getActions() {
   return document.getElementById(DIALOG_ACTIONS_ID);
+}
+
+function getSelectWrap() {
+  return document.querySelector(`#${DIALOG_BOX_ID} .app-dialog-select-wrap`);
 }
 
 /**
@@ -232,5 +240,65 @@ export function showPrompt(message, defaultValue = '', title = 'Input') {
     showOverlay();
     inputEl.focus();
     inputEl.select();
+  });
+}
+
+/**
+ * Show a selection dialog (title + select + OK + Cancel). Returns Promise<string | null>.
+ * @param {string} title - Dialog title.
+ * @param {string[]} options - Option labels (value and label are the same).
+ * @returns {Promise<string | null>} Selected option or null if cancelled.
+ */
+export function showSelect(title, options) {
+  return new Promise((resolve) => {
+    getOrCreateDialog();
+    const titleEl = getTitle();
+    const messageEl = getMessage();
+    const inputWrap = getInput().closest('.app-dialog-input-wrap');
+    const selectWrap = getSelectWrap();
+    const actionsEl = getActions();
+
+    titleEl.textContent = title;
+    titleEl.style.display = 'block';
+    messageEl.style.display = 'none';
+    inputWrap.style.display = 'none';
+    selectWrap.style.display = 'block';
+    selectWrap.innerHTML = '';
+
+    const select = document.createElement('select');
+    select.className = 'app-dialog-select';
+    options.forEach((opt) => {
+      const option = document.createElement('option');
+      option.value = opt;
+      option.textContent = opt;
+      select.appendChild(option);
+    });
+    selectWrap.appendChild(select);
+
+    actionsEl.innerHTML = '';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'app-dialog-btn app-dialog-btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => {
+      selectWrap.style.display = 'none';
+      hideOverlay();
+      resolve(null);
+    });
+    const okBtn = document.createElement('button');
+    okBtn.type = 'button';
+    okBtn.className = 'app-dialog-btn app-dialog-btn-primary';
+    okBtn.textContent = 'OK';
+    okBtn.addEventListener('click', () => {
+      const value = select.value;
+      selectWrap.style.display = 'none';
+      hideOverlay();
+      resolve(value);
+    });
+    actionsEl.appendChild(cancelBtn);
+    actionsEl.appendChild(okBtn);
+
+    showOverlay();
+    select.focus();
   });
 }

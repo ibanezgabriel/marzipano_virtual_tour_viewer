@@ -23,7 +23,8 @@
     & #pano-upload-btn, 
       #pano-update-btn,
       #pano-rename-btn,
-      #pano-delete-btn {
+      #pano-delete-btn,
+      #pano-hotspot-btn {
         cursor: pointer;
         width: 100%;
         border-radius: .2rem;

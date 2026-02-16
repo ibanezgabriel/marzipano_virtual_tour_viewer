@@ -70,6 +70,26 @@
   box-shadow: 0 0 0 2px rgba(107, 155, 209, 0.25);
 }
 
+.app-dialog-select-wrap {
+  margin-bottom: 1.25rem;
+}
+
+.app-dialog-select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #1a1a1a;
+  color: #e0e0e0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  outline: none;
+}
+
+.app-dialog-select:focus {
+  border-color: #6b9bd1;
+}
+
 .app-dialog-actions {
   display: flex;
   gap: 0.75rem;

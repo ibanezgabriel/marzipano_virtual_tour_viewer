@@ -24,7 +24,8 @@ body {
 }
 #pano-update-btn,
 #pano-rename-btn,
-#pano-delete-btn {
+#pano-delete-btn,
+#pano-hotspot-btn {
     background-color: #404040;
     color: #e0e0e0;
     font-weight: 600;
@@ -33,7 +34,8 @@ body {
 }
 #pano-update-btn:hover,
 #pano-rename-btn:hover,
-#pano-delete-btn:hover {
+#pano-delete-btn:hover,
+#pano-hotspot-btn:hover {
     background-color: #505050;
 }
 #pano-list-btn {
@@ -73,4 +75,87 @@ body {
 #pano-add-scene:hover {
     border-color: rgba(255, 255, 255, 0.15);
     background: #404040;
+}
+
+/* Hotspot place mode: crosshair cursor on viewer */
+#pano-viewer.app-hotspot-place-mode {
+    cursor: crosshair;
+}
+
+#pano-hotspot-btn.active {
+    background-color: #4a7ab8;
+    color: #fff;
+}
+
+#pano-hotspot-btn.active:hover {
+    background-color: #5a8ac8;
+}
+
+/* Hotspot pin (blue circle) + remove button on top-right of dot (placed on panorama) */
+.app-hotspot-pin {
+    position: relative;
+    display: inline-block;
+    pointer-events: auto;
+    margin-left: -22px;
+    margin-top: -12px;
+}
+
+.app-hotspot-pin-dot {
+    display: block;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    background-color: #4a7ab8;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+    transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.app-hotspot-pin-dot:hover {
+    transform: scale(1.1);
+    background-color: #5a8ac8;
+}
+
+.app-hotspot-remove {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+    opacity: 0;
+}
+
+/* Show remove button when hovering the pin dot (or the remove button itself so it stays visible to click) */
+.app-hotspot-pin-dot:hover ~ .app-hotspot-remove,
+.app-hotspot-remove:hover {
+    opacity: 1;
+}
+
+.app-hotspot-remove:hover {
+    background: #8b3a3a;
+    transform: scale(1.1);
+}
+
+.app-hotspot-remove::before {
+    content: '×';
+    font-weight: bold;
 }
