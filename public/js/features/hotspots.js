@@ -43,11 +43,18 @@ function serializeHotspots() {
 }
 
 function saveHotspotsToStorage() {
+  const payload = serializeHotspots();
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeHotspots()));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch (e) {
     console.warn('Could not save hotspots to localStorage', e);
   }
+  // Persist to server so client view can load hotspots from any device
+  fetch('/api/hotspots', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).catch((err) => console.warn('Could not save hotspots to server', err));
 }
 
 /** Load from localStorage and populate hotspotsByImage; set nextHotspotId. */

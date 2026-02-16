@@ -12,6 +12,14 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
 
+// Ensure data directory exists (for hotspots etc.)
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir);
+}
+
+const hotspotsPath = path.join(dataDir, 'hotspots.json');
+
 // Middleware to parse JSON bodies
 app.use(express.json());
 
@@ -158,6 +166,35 @@ app.put('/upload/update', upload.single('panorama'), (req, res) => {
       newFilename: req.file.filename,
       oldFilename: oldFilename
     });
+  });
+});
+
+// API to get hotspots (for client view)
+app.get('/api/hotspots', (req, res) => {
+  fs.readFile(hotspotsPath, 'utf8', (err, data) => {
+    if (err) {
+      if (err.code === 'ENOENT') return res.json({});
+      return res.status(500).json({ error: 'Unable to read hotspots' });
+    }
+    try {
+      const obj = JSON.parse(data);
+      res.json(typeof obj === 'object' && obj !== null ? obj : {});
+    } catch (e) {
+      res.json({});
+    }
+  });
+});
+
+// API to save hotspots (called by admin when adding/removing/editing)
+app.post('/api/hotspots', (req, res) => {
+  const body = req.body;
+  if (typeof body !== 'object' || body === null) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+  const json = JSON.stringify(body, null, 2);
+  fs.writeFile(hotspotsPath, json, 'utf8', (err) => {
+    if (err) return res.status(500).json({ error: 'Unable to save hotspots' });
+    res.json({ success: true });
   });
 });
 
