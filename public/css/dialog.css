@@ -125,3 +125,25 @@
 .app-dialog-btn-secondary:hover {
   background: #505050;
 }
+
+/* Preview bar (shown when user clicks Preview in link selection - dialog hidden, user sees panorama) */
+.app-dialog-preview-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  background: #2d2d2d;
+  color: #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.app-dialog-preview-bar-label {
+  font-size: 0.95rem;
+  font-weight: 500;
+}

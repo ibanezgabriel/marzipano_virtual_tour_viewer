@@ -302,3 +302,111 @@ export function showSelect(title, options) {
     select.focus();
   });
 }
+
+const PREVIEW_BAR_ID = 'app-dialog-preview-bar';
+
+/**
+ * Show a selection dialog with a Preview button. User can preview the selection before confirming.
+ * @param {string} title - Dialog title.
+ * @param {string[]} options - Option labels (value and label are the same).
+ * @param {(value: string) => void} onPreview - Called when Preview is clicked; e.g. load the panorama.
+ * @returns {Promise<string | null>} Selected option or null if cancelled.
+ */
+export function showSelectWithPreview(title, options, onPreview) {
+  return new Promise((resolve) => {
+    getOrCreateDialog();
+    const titleEl = getTitle();
+    const messageEl = getMessage();
+    const inputWrap = getInput().closest('.app-dialog-input-wrap');
+    const selectWrap = getSelectWrap();
+    const actionsEl = getActions();
+
+    titleEl.textContent = title;
+    titleEl.style.display = 'block';
+    messageEl.style.display = 'none';
+    inputWrap.style.display = 'none';
+    selectWrap.style.display = 'block';
+    selectWrap.innerHTML = '';
+
+    const select = document.createElement('select');
+    select.className = 'app-dialog-select';
+    options.forEach((opt) => {
+      const option = document.createElement('option');
+      option.value = opt;
+      option.textContent = opt;
+      select.appendChild(option);
+    });
+    selectWrap.appendChild(select);
+
+    function hidePreviewBar() {
+      const bar = document.getElementById(PREVIEW_BAR_ID);
+      if (bar) bar.remove();
+    }
+
+    function finish(value) {
+      hidePreviewBar();
+      hideOverlay();
+      selectWrap.style.display = 'none';
+      resolve(value);
+    }
+
+    actionsEl.innerHTML = '';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'app-dialog-btn app-dialog-btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => finish(null));
+
+    const previewBtn = document.createElement('button');
+    previewBtn.type = 'button';
+    previewBtn.className = 'app-dialog-btn app-dialog-btn-secondary';
+    previewBtn.textContent = 'Preview';
+    previewBtn.addEventListener('click', () => {
+      const value = select.value;
+      onPreview(value);
+      hideOverlay();
+      selectWrap.style.display = 'none';
+
+      let bar = document.getElementById(PREVIEW_BAR_ID);
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = PREVIEW_BAR_ID;
+        bar.className = 'app-dialog-preview-bar';
+        document.body.appendChild(bar);
+      }
+      bar.innerHTML = '';
+      const label = document.createElement('span');
+      label.className = 'app-dialog-preview-bar-label';
+      label.textContent = `Previewing: ${value}. Confirm link?`;
+      const okBtn = document.createElement('button');
+      okBtn.type = 'button';
+      okBtn.className = 'app-dialog-btn app-dialog-btn-primary';
+      okBtn.textContent = 'OK';
+      okBtn.addEventListener('click', () => finish(value));
+      const cancelBarBtn = document.createElement('button');
+      cancelBarBtn.type = 'button';
+      cancelBarBtn.className = 'app-dialog-btn app-dialog-btn-secondary';
+      cancelBarBtn.textContent = 'Cancel';
+      cancelBarBtn.addEventListener('click', () => finish(null));
+      bar.appendChild(label);
+      bar.appendChild(okBtn);
+      bar.appendChild(cancelBarBtn);
+    });
+
+    const okBtn = document.createElement('button');
+    okBtn.type = 'button';
+    okBtn.className = 'app-dialog-btn app-dialog-btn-primary';
+    okBtn.textContent = 'OK';
+    okBtn.addEventListener('click', () => {
+      const value = select.value;
+      finish(value);
+    });
+
+    actionsEl.appendChild(cancelBtn);
+    actionsEl.appendChild(previewBtn);
+    actionsEl.appendChild(okBtn);
+
+    showOverlay();
+    select.focus();
+  });
+}

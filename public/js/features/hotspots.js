@@ -8,7 +8,7 @@ import {
   loadPanorama,
   registerOnSceneLoad,
 } from '../marzipano-viewer.js';
-import { showSelect, showAlert } from '../dialog.js';
+import { showSelectWithPreview, showAlert } from '../dialog.js';
 
 const HOTSPOT_CLASS = 'app-hotspot-pin';
 const HOTSPOT_REMOVE_CLASS = 'app-hotspot-remove';
@@ -169,6 +169,9 @@ function createHotspotElement(entry) {
   pin.className = 'app-hotspot-pin-dot';
   pin.setAttribute('role', 'button');
   pin.setAttribute('tabindex', '0');
+  if (entry.linkTo) {
+    pin.setAttribute('title', `Links to ${entry.linkTo} `);
+  }
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
@@ -249,6 +252,7 @@ async function addHotspotAt(clientX, clientY) {
   if (!coords) return;
 
   let linkTo = null;
+  const originalPath = `/upload/${imageName}`;
   try {
     const imageList = await getImageList();
     const options = imageList.filter((name) => name !== imageName);
@@ -259,11 +263,20 @@ async function addHotspotAt(clientX, clientY) {
       );
       return;
     }
-    const selected = await showSelect('Link hotspot to image', options);
-    if (selected === null) return;
+    const selected = await showSelectWithPreview(
+      'Link hotspot to image',
+      options,
+      (val) => loadPanorama(`/upload/${val}`, val)
+    );
+    if (selected === null) {
+      loadPanorama(originalPath, imageName);
+      return;
+    }
     linkTo = selected;
+    loadPanorama(originalPath, imageName);
   } catch (err) {
     linkTo = undefined;
+    loadPanorama(originalPath, imageName);
   }
 
   const container = scene.hotspotContainer();
