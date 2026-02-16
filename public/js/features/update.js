@@ -1,4 +1,5 @@
 import { getSelectedImageName, loadImages, loadPanorama, clearCurrentPath } from '../marzipano-viewer.js';
+import { cleanupHotspotsForDeletedImages } from './hotspots.js';
 import { showAlert } from '../dialog.js';
 
 const updateBtnEl = document.getElementById('pano-update-btn');
@@ -39,7 +40,7 @@ async function handleUpdate() {
 
       if (data.success) {
         clearCurrentPath();
-        await loadImages();
+        await loadImages(cleanupHotspotsForDeletedImages);
         loadPanorama(`/upload/${data.newFilename}`, data.newFilename);
       } else {
         await showAlert('Error updating image: ' + data.message, 'Update');
