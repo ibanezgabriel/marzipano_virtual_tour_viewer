@@ -1,4 +1,5 @@
 import { getSelectedImageName, loadImages, loadPanorama } from '../marzipano-viewer.js';
+import { updateHotspotsForRenamedImage } from './hotspots.js';
 import { showAlert, showPrompt } from '../dialog.js';
 
 const renameBtnEl = document.getElementById('pano-rename-btn');
@@ -42,6 +43,7 @@ async function handleRename() {
     const data = await res.json();
 
     if (data.success) {
+      updateHotspotsForRenamedImage(selectedImageName, newFileName);
       await loadImages();
       loadPanorama(`/upload/${newFileName}`, newFileName);
     } else {

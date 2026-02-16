@@ -78,6 +78,26 @@ function loadHotspotsFromStorage() {
   }
 }
 
+/** Update hotspots when an image is renamed: change linkTo and map keys to use the new name. */
+export function updateHotspotsForRenamedImage(oldName, newName) {
+  let changed = false;
+  hotspotsByImage.forEach((list, imageName) => {
+    list.forEach((entry) => {
+      if (entry.linkTo === oldName) {
+        entry.linkTo = newName;
+        changed = true;
+      }
+    });
+  });
+  if (hotspotsByImage.has(oldName)) {
+    const list = hotspotsByImage.get(oldName);
+    hotspotsByImage.delete(oldName);
+    hotspotsByImage.set(newName, list);
+    changed = true;
+  }
+  if (changed) saveHotspotsToStorage();
+}
+
 /** Remove stored hotspots for image names that are no longer in the list (panorama deleted).
  *  Also remove any hotspot on other images that links to a deleted image (so image 1 shows no hotspot pointing to deleted image 2).
  */
@@ -244,8 +264,8 @@ function screenToViewCoords(clientX, clientY) {
 }
 
 async function addHotspotAt(clientX, clientY) {
-  const scene = getCurrentScene();
   const imageName = getSelectedImageName();
+  const scene = getCurrentScene();
   if (!scene || !imageName) return;
 
   const coords = screenToViewCoords(clientX, clientY);
@@ -279,7 +299,9 @@ async function addHotspotAt(clientX, clientY) {
     loadPanorama(originalPath, imageName);
   }
 
-  const container = scene.hotspotContainer();
+  const currentScene = getCurrentScene();
+  if (!currentScene) return;
+  const container = currentScene.hotspotContainer();
   const id = nextHotspotId++;
   const entry = {
     id,
