@@ -88,7 +88,7 @@ function bindClientHotspotClick(el, entry) {
     pin.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
-      loadPanorama(`/upload/${entry.linkTo}`, entry.linkTo);
+      loadPanorama(entry.linkTo);
     });
   }
 }

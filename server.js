@@ -2,6 +2,12 @@ const express = require('express');
 const multer = require('multer'); 
 const fs = require('fs');
 const path = require('path');
+const {
+  buildTilesForImage,
+  readTilesMeta,
+  tileIdFromFilename,
+  removeDirIfExists
+} = require('./lib/tiler');
 
 const app = express();
 const PORT = 3000;
@@ -10,6 +16,12 @@ const PORT = 3000;
 const uploadsDir = path.join(__dirname, 'upload');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
+}
+
+// Ensure tiles directory exists
+const tilesDir = path.join(__dirname, 'tiles');
+if (!fs.existsSync(tilesDir)) {
+  fs.mkdirSync(tilesDir);
 }
 
 // Ensure data directory exists (for hotspots etc.)
@@ -26,6 +38,7 @@ app.use(express.json());
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/upload', express.static(path.join(__dirname, 'upload')));
+app.use('/tiles', express.static(path.join(__dirname, 'tiles')));
 
 // Multer setup for uploads
 const storage = multer.diskStorage({
@@ -38,18 +51,53 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-app.post('/upload', upload.array("panorama", 20), (req, res)=>{
+async function listUploadedImages() {
+  const files = await fs.promises.readdir(uploadsDir);
+  return files.filter(file => /\.(jpg|jpeg|png|gif|webp)$/i.test(file));
+}
+
+async function ensureTilesForFilename(filename) {
+  const meta = await readTilesMeta({ tilesRootDir: tilesDir, filename });
+  if (meta) return meta;
+
+  const imagePath = path.join(uploadsDir, filename);
+  if (!fs.existsSync(imagePath)) {
+    throw new Error(`Image not found: ${filename}`);
+  }
+
+  await buildTilesForImage({
+    imagePath,
+    filename,
+    tilesRootDir: tilesDir
+  });
+  const builtMeta = await readTilesMeta({ tilesRootDir: tilesDir, filename });
+  if (!builtMeta) throw new Error('Tiles built but meta.json missing');
+  return builtMeta;
+}
+
+app.post('/upload', upload.array("panorama", 20), async (req, res)=>{
   if(!req.files || req.files.length === 0) {
     return res.status(400).json({
       success: false,
       message: "no file uploaded"
     });
   }
-  const imageURLs = req.files.map(file => `images${file.filename}`)
-  res.json({
+  try {
+    // Build tiles for each uploaded pano so it can be viewed immediately as multi-res.
+    for (const file of req.files) {
+      await ensureTilesForFilename(file.filename);
+    }
+    res.json({
       success: true,
-      imageURLs
-  });
+      uploaded: req.files.map(f => f.filename)
+    });
+  } catch (e) {
+    console.error('Tile generation failed:', e);
+    res.status(500).json({
+      success: false,
+      message: `Tile generation failed: ${e.message || e}`
+    });
+  }
 })
 
 // API to get list of images
@@ -59,6 +107,44 @@ app.get('/upload', (req, res) => {
     const images = files.filter(file => /\.(jpg|jpeg|png|gif|webp)$/i.test(file));
     res.json(images);
   });
+});
+
+// API to list panos with tile metadata (used by the viewer).
+app.get('/api/panos', async (req, res) => {
+  try {
+    const files = await listUploadedImages();
+    const result = [];
+    for (const filename of files) {
+      let meta = await readTilesMeta({ tilesRootDir: tilesDir, filename });
+      // Don't auto-build here to keep listing fast; UI will still work if tiles exist.
+      result.push({
+        filename,
+        tileId: tileIdFromFilename(filename),
+        tileReady: Boolean(meta),
+        tileSize: meta?.tileSize,
+        levels: meta?.levels,
+        aspectOk: meta?.aspectOk
+      });
+    }
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// API to get (and optionally build) tile metadata for one pano.
+app.get('/api/panos/:filename', async (req, res) => {
+  const filename = req.params.filename;
+  if (!filename) return res.status(400).json({ error: 'filename required' });
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return res.status(400).json({ error: 'Invalid filename' });
+  }
+  try {
+    const meta = await ensureTilesForFilename(filename);
+    res.json(meta);
+  } catch (e) {
+    res.status(500).json({ error: String(e.message || e) });
+  }
 });
 
 // API to rename an image
@@ -108,17 +194,38 @@ app.put('/upload/rename', (req, res) => {
         message: 'Error renaming file'
       });
     }
+    // Rename tiles folder if present.
+    const oldTileId = tileIdFromFilename(oldFilename);
+    const newTileId = tileIdFromFilename(newFilename);
+    const oldTilesPath = path.join(tilesDir, oldTileId);
+    const newTilesPath = path.join(tilesDir, newTileId);
+    if (fs.existsSync(oldTilesPath) && !fs.existsSync(newTilesPath)) {
+      try {
+        fs.renameSync(oldTilesPath, newTilesPath);
+        // Update meta.json filename field if present.
+        const metaPath = path.join(newTilesPath, 'meta.json');
+        if (fs.existsSync(metaPath)) {
+          const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+          meta.filename = newFilename;
+          meta.id = newTileId;
+          fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
+        }
+      } catch (e) {
+        console.error('Error renaming tiles folder:', e);
+      }
+    }
+
     res.json({
       success: true,
       message: 'File renamed successfully',
-      oldFilename: oldFilename,
-      newFilename: newFilename
+      oldFilename,
+      newFilename
     });
   });
 });
 
 // API to update an image
-app.put('/upload/update', upload.single('panorama'), (req, res) => {
+app.put('/upload/update', upload.single('panorama'), async (req, res) => {
   const oldFilename = req.body.oldFilename;
   
   if (!oldFilename) {
@@ -154,19 +261,27 @@ app.put('/upload/update', upload.single('panorama'), (req, res) => {
   }
 
   // Delete the old file
-  fs.unlink(oldFilePath, (err) => {
-    if (err) {
+  try {
+    await fs.promises.unlink(oldFilePath).catch((err) => {
       console.error('Error deleting old file:', err);
-      // Continue anyway, as new file is already uploaded
-    }
-    
+    });
+    // Remove old tiles and build new tiles.
+    await removeDirIfExists(path.join(tilesDir, tileIdFromFilename(oldFilename)));
+    await ensureTilesForFilename(req.file.filename);
+
     res.json({
       success: true,
       message: 'Image updated successfully',
       newFilename: req.file.filename,
-      oldFilename: oldFilename
+      oldFilename
     });
-  });
+  } catch (e) {
+    console.error('Error updating image tiles:', e);
+    res.status(500).json({
+      success: false,
+      message: `Error updating image tiles: ${e.message || e}`
+    });
+  }
 });
 
 // API to get hotspots (for client view)
@@ -225,6 +340,13 @@ app.delete('/upload/:filename', (req, res) => {
       return res.status(500).json({
         success: false,
         message: 'Error deleting file'
+      });
+    }
+    // Delete tiles folder too (best-effort).
+    const tilesPath = path.join(tilesDir, tileIdFromFilename(filename));
+    if (fs.existsSync(tilesPath)) {
+      fs.rm(tilesPath, { recursive: true, force: true }, (rmErr) => {
+        if (rmErr) console.error('Error deleting tiles folder:', rmErr);
       });
     }
     res.json({

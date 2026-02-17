@@ -3,7 +3,7 @@ import Marzipano from "https://cdn.skypack.dev/marzipano";
 // --- constants ---
 const MAX_FOV = 100 * Math.PI / 180;
 const MIN_FOV = 30 * Math.PI / 180;
-const IMAGE_WIDTH = 4000;
+const FALLBACK_EQUIRECT_WIDTH = 4000;
 
 // --- state ---
 let viewer = null;
@@ -28,8 +28,9 @@ export function initViewer() {
 }
 
 // Load a panorama image into Marzipano (exported for hotspot links and list)
-export function loadPanorama(imagePath, imageName) {
-  if (currentImagePath === imagePath) {
+export async function loadPanorama(imageName) {
+  const imagePath = `/upload/${imageName}`;
+  if (selectedImageName === imageName) {
     // Same image already shown; list may have been rebuilt (e.g. after upload), so re-apply highlight
     document.querySelectorAll('#pano-image-list li').forEach(li => li.classList.remove('active'));
     const sameLi = Array.from(document.querySelectorAll('#pano-image-list li')).find(li => li.textContent === imageName);
@@ -47,8 +48,24 @@ export function loadPanorama(imagePath, imageName) {
     }
   }
 
-  const source = Marzipano.ImageUrlSource.fromString(imagePath);
-  const geometry = new Marzipano.EquirectGeometry([{ width: IMAGE_WIDTH }]);
+  // Prefer tiled multi-resolution cube tiles (generated server-side).
+  // If tile meta fetch fails, fall back to non-tiled equirect.
+  let source = null;
+  let geometry = null;
+  try {
+    const res = await fetch(`/api/panos/${encodeURIComponent(imageName)}`);
+    const meta = await res.json();
+    if (!res.ok || !meta || !Array.isArray(meta.levels) || !meta.tileSize) {
+      throw new Error(meta?.error || 'Invalid tile metadata');
+    }
+    const levels = meta.levels.map((size) => ({ tileSize: meta.tileSize, size }));
+    geometry = new Marzipano.CubeGeometry(levels);
+    source = Marzipano.ImageUrlSource.fromString(`/tiles/${meta.id}/{z}/{f}/{y}/{x}.jpg`);
+  } catch (e) {
+    console.warn('Falling back to single-image pano:', e);
+    source = Marzipano.ImageUrlSource.fromString(imagePath);
+    geometry = new Marzipano.EquirectGeometry([{ width: FALLBACK_EQUIRECT_WIDTH }]);
+  }
   const limiter = Marzipano.RectilinearView.limit.traditional(MIN_FOV, MAX_FOV);
   const view = new Marzipano.RectilinearView(
     { yaw: 0, pitch: 0, fov: Math.PI / 2 },
@@ -75,14 +92,14 @@ export function loadPanorama(imagePath, imageName) {
 /** @param {(files: string[]) => void} [onImagesLoaded] Called with the list of image names after fetch. */
 export async function loadImages(onImagesLoaded) {
   try {
-    const res = await fetch("upload");
-    const files = await res.json();
-    const fileList = Array.isArray(files) ? files : [];
+    const res = await fetch("/api/panos");
+    const panos = await res.json();
+    const fileList = Array.isArray(panos) ? panos.map(p => p.filename) : [];
     if (typeof onImagesLoaded === 'function') onImagesLoaded(fileList);
 
     imageListEl.innerHTML = "";
 
-    if (files.length > 0) {
+    if (fileList.length > 0) {
       // Clear "No panoramas" placeholder so the viewer can show the first image (e.g. after first upload)
       if (panoViewerEl && panoViewerEl.querySelector('.no-pano-msg')) {
         panoViewerEl.innerHTML = '';
@@ -96,18 +113,18 @@ export async function loadImages(onImagesLoaded) {
       }
     }
 
-    files.forEach(file => {
+    fileList.forEach(file => {
       const li = document.createElement("li");
       li.textContent = file;
-      li.onclick = () => loadPanorama(`/upload/${file}`, file);
+      li.onclick = () => loadPanorama(file);
       imageListEl.appendChild(li);
     });
 
-    if (files.length > 0) {
+    if (fileList.length > 0) {
       const imageToShow = (selectedImageName && fileList.includes(selectedImageName))
         ? selectedImageName
         : fileList[0];
-      loadPanorama(`/upload/${imageToShow}`, imageToShow);
+      await loadPanorama(imageToShow);
     } else {
       currentScene = null;
       currentImagePath = null;
@@ -152,7 +169,7 @@ export function registerOnSceneLoad(callback) {
 
 /** Fetch and return the list of uploaded image file names. */
 export async function getImageList() {
-  const res = await fetch('upload');
-  const files = await res.json();
-  return Array.isArray(files) ? files : [];
+  const res = await fetch('/api/panos');
+  const panos = await res.json();
+  return Array.isArray(panos) ? panos.map(p => p.filename) : [];
 }

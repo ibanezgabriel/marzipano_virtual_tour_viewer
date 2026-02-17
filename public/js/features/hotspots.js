@@ -248,7 +248,7 @@ function bindHotspotClick(el, entry, imageName) {
         return;
       }
       if (entry.linkTo) {
-        loadPanorama(`/upload/${entry.linkTo}`, entry.linkTo);
+        loadPanorama(entry.linkTo);
       }
     });
   }
@@ -298,7 +298,7 @@ async function addHotspotAt(clientX, clientY) {
   if (!coords) return;
 
   let linkTo = null;
-  const originalPath = `/upload/${imageName}`;
+  const originalName = imageName;
   try {
     const imageList = await getImageList();
     const options = imageList.filter((name) => name !== imageName);
@@ -312,17 +312,17 @@ async function addHotspotAt(clientX, clientY) {
     const selected = await showSelectWithPreview(
       'Link hotspot to image',
       options,
-      (val) => loadPanorama(`/upload/${val}`, val)
+      (val) => loadPanorama(val)
     );
     if (selected === null) {
-      loadPanorama(originalPath, imageName);
+      loadPanorama(originalName);
       return;
     }
     linkTo = selected;
-    loadPanorama(originalPath, imageName);
+    loadPanorama(originalName);
   } catch (err) {
     linkTo = undefined;
-    loadPanorama(originalPath, imageName);
+    loadPanorama(originalName);
   }
 
   const currentScene = getCurrentScene();

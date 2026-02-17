@@ -45,7 +45,7 @@ async function handleRename() {
     if (data.success) {
       updateHotspotsForRenamedImage(selectedImageName, newFileName);
       await loadImages();
-      loadPanorama(`/upload/${newFileName}`, newFileName);
+      await loadPanorama(newFileName);
     } else {
       await showAlert('Error renaming image: ' + data.message, 'Rename');
     }
