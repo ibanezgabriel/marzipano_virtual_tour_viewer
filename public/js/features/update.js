@@ -41,7 +41,7 @@ async function handleUpdate() {
       if (data.success) {
         clearCurrentPath();
         await loadImages(cleanupHotspotsForDeletedImages);
-        loadPanorama(`/upload/${data.newFilename}`, data.newFilename);
+        await loadPanorama(data.newFilename);
       } else {
         await showAlert('Error updating image: ' + data.message, 'Update');
       }
