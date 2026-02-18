@@ -148,6 +148,11 @@ export function cleanupHotspotsForDeletedImages(validImageNames) {
         changed = true;
       }
     }
+    // Remove the image entry if its hotspot list is now empty
+    if (list.length === 0) {
+      hotspotsByImage.delete(imageName);
+      changed = true;
+    }
   });
   if (changed) saveHotspotsToStorage();
 }
