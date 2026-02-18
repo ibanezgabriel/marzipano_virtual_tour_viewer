@@ -182,6 +182,19 @@ function togglePlaceMode() {
   }
   if (hotspotBtnEl) hotspotBtnEl.classList.toggle('active', placeMode);
   panoViewerEl.classList.toggle('app-hotspot-place-mode', placeMode);
+  // Update all remove buttons immediately
+  setTimeout(() => {
+    document.querySelectorAll('.app-hotspot-remove').forEach(btn => {
+      if (placeMode) {
+        btn.disabled = true;
+        btn.classList.add('disabled');
+      } else {
+        btn.disabled = false;
+        btn.classList.remove('disabled');
+      }
+    });
+  }, 0);
+  document.dispatchEvent(new CustomEvent('app-hotspot-place-mode-changed'));
 }
 
 function restoreHotspotsForCurrentScene() {
