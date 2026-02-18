@@ -1,6 +1,6 @@
 body {
     overflow: hidden;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    font-family: monospace, sans-serif;
 }
 #pano-viewer {
     background: #000;
@@ -51,21 +51,13 @@ body {
     background: #c5d4db;
 }
 #pano-image-list li.active {
-    background-color: #2c5f6f;
+    background-color: #115272;
     color: #fff;
 }
 
 /* Hotspot place mode: crosshair cursor on viewer */
 #pano-viewer.app-hotspot-place-mode {
-    cursor: crosshair;
-}
-
-/* Hotspot link icon active state */
-#pano-hotspot-btn.pano-hotspot-link-icon.active {
-    background-color: #4a9ab8 !important;
-}
-#pano-hotspot-btn.pano-hotspot-link-icon.active:hover {
-    background-color: #5aaac8 !important;
+    cursor: crosshair !important;
 }
 
 /* Hotspot pin (blue circle) + remove button on top-right of dot (placed on panorama) */

@@ -28,7 +28,7 @@
 }
 
 #pano-sidebar {
-  width: 350px;
+  width: 300px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -64,13 +64,15 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  margin: 0;
-  padding: 8px;
+  margin: .3rem;
+  border-radius: .2rem;
   list-style: none;
+  background-color: white;
 }
 
 #pano-image-list li {
   padding: 10px 12px;
+  margin: .2rem;
   margin-bottom: 4px;
   border-radius: 4px;
   cursor: pointer;
@@ -95,8 +97,8 @@
   bottom: 24px;
   right: 24px;
   z-index: 1000;
-  width: 48px;
-  height: 48px;
+  width: 75px;
+  height: 75px;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -111,14 +113,18 @@
 }
 
 #pano-hotspot-btn.pano-hotspot-link-icon:hover {
-  background-color: #3a7a8f;
+  background-color: #3e8297;
   transform: scale(1.05);
 }
 
 #pano-hotspot-btn.pano-hotspot-link-icon.active {
-  background-color: #4a9ab8;
+  background-color: #ffffff;
 }
 
-#pano-hotspot-btn.pano-hotspot-link-icon svg {
-  flex-shrink: 0;
+#pano-hotspot-btn.pano-hotspot-link-icon img {
+  width: 45px;
+  height: 45px;
+  display: block;
+  margin: 0 auto;
+  pointer-events: none;
 }
