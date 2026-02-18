@@ -1,47 +1,124 @@
-#pano-viewer {
-    position: fixed;
-    width: 100%;
-    height: 100%;
-}
-#pano-features {
-    position: fixed;
-    width: 400px;
-    z-index: 1000;
-    padding: 10px;
-    & #pano-action {
-        display: flex;
-        align-items: stretch;
-        flex-wrap: nowrap;
-        gap: .3rem;
-    }
-    & #pano-upload-btn, 
-      #pano-update-btn,
-      #pano-rename-btn,
-      #pano-delete-btn,
-      #pano-hotspot-btn {
-        cursor: pointer;
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: .2rem;
-        padding: .6rem .75rem;
-    }
-    & #pano-list-btn {
-        width: 100%;
-        padding: .6rem .75rem;
-        margin-top: .3rem;
-        text-align: center;
-    }
-    & #pano-image-list {
-        margin: .5rem 0;
-    } 
-    & #pano-image-list li {
-        padding: 10px;
-        border-radius: .1rem;
-        overflow: hidden;
-        margin: .3rem;
-    }
+/* Admin panel layout: header + sidebar + viewer + hotspot icon */
+
+#pano-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #115272;
+  color: #fff;
+  font-weight: 600;
+  font-size: 1rem;
+  border-bottom: 1px solid #1e4452;
 }
 
+#pano-panel {
+  position: fixed;
+  top: 48px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  border: 1px solid #1e4452;
+}
+
+#pano-sidebar {
+  width: 350px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #115272;
+  border-right: 1px solid #1e4452;
+  overflow: hidden;
+}
+
+#pano-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+#pano-upload-btn,
+#pano-update-btn,
+#pano-rename-btn,
+#pano-delete-btn {
+  flex: 1;
+  min-width: calc(50% - 6px);
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#pano-image-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+}
+
+#pano-image-list li {
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#pano-viewer-wrap {
+  flex: 1;
+  position: relative;
+  background: #fff;
+  min-width: 0;
+}
+
+#pano-viewer {
+  position: absolute;
+  inset: 0;
+  background: #000;
+}
+
+/* Hotspot link icon - bottom right floating button */
+#pano-hotspot-btn.pano-hotspot-link-icon {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: #2c5f6f;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+#pano-hotspot-btn.pano-hotspot-link-icon:hover {
+  background-color: #3a7a8f;
+  transform: scale(1.05);
+}
+
+#pano-hotspot-btn.pano-hotspot-link-icon.active {
+  background-color: #4a9ab8;
+}
+
+#pano-hotspot-btn.pano-hotspot-link-icon svg {
+  flex-shrink: 0;
+}

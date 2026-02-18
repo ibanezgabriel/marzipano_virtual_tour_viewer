@@ -15,6 +15,13 @@ let onSceneLoadCallbacks = [];
 
 const imageListEl = document.getElementById('pano-image-list');
 const panoViewerEl = document.getElementById('pano-viewer');
+const headerTextEl = document.getElementById('pano-header-text');
+
+function updateHeaderText(imageName) {
+  if (headerTextEl) {
+    headerTextEl.textContent = imageName
+  }
+}
 
 // Initialize Marzipano viewer
 export function initViewer() {
@@ -39,6 +46,7 @@ export async function loadPanorama(imageName) {
   }
   currentImagePath = imagePath;
   selectedImageName = imageName;
+  updateHeaderText(imageName);
 
   if (!viewer) {
     viewer = initViewer();
@@ -130,6 +138,7 @@ export async function loadImages(onImagesLoaded) {
       currentImagePath = null;
       selectedImageName = null;
       viewer = null;
+      updateHeaderText(null);
       if (panoViewerEl) panoViewerEl.innerHTML = '<p class="no-pano-msg">No panoramas. Upload one to get started.</p>';
     }
   } catch (error) {
