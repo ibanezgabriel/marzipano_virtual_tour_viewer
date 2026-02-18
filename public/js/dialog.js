@@ -1,3 +1,31 @@
+// Show a non-dismissible progress dialog (e.g., for uploads)
+let progressDialogActive = false;
+export function showProgressDialog(message = 'Uploading, please wait...') {
+  getOrCreateDialog();
+  const titleEl = getTitle();
+  const messageEl = getMessage();
+  const inputWrap = getInput().closest('.app-dialog-input-wrap');
+  const actionsEl = getActions();
+  const selectWrap = getSelectWrap();
+
+  titleEl.textContent = '';
+  titleEl.style.display = 'none';
+  messageEl.textContent = message;
+  messageEl.style.display = 'block';
+  inputWrap.style.display = 'none';
+  selectWrap.style.display = 'none';
+  actionsEl.innerHTML = '';
+
+  showOverlay();
+  progressDialogActive = true;
+}
+
+export function hideProgressDialog() {
+  if (progressDialogActive) {
+    hideOverlay();
+    progressDialogActive = false;
+  }
+}
 /**
  * Centered dialog helpers: alert, confirm, prompt (replacing window.alert/confirm/prompt)
  */

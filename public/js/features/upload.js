@@ -1,5 +1,5 @@
 import { loadImages } from '../marzipano-viewer.js';
-import { showAlert } from '../dialog.js';
+import { showAlert, showProgressDialog, hideProgressDialog } from '../dialog.js';
 
 const addPanoEl = document.getElementById('add-scene');
 
@@ -34,12 +34,14 @@ async function handleUpload() {
   }
 
   try {
+    showProgressDialog('Uploading image(s), please wait...');
     const res = await fetch('./upload', {
       method: 'POST',
       body: formData
     });
 
     const data = await res.json();
+    hideProgressDialog();
     if (data.success) {
       await loadImages();
     } else {
@@ -47,6 +49,7 @@ async function handleUpload() {
     }
     addPanoEl.value = '';
   } catch (error) {
+    hideProgressDialog();
     console.error('Error uploading image:', error);
     await showAlert('Failed to upload. Please check your connection and try again.', 'Upload error');
     addPanoEl.value = '';

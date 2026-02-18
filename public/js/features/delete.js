@@ -29,7 +29,10 @@ async function handleDelete() {
 
     if (data.success) {
       clearSelection();
-      await loadImages(cleanupHotspotsForDeletedImages);
+      const { getImageList } = await import('../marzipano-viewer.js');
+      const imageList = await getImageList();
+      cleanupHotspotsForDeletedImages(imageList);
+      await loadImages();
     } else {
       await showAlert('Error deleting image: ' + data.message, 'Delete');
     }
