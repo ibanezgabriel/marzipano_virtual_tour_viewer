@@ -238,18 +238,39 @@ function bindHotspotClick(el, entry, imageName) {
   const pin = el.querySelector('.app-hotspot-pin-dot');
   const removeBtn = el.querySelector(`.${HOTSPOT_REMOVE_CLASS}`);
 
+
   removeBtn.addEventListener('click', (e) => {
+    if (placeMode) {
+      // Ignore remove clicks in place mode
+      e.stopPropagation();
+      e.preventDefault();
+      return;
+    }
     e.stopPropagation();
     e.preventDefault();
     removeHotspot(entry, imageName);
   });
+
+  // Visually disable the remove button in place mode
+  function updateRemoveBtnState() {
+    if (placeMode) {
+      removeBtn.disabled = true;
+      removeBtn.classList.add('disabled');
+    } else {
+      removeBtn.disabled = false;
+      removeBtn.classList.remove('disabled');
+    }
+  }
+  updateRemoveBtnState();
+  // Listen for placeMode changes
+  document.addEventListener('app-hotspot-place-mode-changed', updateRemoveBtnState);
 
   if (pin) {
     pin.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
       if (placeMode) {
-        removeHotspot(entry, imageName);
+        // Do nothing in place mode (no remove or link)
         return;
       }
       if (entry.linkTo) {
@@ -365,4 +386,9 @@ function onViewerClick(e) {
   e.preventDefault();
   e.stopPropagation();
   addHotspotAt(e.clientX, e.clientY);
+  // Exit place mode after one placement
+  placeMode = false;
+  panoViewerEl.removeEventListener('click', onViewerClick, true);
+  if (hotspotBtnEl) hotspotBtnEl.classList.remove('active');
+  panoViewerEl.classList.remove('app-hotspot-place-mode');
 }
