@@ -54,7 +54,6 @@ async function handleUpdate() {
       if (data.success) {
         clearCurrentPath();
         await loadImages(cleanupHotspotsForDeletedImages);
-        await loadPanorama(data.newFilename);
       } else {
         if (updatingLi && updatingLi.dataset.originalText) {
           updatingLi.textContent = updatingLi.dataset.originalText;

@@ -36,8 +36,17 @@ body.no-pano-header #pano-panel {
 #pano-list-btn {
   font-weight: 600;
 }
+.action-btn {
+    align-items: center;
+}
+.icons {
+  height: 13px;
+  width: 13px;
+  margin: 0 2px;
+}
 #pano-sidebar {
-  width: 300px;
+  width: 320px;
+  max-height: 500px;
   display: flex;
   position: absolute;
   padding-bottom: 4px;
@@ -50,7 +59,7 @@ body.no-pano-header #pano-panel {
 #pano-list-btn {
   padding: 5px;
   margin: 5px 10px 0 10px;
-  border-radius: 5px;
+  border-radius: 2px;
 }
 #pano-action {
   display: flex;
@@ -65,17 +74,15 @@ body.no-pano-header #pano-panel {
 #pano-delete-btn {
   flex: 1;
   padding: 5px;
-  font-size: 0.9rem;
   font-weight: 600;
+  font-size: 12px;
   display: flex;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
 }
 
 #pano-image-list {
-  flex: 1;
-  min-height: 0;
   overflow-y: auto;
   margin: .3rem;
   border-radius: .2rem;
@@ -111,7 +118,7 @@ body.no-pano-header #pano-panel {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  z-index: 1000;
+  z-index: 10;
   width: 55px;
   height: 55px;
   padding: 0;

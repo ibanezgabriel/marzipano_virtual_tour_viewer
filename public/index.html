@@ -15,10 +15,18 @@
             <button id="pano-list-btn">Panoramic Scenes</button>
             <div id="pano-action">
                 <input type="file" id="add-scene" accept="image/*" multiple hidden>
-                <label for="add-scene" id="pano-upload-btn">Upload</label>
-                <button id="pano-update-btn">Update</button>
-                <button id="pano-rename-btn">Rename</button>
-                <button id="pano-delete-btn">Delete</button>
+                <label for="add-scene" id="pano-upload-btn" class="action-btn">
+                    <img src="assets/upload.png" class="icons"> Upload
+                </label>
+                <button id="pano-update-btn" class="action-btn">
+                    <img src="assets/update.png" class="icons"> Update
+                </button>
+                <button id="pano-rename-btn" class="action-btn">
+                    <img src="assets/rename.png" class="icons"> Rename
+                </button>
+                <button id="pano-delete-btn" class="action-btn">
+                    <img src="assets/delete.png" class="icons"> Delete
+                </button>
             </div>
             <ul id="pano-image-list"></ul>
         </aside>
