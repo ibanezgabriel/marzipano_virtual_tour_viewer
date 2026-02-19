@@ -15,28 +15,33 @@ body {
     height: 100%;
     box-sizing: border-box;
 }
-
-/* Admin sidebar action buttons - light blue */
-#pano-upload-btn,
-#pano-update-btn,
-#pano-rename-btn,
-#pano-delete-btn {
-    background-color: #5a9fc4;
+.action-btn {
     color: #fff;
-    font-weight: 600;
     border-radius: 4px;
+    font-weight: 600;
     transition: background 0.2s, color 0.2s;
 }
-#pano-upload-btn:hover,
-#pano-update-btn:hover,
-#pano-rename-btn:hover,
-#pano-delete-btn:hover {
-    background-color: #3e8297;
+#pano-upload-btn {
+    background-color: rgb(0, 0, 193);
 }
+#pano-delete-btn {
+  background-color: rgb(198, 0, 0);
+}
+#pano-rename-btn {
+    background-color: rgb(0, 203, 0);
+}
+#pano-update-btn {
+    background-color: rgb(209, 209, 32);
+}
+.action-btn:hover {
+    background-color: rgb(4, 4, 58);
+}
+
 #pano-list-btn {
   background-color: #6ab0d4;
   color: white;
-  transition: background 0.2s ease, color 0.2s 
+  transition: background 0.2s ease, color 0.2s;
+  cursor: pointer;
 }
 #pano-list-btn:hover {
     background-color: #3e8297;
