@@ -7,11 +7,12 @@
     <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
-    <header id="pano-header">
-        <span id="pano-header-text">image name</span>
+    <header id="pano-header" style="display:none;">
+        <span id="pano-header-text"></span>
     </header>
     <main id="pano-panel">
         <aside id="pano-sidebar">
+            <button id="pano-list-btn">Panoramic Scenes</button>
             <div id="pano-action">
                 <input type="file" id="add-scene" accept="image/*" multiple hidden>
                 <label for="add-scene" id="pano-upload-btn">Upload</label>
@@ -24,7 +25,7 @@
         <div id="pano-viewer-wrap">
             <div id="pano-viewer"></div>
         </div>
-        <button id="pano-hotspot-btn" type="button" class="pano-hotspot-link-icon" aria-label="Hotspot">
+        <button id="pano-hotspot-btn" type="button" class="pano-hotspot-link-icon">
                 <img src="assets/hotspot-icon.png" alt="Hotspot"/>
         </button>
     </main>

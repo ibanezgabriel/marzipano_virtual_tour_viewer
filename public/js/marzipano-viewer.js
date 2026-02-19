@@ -16,10 +16,19 @@ let onSceneLoadCallbacks = [];
 const imageListEl = document.getElementById('pano-image-list');
 const panoViewerEl = document.getElementById('pano-viewer');
 const headerTextEl = document.getElementById('pano-header-text');
+const headerEl = document.getElementById('pano-header');
 
 function updateHeaderText(imageName) {
-  if (headerTextEl) {
-    headerTextEl.textContent = imageName
+  if (headerTextEl && headerEl) {
+    if (imageName) {
+      headerTextEl.textContent = imageName;
+      headerEl.style.display = '';
+      document.body.classList.remove('no-pano-header');
+    } else {
+      headerTextEl.textContent = '';
+      headerEl.style.display = 'none';
+      document.body.classList.add('no-pano-header');
+    }
   }
 }
 

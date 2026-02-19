@@ -31,7 +31,15 @@ body {
 #pano-update-btn:hover,
 #pano-rename-btn:hover,
 #pano-delete-btn:hover {
-    background-color: #6ab0d4;
+    background-color: #3e8297;
+}
+#pano-list-btn {
+  background-color: #6ab0d4;
+  color: white;
+  transition: background 0.2s ease, color 0.2s 
+}
+#pano-list-btn:hover {
+    background-color: #3e8297;
 }
 
 /* Image list - always visible, light gray items, darker blue when selected */
