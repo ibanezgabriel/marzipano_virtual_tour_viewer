@@ -30,6 +30,11 @@ body.no-pano-header #pano-panel {
 .home-main .action-btn:hover {
     background: #0d3d52;
 }
+#project-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
 .home-main h1 {
     font-size: 1.5rem;
     color: #333;
@@ -39,11 +44,14 @@ body.no-pano-header #pano-panel {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    width: 100%;
+    max-width: 800px;
 }
 .project-row {
     display: flex;
     align-items: center;
     gap: 12px;
+    width: 100%;
     max-width: 800px;
 }
 .project-name-input {
@@ -107,6 +115,7 @@ body.no-pano-header #pano-panel {
     color: #888;
     font-size: 1rem;
     padding: 24px 0;
+    text-align: center;
 }
 .modal-overlay {
     display: none;

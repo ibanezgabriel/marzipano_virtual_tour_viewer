@@ -1,4 +1,4 @@
-import { getSelectedImageName, loadImages, clearSelection } from '../marzipano-viewer.js';
+import { getSelectedImageNames, loadImages, clearSelection } from '../marzipano-viewer.js';
 import { cleanupHotspotsForDeletedImages } from './hotspots.js';
 import { showAlert, showConfirm } from '../dialog.js';
 import { appendProjectParams } from '../project-context.js';
@@ -7,37 +7,47 @@ const deleteBtnEl = document.getElementById('pano-delete-btn');
 
 export function initDelete() {
   deleteBtnEl.addEventListener('click', handleDelete);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      const target = e.target;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      e.preventDefault();
+      handleDelete();
+    }
+  });
 }
 
 async function handleDelete() {
-  const selectedImageName = getSelectedImageName();
-  if (!selectedImageName) {
-    await showAlert('Please select an image to delete.', 'Delete');
+  const selectedNames = getSelectedImageNames();
+  if (selectedNames.length === 0) {
+    await showAlert('Please select one or more images to delete (use Ctrl+click for multi-select).', 'Delete');
     return;
   }
 
-  const confirmDelete = await showConfirm(`Are you sure you want to delete "${selectedImageName}"?`, 'Delete');
-  if (!confirmDelete) {
-    return;
-  }
+  const msg = selectedNames.length === 1
+    ? `Are you sure you want to delete "${selectedNames[0]}"?`
+    : `Are you sure you want to delete ${selectedNames.length} images?`;
+  const confirmDelete = await showConfirm(msg, 'Delete');
+  if (!confirmDelete) return;
 
-  try {
-    const res = await fetch(appendProjectParams(`/upload/${encodeURIComponent(selectedImageName)}`), {
-      method: 'DELETE'
-    });
-
-    const data = await res.json();
-
-    if (data.success) {
-      clearSelection();
-      const { getImageList } = await import('../marzipano-viewer.js');
-      const imageList = await getImageList();
-      cleanupHotspotsForDeletedImages(imageList);
-      await loadImages();
-    } else {
-      await showAlert('Error deleting image: ' + data.message, 'Delete');
+  const errors = [];
+  for (const name of selectedNames) {
+    try {
+      const res = await fetch(appendProjectParams(`/upload/${encodeURIComponent(name)}`), { method: 'DELETE' });
+      const data = await res.json();
+      if (!data.success) errors.push(`${name}: ${data.message}`);
+    } catch (err) {
+      errors.push(`${name}: ${err.message}`);
     }
-  } catch (error) {
-    await showAlert('Error deleting image: ' + error, 'Delete');
+  }
+
+  clearSelection();
+  const { getImageList } = await import('../marzipano-viewer.js');
+  const imageList = await getImageList();
+  cleanupHotspotsForDeletedImages(imageList);
+  await loadImages();
+
+  if (errors.length > 0) {
+    await showAlert('Some images could not be deleted:\n' + errors.join('\n'), 'Delete');
   }
 }

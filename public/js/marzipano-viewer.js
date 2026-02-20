@@ -11,6 +11,8 @@ let viewer = null;
 let currentScene = null;
 let currentImagePath = null;
 let selectedImageName = null;
+/** @type {Set<string>} Image names selected via Ctrl+click for bulk delete */
+let multiSelectedNames = new Set();
 /** @type {Array<() => void>} Callbacks run when a scene has finished loading (after switchTo). */
 let onSceneLoadCallbacks = [];
 
@@ -115,6 +117,7 @@ export async function loadImages(onImagesLoaded) {
     const fileList = Array.isArray(panos) ? panos.map(p => p.filename) : [];
     if (typeof onImagesLoaded === 'function') onImagesLoaded(fileList);
 
+    multiSelectedNames = new Set([...multiSelectedNames].filter((n) => fileList.includes(n)));
     imageListEl.innerHTML = "";
 
     if (fileList.length > 0) {
@@ -134,7 +137,15 @@ export async function loadImages(onImagesLoaded) {
     fileList.forEach(file => {
       const li = document.createElement("li");
       li.textContent = file;
-      li.onclick = () => loadPanorama(file);
+      li.onclick = (e) => {
+        if (e.ctrlKey || e.metaKey) {
+          toggleMultiSelect(file, li);
+        } else {
+          clearMultiSelection();
+          loadPanorama(file);
+        }
+      };
+      updateSelectedClass(li, file);
       imageListEl.appendChild(li);
     });
 
@@ -156,13 +167,45 @@ export async function loadImages(onImagesLoaded) {
   }
 }
 
+function toggleMultiSelect(imageName, li) {
+  if (multiSelectedNames.has(imageName)) {
+    multiSelectedNames.delete(imageName);
+    li.classList.remove('selected');
+  } else {
+    multiSelectedNames.add(imageName);
+    li.classList.add('selected');
+  }
+}
+
+function updateSelectedClass(li, imageName) {
+  if (multiSelectedNames.has(imageName)) {
+    li.classList.add('selected');
+  } else {
+    li.classList.remove('selected');
+  }
+}
+
 export function getSelectedImageName() {
   return selectedImageName;
+}
+
+/** @returns {string[]} Image names to delete: multi-selected, or [active] if none multi-selected */
+export function getSelectedImageNames() {
+  if (multiSelectedNames.size > 0) {
+    return Array.from(multiSelectedNames);
+  }
+  return selectedImageName ? [selectedImageName] : [];
+}
+
+export function clearMultiSelection() {
+  multiSelectedNames.clear();
+  document.querySelectorAll('#pano-image-list li.selected').forEach(li => li.classList.remove('selected'));
 }
 
 export function clearSelection() {
   currentImagePath = null;
   selectedImageName = null;
+  clearMultiSelection();
 }
 
 export function clearCurrentPath() {
