@@ -45,6 +45,11 @@ body.no-pano-header #pano-panel {
   display: flex;
   border: 1px solid #1e4452;
 }
+#btn-new-project, #btn-open-project {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 #pano-list-btn {
   font-weight: 600;
 }
