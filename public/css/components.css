@@ -1,6 +1,10 @@
+@font-face {
+    font-family: "Poppins";
+    src: url('../assets/Poppins/Poppins-Regular.ttf');
+}
 body {
     overflow: hidden;
-    font-family: monospace, sans-serif;
+    font-family: "Poppins";
 }
 #pano-viewer {
     background: #000;

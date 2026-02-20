@@ -6,7 +6,171 @@ body.no-pano-header #pano-panel {
   top: 0 !important;
 }
 /* Admin panel layout: header + sidebar + viewer + hotspot icon */
-
+.home-main {
+    flex: 1;
+    padding: 40px 60px;
+    overflow-y: auto;
+}
+.home-main .action-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.home-main .action-btn {
+    padding: 12px 24px;
+    background: #115272;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.home-main .action-btn:hover {
+    background: #0d3d52;
+}
+.home-main h1 {
+    font-size: 1.5rem;
+    color: #333;
+    margin-bottom: 28px;
+}
+.project-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.project-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 800px;
+}
+.project-name-input {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 16px;
+    background: #e8ecef;
+    border: 1px solid #d0d5da;
+    border-radius: 4px;
+    font-size: 1rem;
+    color: #333;
+}
+.project-name-input::placeholder {
+    color: #888;
+}
+.project-name-input:focus {
+    outline: none;
+    border-color: #115272;
+    background: #fff;
+}
+.project-row .btn-rename {
+    padding: 10px 20px;
+    background: #115272;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.project-row .btn-rename:hover {
+    background: #0d3d52;
+}
+.project-row .btn-delete {
+    padding: 10px 20px;
+    background: #c62828;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.project-row .btn-delete:hover {
+    background: #a01d1d;
+}
+.project-row .btn-open {
+    padding: 10px 20px;
+    background: #2e7d32;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.project-row .btn-open:hover {
+    background: #1b5e20;
+}
+.empty-state {
+    color: #888;
+    font-size: 1rem;
+    padding: 24px 0;
+}
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+.modal-overlay.visible { display: flex; }
+.modal {
+    background: #fff;
+    padding: 24px;
+    border-radius: 8px;
+    min-width: 360px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+.modal h2 { margin-bottom: 16px; font-size: 1.25rem; }
+.modal input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+.modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+.modal-actions button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.modal-actions .btn-primary {
+    background: #115272;
+    color: #fff;
+}
+.modal-actions .btn-secondary {
+    background: #e0e0e0;
+    color: #333;
+}
+.modal-error {
+    color: #c62828;
+    font-size: 0.9rem;
+    margin: -8px 0 12px 0;
+    min-height: 1.2em;
+}
+.project-name-display {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 16px;
+    background: #e8ecef;
+    border: 1px solid #d0d5da;
+    border-radius: 4px;
+    font-size: 1rem;
+    color: #333;
+    cursor: pointer;
+}
 #pano-header {
   position: fixed;
   top: 0;
@@ -27,15 +191,16 @@ body.no-pano-header #pano-panel {
   position: absolute;
   left: 12px;
   color: #fff;
+  background-color: #18719e;
   text-decoration: none;
-  opacity: 0.9;
   font-size: 0.9rem;
+  border-radius: 5px;
+  padding: 5px;
 }
-#pano-back-link:hover {
-  opacity: 1;
-  text-decoration: underline;
+#pano-back-link > img {
+  height: 15px;
+  width: 15px;
 }
-
 #pano-panel {
   position: fixed;
   top: 35px;
