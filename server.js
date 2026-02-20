@@ -251,8 +251,8 @@ app.post('/api/projects', (req, res) => {
 });
 
 app.put('/api/projects/:id', (req, res) => {
-  const id = req.params.id;
-  if (id.includes('..') || id.includes('/') || id.includes('\\')) {
+  const oldId = req.params.id;
+  if (oldId.includes('..') || oldId.includes('/') || oldId.includes('\\')) {
     return res.status(400).json({ success: false, message: 'Invalid project id' });
   }
   const { name } = req.body || {};
@@ -260,8 +260,32 @@ app.put('/api/projects/:id', (req, res) => {
     return res.status(400).json({ success: false, message: 'Project name is required' });
   }
   const projects = getProjectsManifest();
-  const idx = projects.findIndex(p => p.id === id);
+  const idx = projects.findIndex(p => p.id === oldId);
   if (idx === -1) return res.status(404).json({ success: false, message: 'Project not found' });
+
+  let newId = sanitizeProjectId(name.trim());
+  if (projects.some((p, i) => i !== idx && p.id === newId)) {
+    let suffix = 1;
+    while (projects.some((p, i) => i !== idx && p.id === `${newId}-${suffix}`)) suffix++;
+    newId = `${newId}-${suffix}`;
+  }
+
+  if (newId !== oldId) {
+    const oldPaths = getProjectPaths(oldId);
+    const newPaths = getProjectPaths(newId);
+    if (oldPaths && newPaths && fs.existsSync(oldPaths.base)) {
+      if (fs.existsSync(newPaths.base)) {
+        return res.status(409).json({ success: false, message: `A project folder "${newId}" already exists` });
+      }
+      try {
+        fs.renameSync(oldPaths.base, newPaths.base);
+      } catch (e) {
+        console.error('Error renaming project folder:', e);
+        return res.status(500).json({ success: false, message: `Failed to rename folder: ${e.message || e}` });
+      }
+    }
+    projects[idx].id = newId;
+  }
   projects[idx].name = name.trim();
   writeProjectsManifest(projects);
   res.json(projects[idx]);
