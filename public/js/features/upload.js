@@ -1,5 +1,6 @@
 import { loadImages } from '../marzipano-viewer.js';
 import { showAlert, showProgressDialog, hideProgressDialog } from '../dialog.js';
+import { appendProjectParams } from '../project-context.js';
 
 const addPanoEl = document.getElementById('add-scene');
 
@@ -35,7 +36,7 @@ async function handleUpload() {
 
   try {
     showProgressDialog('Uploading image(s), please wait...');
-    const res = await fetch('./upload', {
+    const res = await fetch(appendProjectParams('/upload'), {
       method: 'POST',
       body: formData
     });

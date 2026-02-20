@@ -1,6 +1,7 @@
 import { getSelectedImageName, loadImages, loadPanorama, clearCurrentPath } from '../marzipano-viewer.js';
 import { cleanupHotspotsForDeletedImages } from './hotspots.js';
 import { showAlert } from '../dialog.js';
+import { appendProjectParams } from '../project-context.js';
 
 const updateBtnEl = document.getElementById('pano-update-btn');
 
@@ -44,7 +45,7 @@ async function handleUpdate() {
     }
 
     try {
-      const res = await fetch('/upload/update', {
+      const res = await fetch(appendProjectParams('/upload/update'), {
         method: 'PUT',
         body: formData
       });

@@ -23,6 +23,18 @@ body.no-pano-header #pano-panel {
   font-size: 1rem;
   border-bottom: 1px solid #1e4452;
 }
+#pano-back-link {
+  position: absolute;
+  left: 12px;
+  color: #fff;
+  text-decoration: none;
+  opacity: 0.9;
+  font-size: 0.9rem;
+}
+#pano-back-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
 
 #pano-panel {
   position: fixed;

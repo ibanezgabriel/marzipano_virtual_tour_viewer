@@ -1,6 +1,7 @@
 import { getSelectedImageName, loadImages, clearSelection } from '../marzipano-viewer.js';
 import { cleanupHotspotsForDeletedImages } from './hotspots.js';
 import { showAlert, showConfirm } from '../dialog.js';
+import { appendProjectParams } from '../project-context.js';
 
 const deleteBtnEl = document.getElementById('pano-delete-btn');
 
@@ -21,7 +22,7 @@ async function handleDelete() {
   }
 
   try {
-    const res = await fetch(`/upload/${selectedImageName}`, {
+    const res = await fetch(appendProjectParams(`/upload/${encodeURIComponent(selectedImageName)}`), {
       method: 'DELETE'
     });
 

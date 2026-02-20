@@ -1,6 +1,7 @@
 import { getSelectedImageName, loadImages, loadPanorama } from '../marzipano-viewer.js';
 import { updateHotspotsForRenamedImage } from './hotspots.js';
 import { showAlert, showPrompt } from '../dialog.js';
+import { appendProjectParams } from '../project-context.js';
 
 const renameBtnEl = document.getElementById('pano-rename-btn');
 
@@ -31,7 +32,7 @@ async function handleRename() {
   }
 
   try {
-    const res = await fetch('/upload/rename', {
+    const res = await fetch(appendProjectParams('/upload/rename'), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

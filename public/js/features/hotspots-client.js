@@ -8,6 +8,7 @@ import {
   loadPanorama,
   registerOnSceneLoad,
 } from '../marzipano-viewer.js';
+import { appendProjectParams } from '../project-context.js';
 
 const HOTSPOT_CLASS = 'app-hotspot-pin';
 const STORAGE_KEY = 'marzipano-hotspots';
@@ -45,7 +46,7 @@ function loadHotspotsFromLocalStorage() {
 async function loadHotspots() {
   hotspotsByImage.clear();
   try {
-    const res = await fetch('/api/hotspots');
+    const res = await fetch(appendProjectParams('/api/hotspots'));
     if (res.ok) {
       const data = await res.json();
       parseHotspotsPayload(data);

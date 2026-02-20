@@ -9,6 +9,7 @@ import {
   registerOnSceneLoad,
 } from '../marzipano-viewer.js';
 import { showSelectWithPreview, showAlert } from '../dialog.js';
+import { appendProjectParams } from '../project-context.js';
 
 const HOTSPOT_CLASS = 'app-hotspot-pin';
 const HOTSPOT_REMOVE_CLASS = 'app-hotspot-remove';
@@ -50,7 +51,7 @@ function saveHotspotsToStorage() {
     console.warn('Could not save hotspots to localStorage', e);
   }
   // Persist to server so client view can load hotspots from any device
-  fetch('/api/hotspots', {
+  fetch(appendProjectParams('/api/hotspots'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -92,7 +93,7 @@ function loadHotspotsFromStorage() {
 
 /** Load hotspots from server so admin on any device sees the same data. Returns a Promise. */
 async function loadHotspotsFromServer() {
-  const res = await fetch('/api/hotspots');
+  const res = await fetch(appendProjectParams('/api/hotspots'));
   if (!res.ok) throw new Error('Hotspots fetch failed');
   const data = await res.json();
   hotspotsByImage.clear();

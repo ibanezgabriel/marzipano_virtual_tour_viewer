@@ -12,58 +12,150 @@ const {
 const app = express();
 const PORT = 3000;
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, 'upload');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
+// Projects root: each project has upload/, tiles/, data/ in one folder
+const projectsDir = path.join(__dirname, 'projects');
+const projectsManifestPath = path.join(projectsDir, 'projects.json');
+
+if (!fs.existsSync(projectsDir)) {
+  fs.mkdirSync(projectsDir, { recursive: true });
 }
 
-// Ensure tiles directory exists
-const tilesDir = path.join(__dirname, 'tiles');
-if (!fs.existsSync(tilesDir)) {
-  fs.mkdirSync(tilesDir);
+// Legacy paths (used when no project specified - backward compat)
+const legacyUploadsDir = path.join(__dirname, 'upload');
+const legacyTilesDir = path.join(__dirname, 'tiles');
+const legacyDataDir = path.join(__dirname, 'public', 'data');
+[legacyUploadsDir, legacyTilesDir, legacyDataDir].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
+const legacyHotspotsPath = path.join(legacyDataDir, 'hotspots.json');
+const legacyPanoramaOrderPath = path.join(legacyDataDir, 'panorama-order.json');
+
+function getProjectsManifest() {
+  try {
+    const raw = fs.readFileSync(projectsManifestPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    if (e.code !== 'ENOENT') console.error('Error reading projects manifest:', e);
+    return [];
+  }
 }
 
-// Ensure data directory exists (for hotspots etc.)
-const dataDir = path.join(__dirname, 'public', 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir);
+function writeProjectsManifest(projects) {
+  fs.writeFileSync(projectsManifestPath, JSON.stringify(projects, null, 2), 'utf8');
 }
 
-const hotspotsPath = path.join(dataDir, 'hotspots.json');
-const panoramaOrderPath = path.join(dataDir, 'panorama-order.json');
+function sanitizeProjectId(name) {
+  return name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '') || 'project';
+}
+
+/** Get paths for a project. projectId must be validated (no .., no slashes). */
+function getProjectPaths(projectId) {
+  if (!projectId || projectId.includes('..') || /[\/\\]/.test(projectId)) return null;
+  const base = path.join(projectsDir, projectId);
+  return {
+    base,
+    upload: path.join(base, 'upload'),
+    tiles: path.join(base, 'tiles'),
+    data: path.join(base, 'data'),
+  };
+}
+
+function ensureProjectDirs(projectId) {
+  const p = getProjectPaths(projectId);
+  if (!p) return null;
+  [p.upload, p.tiles, p.data].forEach(dir => {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  });
+  return p;
+}
+
+/** Resolve paths: use project if provided, else legacy. */
+function resolvePaths(req) {
+  const projectId = req.query.project || (req.body && req.body.project);
+  if (projectId) {
+    const p = getProjectPaths(projectId);
+    if (p) {
+      return {
+        uploadsDir: p.upload,
+        tilesDir: p.tiles,
+        hotspotsPath: path.join(p.data, 'hotspots.json'),
+        panoramaOrderPath: path.join(p.data, 'panorama-order.json'),
+        projectId,
+      };
+    }
+  }
+  return {
+    uploadsDir: legacyUploadsDir,
+    tilesDir: legacyTilesDir,
+    hotspotsPath: legacyHotspotsPath,
+    panoramaOrderPath: legacyPanoramaOrderPath,
+    projectId: null,
+  };
+}
 
 // Middleware to parse JSON bodies
 app.use(express.json());
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/upload', express.static(path.join(__dirname, 'upload')));
-app.use('/tiles', express.static(path.join(__dirname, 'tiles')));
 
-// Multer setup for uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'upload/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
-  },
+// Legacy static (no project)
+app.use('/upload', express.static(legacyUploadsDir));
+app.use('/tiles', express.static(legacyTilesDir));
+
+// Project-scoped static: /projects/:id/upload and /projects/:id/tiles
+const projectRouter = express.Router({ mergeParams: true });
+projectRouter.use('/upload', (req, res, next) => {
+  const id = req.params.projectId;
+  if (id.includes('..') || id.includes('/') || id.includes('\\')) return res.status(400).send('Invalid project');
+  const p = getProjectPaths(id);
+  if (!p) return res.status(400).send('Invalid project');
+  if (!fs.existsSync(p.upload)) return next();
+  express.static(p.upload)(req, res, next);
 });
-const upload = multer({ storage });
+projectRouter.use('/tiles', (req, res, next) => {
+  const id = req.params.projectId;
+  if (id.includes('..') || id.includes('/') || id.includes('\\')) return res.status(400).send('Invalid project');
+  const p = getProjectPaths(id);
+  if (!p) return res.status(400).send('Invalid project');
+  if (!fs.existsSync(p.tiles)) return next();
+  express.static(p.tiles)(req, res, next);
+});
+app.use('/projects/:projectId', projectRouter);
 
-async function listUploadedImages() {
+// Multer: dynamic destination based on project (set by route)
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const projectId = req.query.project || (req.body && req.body.project);
+      let dir = legacyUploadsDir;
+      if (projectId) {
+        const p = getProjectPaths(projectId);
+        if (p) dir = p.upload;
+      }
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      cb(null, Date.now() + '-' + file.originalname);
+    },
+  }),
+});
+
+async function listUploadedImages(uploadsDir) {
   const files = await fs.promises.readdir(uploadsDir);
   return files.filter(file => /\.(jpg|jpeg|png|gif|webp)$/i.test(file));
 }
 
 /** Return ordered list of panorama filenames: stored order first, then any new uploads not in list. */
-async function getOrderedFilenames() {
-  const existing = await listUploadedImages();
+async function getOrderedFilenames(paths) {
+  const existing = await listUploadedImages(paths.uploadsDir);
   const existingSet = new Set(existing);
   let order = [];
   try {
-    const raw = fs.readFileSync(panoramaOrderPath, 'utf8');
+    const raw = fs.readFileSync(paths.panoramaOrderPath, 'utf8');
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) order = parsed.filter(f => existingSet.has(f));
   } catch (e) {
@@ -73,12 +165,12 @@ async function getOrderedFilenames() {
   const appended = existing.filter(f => !inOrder.has(f));
   const result = [...order, ...appended];
   if (order.length === 0 && result.length > 0) {
-    writePanoramaOrder(result);
+    writePanoramaOrder(paths.panoramaOrderPath, result);
   }
   return result;
 }
 
-function readPanoramaOrder() {
+function readPanoramaOrder(panoramaOrderPath) {
   try {
     const raw = fs.readFileSync(panoramaOrderPath, 'utf8');
     const parsed = JSON.parse(raw);
@@ -89,35 +181,35 @@ function readPanoramaOrder() {
   }
 }
 
-function writePanoramaOrder(order) {
+function writePanoramaOrder(panoramaOrderPath, order) {
   fs.writeFileSync(panoramaOrderPath, JSON.stringify(order, null, 2), 'utf8');
 }
 
-function panoramaOrderReplace(oldFilename, newFilename) {
-  const order = readPanoramaOrder();
+function panoramaOrderReplace(paths, oldFilename, newFilename) {
+  const order = readPanoramaOrder(paths.panoramaOrderPath);
   const i = order.indexOf(oldFilename);
   if (i !== -1) order[i] = newFilename;
   else order.push(newFilename);
-  writePanoramaOrder(order);
+  writePanoramaOrder(paths.panoramaOrderPath, order);
 }
 
-function panoramaOrderRemove(filename) {
-  const order = readPanoramaOrder().filter(f => f !== filename);
-  writePanoramaOrder(order);
+function panoramaOrderRemove(paths, filename) {
+  const order = readPanoramaOrder(paths.panoramaOrderPath).filter(f => f !== filename);
+  writePanoramaOrder(paths.panoramaOrderPath, order);
 }
 
-function panoramaOrderAppend(filenames) {
-  const order = readPanoramaOrder();
+function panoramaOrderAppend(paths, filenames) {
+  const order = readPanoramaOrder(paths.panoramaOrderPath);
   const set = new Set(order);
   for (const f of filenames) if (!set.has(f)) { order.push(f); set.add(f); }
-  writePanoramaOrder(order);
+  writePanoramaOrder(paths.panoramaOrderPath, order);
 }
 
-async function ensureTilesForFilename(filename) {
-  const meta = await readTilesMeta({ tilesRootDir: tilesDir, filename });
+async function ensureTilesForFilename(paths, filename) {
+  const meta = await readTilesMeta({ tilesRootDir: paths.tilesDir, filename });
   if (meta) return meta;
 
-  const imagePath = path.join(uploadsDir, filename);
+  const imagePath = path.join(paths.uploadsDir, filename);
   if (!fs.existsSync(imagePath)) {
     throw new Error(`Image not found: ${filename}`);
   }
@@ -125,13 +217,74 @@ async function ensureTilesForFilename(filename) {
   await buildTilesForImage({
     imagePath,
     filename,
-    tilesRootDir: tilesDir
+    tilesRootDir: paths.tilesDir
   });
-  const builtMeta = await readTilesMeta({ tilesRootDir: tilesDir, filename });
+  const builtMeta = await readTilesMeta({ tilesRootDir: paths.tilesDir, filename });
   if (!builtMeta) throw new Error('Tiles built but meta.json missing');
   return builtMeta;
 }
 
+// ---- Project APIs ----
+app.get('/api/projects', (req, res) => {
+  const projects = getProjectsManifest();
+  res.json(projects);
+});
+
+app.post('/api/projects', (req, res) => {
+  const { name } = req.body || {};
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ success: false, message: 'Project name is required' });
+  }
+  let id = sanitizeProjectId(name);
+  const projects = getProjectsManifest();
+  if (projects.some(p => p.id === id)) {
+    let suffix = 1;
+    while (projects.some(p => p.id === `${id}-${suffix}`)) suffix++;
+    id = `${id}-${suffix}`;
+  }
+  const finalId = id;
+  ensureProjectDirs(finalId);
+  const project = { id: finalId, name: name.trim() };
+  projects.push(project);
+  writeProjectsManifest(projects);
+  res.json(project);
+});
+
+app.put('/api/projects/:id', (req, res) => {
+  const id = req.params.id;
+  if (id.includes('..') || id.includes('/') || id.includes('\\')) {
+    return res.status(400).json({ success: false, message: 'Invalid project id' });
+  }
+  const { name } = req.body || {};
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ success: false, message: 'Project name is required' });
+  }
+  const projects = getProjectsManifest();
+  const idx = projects.findIndex(p => p.id === id);
+  if (idx === -1) return res.status(404).json({ success: false, message: 'Project not found' });
+  projects[idx].name = name.trim();
+  writeProjectsManifest(projects);
+  res.json(projects[idx]);
+});
+
+app.delete('/api/projects/:id', (req, res) => {
+  const id = req.params.id;
+  if (id.includes('..') || id.includes('/') || id.includes('\\')) {
+    return res.status(400).json({ success: false, message: 'Invalid project id' });
+  }
+  const projects = getProjectsManifest();
+  const idx = projects.findIndex(p => p.id === id);
+  if (idx === -1) return res.status(404).json({ success: false, message: 'Project not found' });
+  projects.splice(idx, 1);
+  writeProjectsManifest(projects);
+  const p = getProjectPaths(id);
+  if (p && fs.existsSync(p.base)) {
+    fs.rmSync(p.base, { recursive: true, force: true });
+  }
+  res.json({ success: true });
+});
+
+// ---- Panorama APIs (project-scoped via ?project=id) ----
 app.post('/upload', upload.array("panorama", 20), async (req, res)=>{
   if(!req.files || req.files.length === 0) {
     return res.status(400).json({
@@ -139,12 +292,12 @@ app.post('/upload', upload.array("panorama", 20), async (req, res)=>{
       message: "no file uploaded"
     });
   }
+  const paths = resolvePaths(req);
   try {
-    // Build tiles for each uploaded pano so it can be viewed immediately as multi-res.
     for (const file of req.files) {
-      await ensureTilesForFilename(file.filename);
+      await ensureTilesForFilename(paths, file.filename);
     }
-    panoramaOrderAppend(req.files.map(f => f.filename));
+    panoramaOrderAppend(paths, req.files.map(f => f.filename));
     res.json({
       success: true,
       uploaded: req.files.map(f => f.filename)
@@ -156,25 +309,24 @@ app.post('/upload', upload.array("panorama", 20), async (req, res)=>{
       message: `Tile generation failed: ${e.message || e}`
     });
   }
-})
+});
 
-// API to get list of images
 app.get('/upload', (req, res) => {
-  fs.readdir('upload', (err, files) => {
+  const paths = resolvePaths(req);
+  fs.readdir(paths.uploadsDir, (err, files) => {
     if (err) return res.status(500).json({ error: 'Unable to read directory' });
-    const images = files.filter(file => /\.(jpg|jpeg|png|gif|webp)$/i.test(file));
+    const images = (files || []).filter(file => /\.(jpg|jpeg|png|gif|webp)$/i.test(file));
     res.json(images);
   });
 });
 
-// API to list panos with tile metadata (used by the viewer). Order preserved for stable list position.
 app.get('/api/panos', async (req, res) => {
+  const paths = resolvePaths(req);
   try {
-    const files = await getOrderedFilenames();
+    const files = await getOrderedFilenames(paths);
     const result = [];
     for (const filename of files) {
-      let meta = await readTilesMeta({ tilesRootDir: tilesDir, filename });
-      // Don't auto-build here to keep listing fast; UI will still work if tiles exist.
+      let meta = await readTilesMeta({ tilesRootDir: paths.tilesDir, filename });
       result.push({
         filename,
         tileId: tileIdFromFilename(filename),
@@ -190,22 +342,21 @@ app.get('/api/panos', async (req, res) => {
   }
 });
 
-// API to get (and optionally build) tile metadata for one pano.
 app.get('/api/panos/:filename', async (req, res) => {
   const filename = req.params.filename;
   if (!filename) return res.status(400).json({ error: 'filename required' });
   if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
     return res.status(400).json({ error: 'Invalid filename' });
   }
+  const paths = resolvePaths(req);
   try {
-    const meta = await ensureTilesForFilename(filename);
+    const meta = await ensureTilesForFilename(paths, filename);
     res.json(meta);
   } catch (e) {
     res.status(500).json({ error: String(e.message || e) });
   }
 });
 
-// API to rename an image
 app.put('/upload/rename', (req, res) => {
   const { oldFilename, newFilename } = req.body;
 
@@ -216,7 +367,6 @@ app.put('/upload/rename', (req, res) => {
     });
   }
 
-  // Security check: ensure filenames don't contain path traversal
   if (oldFilename.includes('..') || oldFilename.includes('/') || oldFilename.includes('\\') ||
       newFilename.includes('..') || newFilename.includes('/') || newFilename.includes('\\')) {
     return res.status(400).json({
@@ -225,10 +375,10 @@ app.put('/upload/rename', (req, res) => {
     });
   }
 
-  const oldFilePath = path.join(__dirname, 'upload', oldFilename);
-  const newFilePath = path.join(__dirname, 'upload', newFilename);
+  const paths = resolvePaths(req);
+  const oldFilePath = path.join(paths.uploadsDir, oldFilename);
+  const newFilePath = path.join(paths.uploadsDir, newFilename);
 
-  // Check if old file exists
   if (!fs.existsSync(oldFilePath)) {
     return res.status(404).json({
       success: false,
@@ -236,7 +386,6 @@ app.put('/upload/rename', (req, res) => {
     });
   }
 
-  // Check if new filename already exists
   if (fs.existsSync(newFilePath)) {
     return res.status(409).json({
       success: false,
@@ -244,7 +393,6 @@ app.put('/upload/rename', (req, res) => {
     });
   }
 
-  // Rename the file
   fs.rename(oldFilePath, newFilePath, (err) => {
     if (err) {
       return res.status(500).json({
@@ -252,15 +400,13 @@ app.put('/upload/rename', (req, res) => {
         message: 'Error renaming file'
       });
     }
-    // Rename tiles folder if present.
     const oldTileId = tileIdFromFilename(oldFilename);
     const newTileId = tileIdFromFilename(newFilename);
-    const oldTilesPath = path.join(tilesDir, oldTileId);
-    const newTilesPath = path.join(tilesDir, newTileId);
+    const oldTilesPath = path.join(paths.tilesDir, oldTileId);
+    const newTilesPath = path.join(paths.tilesDir, newTileId);
     if (fs.existsSync(oldTilesPath) && !fs.existsSync(newTilesPath)) {
       try {
         fs.renameSync(oldTilesPath, newTilesPath);
-        // Update meta.json filename field if present.
         const metaPath = path.join(newTilesPath, 'meta.json');
         if (fs.existsSync(metaPath)) {
           const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
@@ -273,7 +419,7 @@ app.put('/upload/rename', (req, res) => {
       }
     }
 
-    panoramaOrderReplace(oldFilename, newFilename);
+    panoramaOrderReplace(paths, oldFilename, newFilename);
     res.json({
       success: true,
       message: 'File renamed successfully',
@@ -283,7 +429,6 @@ app.put('/upload/rename', (req, res) => {
   });
 });
 
-// API to update an image
 app.put('/upload/update', upload.single('panorama'), async (req, res) => {
   const oldFilename = req.body.oldFilename;
   
@@ -301,7 +446,6 @@ app.put('/upload/update', upload.single('panorama'), async (req, res) => {
     });
   }
 
-  // Security check: ensure filename doesn't contain path traversal
   if (oldFilename.includes('..') || oldFilename.includes('/') || oldFilename.includes('\\')) {
     return res.status(400).json({
       success: false,
@@ -309,9 +453,9 @@ app.put('/upload/update', upload.single('panorama'), async (req, res) => {
     });
   }
 
-  const oldFilePath = path.join(__dirname, 'upload', oldFilename);
+  const paths = resolvePaths(req);
+  const oldFilePath = path.join(paths.uploadsDir, oldFilename);
 
-  // Check if old file exists
   if (!fs.existsSync(oldFilePath)) {
     return res.status(404).json({
       success: false,
@@ -319,16 +463,14 @@ app.put('/upload/update', upload.single('panorama'), async (req, res) => {
     });
   }
 
-  // Delete the old file
   try {
     await fs.promises.unlink(oldFilePath).catch((err) => {
       console.error('Error deleting old file:', err);
     });
-    // Remove old tiles and build new tiles.
-    await removeDirIfExists(path.join(tilesDir, tileIdFromFilename(oldFilename)));
-    await ensureTilesForFilename(req.file.filename);
+    await removeDirIfExists(path.join(paths.tilesDir, tileIdFromFilename(oldFilename)));
+    await ensureTilesForFilename(paths, req.file.filename);
 
-    panoramaOrderReplace(oldFilename, req.file.filename);
+    panoramaOrderReplace(paths, oldFilename, req.file.filename);
     res.json({
       success: true,
       message: 'Image updated successfully',
@@ -344,9 +486,9 @@ app.put('/upload/update', upload.single('panorama'), async (req, res) => {
   }
 });
 
-// API to get hotspots (for client view)
 app.get('/api/hotspots', (req, res) => {
-  fs.readFile(hotspotsPath, 'utf8', (err, data) => {
+  const paths = resolvePaths(req);
+  fs.readFile(paths.hotspotsPath, 'utf8', (err, data) => {
     if (err) {
       if (err.code === 'ENOENT') return res.json({});
       return res.status(500).json({ error: 'Unable to read hotspots' });
@@ -360,25 +502,24 @@ app.get('/api/hotspots', (req, res) => {
   });
 });
 
-// API to save hotspots (called by admin when adding/removing/editing)
 app.post('/api/hotspots', (req, res) => {
   const body = req.body;
   if (typeof body !== 'object' || body === null) {
     return res.status(400).json({ error: 'Invalid payload' });
   }
+  const paths = resolvePaths(req);
   const json = JSON.stringify(body, null, 2);
-  fs.writeFile(hotspotsPath, json, 'utf8', (err) => {
+  fs.writeFile(paths.hotspotsPath, json, 'utf8', (err) => {
     if (err) return res.status(500).json({ error: 'Unable to save hotspots' });
     res.json({ success: true });
   });
 });
 
-// API to delete an image
 app.delete('/upload/:filename', (req, res) => {
   const filename = req.params.filename;
-  const filePath = path.join(__dirname, 'upload', filename);
+  const paths = resolvePaths(req);
+  const filePath = path.join(paths.uploadsDir, filename);
 
-  // Security check: ensure filename doesn't contain path traversal
   if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
     return res.status(400).json({
       success: false,
@@ -386,7 +527,6 @@ app.delete('/upload/:filename', (req, res) => {
     });
   }
 
-  // Check if file exists
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({
       success: false,
@@ -394,7 +534,6 @@ app.delete('/upload/:filename', (req, res) => {
     });
   }
 
-  // Delete the file
   fs.unlink(filePath, (err) => {
     if (err) {
       return res.status(500).json({
@@ -402,9 +541,8 @@ app.delete('/upload/:filename', (req, res) => {
         message: 'Error deleting file'
       });
     }
-    panoramaOrderRemove(filename);
-    // Delete tiles folder too (best-effort).
-    const tilesPath = path.join(tilesDir, tileIdFromFilename(filename));
+    panoramaOrderRemove(paths, filename);
+    const tilesPath = path.join(paths.tilesDir, tileIdFromFilename(filename));
     if (fs.existsSync(tilesPath)) {
       fs.rm(tilesPath, { recursive: true, force: true }, (rmErr) => {
         if (rmErr) console.error('Error deleting tiles folder:', rmErr);
