@@ -106,7 +106,10 @@ function showRenameModal(project, nameDisplayEl) {
     try {
       const updated = await renameProject(project.id, name.trim());
       project.name = updated.name || name.trim();
+      project.id = updated.id || project.id;
       nameDisplayEl.textContent = project.name;
+      const row = nameDisplayEl.closest('.project-row');
+      if (row) row.dataset.projectId = project.id;
       cleanup();
     } catch (e) {
       renameProjectErrorEl.textContent = e.message || 'Failed to rename project.';
