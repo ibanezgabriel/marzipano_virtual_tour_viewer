@@ -85,6 +85,20 @@ body {
     background-color: #115272;
     color: #fff;
 }
+#pano-image-list li.selected {
+    border-left: 3px solid #2e7d32;
+}
+#pano-image-list li.selected::before {
+    content: '✓ ';
+    font-weight: bold;
+    color: #2e7d32;
+}
+#pano-image-list li.active.selected::before {
+    color: #81c784;
+}
+#pano-image-list li.active.selected {
+    border-left-color: #81c784;
+}
 
 /* Hotspot place mode: crosshair cursor on viewer */
 #pano-viewer.app-hotspot-place-mode {
