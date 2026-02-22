@@ -20,16 +20,7 @@ if (!fs.existsSync(projectsDir)) {
   fs.mkdirSync(projectsDir, { recursive: true });
 }
 
-// Legacy paths (used when no project specified - backward compat)
-const legacyUploadsDir = path.join(__dirname, 'upload');
-const legacyTilesDir = path.join(__dirname, 'tiles');
-const legacyDataDir = path.join(__dirname, 'public', 'data');
-[legacyUploadsDir, legacyTilesDir, legacyDataDir].forEach(dir => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-});
 
-const legacyHotspotsPath = path.join(legacyDataDir, 'hotspots.json');
-const legacyPanoramaOrderPath = path.join(legacyDataDir, 'panorama-order.json');
 
 function getProjectsManifest() {
   try {
@@ -71,27 +62,17 @@ function ensureProjectDirs(projectId) {
   return p;
 }
 
-/** Resolve paths: use project if provided, else legacy. */
+/** Resolve paths: require project id */
 function resolvePaths(req) {
   const projectId = req.query.project || (req.body && req.body.project);
-  if (projectId) {
-    const p = getProjectPaths(projectId);
-    if (p) {
-      return {
-        uploadsDir: p.upload,
-        tilesDir: p.tiles,
-        hotspotsPath: path.join(p.data, 'hotspots.json'),
-        panoramaOrderPath: path.join(p.data, 'panorama-order.json'),
-        projectId,
-      };
-    }
-  }
+  const p = getProjectPaths(projectId);
+  if (!p) return null;
   return {
-    uploadsDir: legacyUploadsDir,
-    tilesDir: legacyTilesDir,
-    hotspotsPath: legacyHotspotsPath,
-    panoramaOrderPath: legacyPanoramaOrderPath,
-    projectId: null,
+    uploadsDir: p.upload,
+    tilesDir: p.tiles,
+    hotspotsPath: path.join(p.data, 'hotspots.json'),
+    panoramaOrderPath: path.join(p.data, 'panorama-order.json'),
+    projectId,
   };
 }
 
@@ -101,9 +82,7 @@ app.use(express.json());
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Legacy static (no project)
-app.use('/upload', express.static(legacyUploadsDir));
-app.use('/tiles', express.static(legacyTilesDir));
+
 
 // Project-scoped static: /projects/:id/upload and /projects/:id/tiles
 const projectRouter = express.Router({ mergeParams: true });
@@ -130,11 +109,9 @@ const upload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
       const projectId = req.query.project || (req.body && req.body.project);
-      let dir = legacyUploadsDir;
-      if (projectId) {
-        const p = getProjectPaths(projectId);
-        if (p) dir = p.upload;
-      }
+      const p = getProjectPaths(projectId);
+      if (!p) return cb(new Error('Project required'), null);
+      const dir = p.upload;
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       cb(null, dir);
     },
@@ -317,6 +294,9 @@ app.post('/upload', upload.array("panorama", 20), async (req, res)=>{
     });
   }
   const paths = resolvePaths(req);
+  if (!paths) {
+    return res.status(400).json({ success: false, message: 'Project required' });
+  }
   try {
     for (const file of req.files) {
       await ensureTilesForFilename(paths, file.filename);
@@ -337,6 +317,7 @@ app.post('/upload', upload.array("panorama", 20), async (req, res)=>{
 
 app.get('/upload', (req, res) => {
   const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
   fs.readdir(paths.uploadsDir, (err, files) => {
     if (err) return res.status(500).json({ error: 'Unable to read directory' });
     const images = (files || []).filter(file => /\.(jpg|jpeg|png|gif|webp)$/i.test(file));
@@ -346,6 +327,7 @@ app.get('/upload', (req, res) => {
 
 app.get('/api/panos', async (req, res) => {
   const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
   try {
     const files = await getOrderedFilenames(paths);
     const result = [];
@@ -373,6 +355,7 @@ app.get('/api/panos/:filename', async (req, res) => {
     return res.status(400).json({ error: 'Invalid filename' });
   }
   const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
   try {
     const meta = await ensureTilesForFilename(paths, filename);
     res.json(meta);
@@ -400,6 +383,12 @@ app.put('/upload/rename', (req, res) => {
   }
 
   const paths = resolvePaths(req);
+  if (!paths) {
+    return res.status(400).json({
+      success: false,
+      message: 'Project required'
+    });
+  }
   const oldFilePath = path.join(paths.uploadsDir, oldFilename);
   const newFilePath = path.join(paths.uploadsDir, newFilename);
 
@@ -478,6 +467,12 @@ app.put('/upload/update', upload.single('panorama'), async (req, res) => {
   }
 
   const paths = resolvePaths(req);
+  if (!paths) {
+    return res.status(400).json({
+      success: false,
+      message: 'Project required'
+    });
+  }
   const oldFilePath = path.join(paths.uploadsDir, oldFilename);
 
   if (!fs.existsSync(oldFilePath)) {
@@ -512,6 +507,7 @@ app.put('/upload/update', upload.single('panorama'), async (req, res) => {
 
 app.get('/api/hotspots', (req, res) => {
   const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
   fs.readFile(paths.hotspotsPath, 'utf8', (err, data) => {
     if (err) {
       if (err.code === 'ENOENT') return res.json({});
@@ -532,6 +528,7 @@ app.post('/api/hotspots', (req, res) => {
     return res.status(400).json({ error: 'Invalid payload' });
   }
   const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
   const json = JSON.stringify(body, null, 2);
   fs.writeFile(paths.hotspotsPath, json, 'utf8', (err) => {
     if (err) return res.status(500).json({ error: 'Unable to save hotspots' });
@@ -542,6 +539,12 @@ app.post('/api/hotspots', (req, res) => {
 app.delete('/upload/:filename', (req, res) => {
   const filename = req.params.filename;
   const paths = resolvePaths(req);
+  if (!paths) {
+    return res.status(400).json({
+      success: false,
+      message: 'Project required'
+    });
+  }
   const filePath = path.join(paths.uploadsDir, filename);
 
   if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {

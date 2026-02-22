@@ -3,8 +3,9 @@
     src: url('../assets/Poppins/Poppins-Regular.ttf');
 }
 body {
+    font-family: 'Poppins';
     overflow: hidden;
-    font-family: "Poppins";
+    background-color: #545454;
 }
 #pano-viewer {
     background: #000;
@@ -53,19 +54,8 @@ body {
 }
 .action-btn:hover {
     background-color: rgb(4, 4, 58);
+    /* Image list - always visible, light gray items, darker blue when selected */
 }
-
-#pano-list-btn {
-  background-color: #6ab0d4;
-  color: white;
-  transition: background 0.2s ease, color 0.2s;
-  cursor: pointer;
-}
-#pano-list-btn:hover {
-    background-color: #3e8297;
-}
-
-/* Image list - always visible, light gray items, darker blue when selected */
 #pano-image-list {
     list-style: none;
     overflow-y: auto;
@@ -85,21 +75,6 @@ body {
     background-color: #115272;
     color: #fff;
 }
-#pano-image-list li.selected {
-    border-left: 3px solid #2e7d32;
-}
-#pano-image-list li.selected::before {
-    content: '✓ ';
-    font-weight: bold;
-    color: #2e7d32;
-}
-#pano-image-list li.active.selected::before {
-    color: #81c784;
-}
-#pano-image-list li.active.selected {
-    border-left-color: #81c784;
-}
-
 /* Hotspot place mode: crosshair cursor on viewer */
 #pano-viewer.app-hotspot-place-mode {
     cursor: crosshair !important;
@@ -113,7 +88,6 @@ body {
     margin-left: -22px;
     margin-top: -22px;
 }
-
 .app-hotspot-pin-dot {
     display: block;
     width: 30px;
@@ -129,12 +103,10 @@ body {
     cursor: pointer;
     transition: transform 0.15s ease, background-color 0.15s ease;
 }
-
 .app-hotspot-pin-dot:hover {
     transform: scale(1.1);
     background-color: #5a8ac8;
 }
-
 .app-hotspot-remove {
     position: absolute;
     top: -6px;

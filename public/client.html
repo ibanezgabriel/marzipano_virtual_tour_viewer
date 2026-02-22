@@ -8,16 +8,21 @@
 </head>
 <body>
     <header id="pano-header">
-        <a href="index.html" id="pano-back-link">
-            <span>&larr; DASHBOARD</span>
-            </a>
-            <span id="pano-header-text"></span>
+        <span id="pano-header-text"></span>
+        <a href="index.html" id="pano-menu-btn">
+            <img src="assets/dashboard.png" class="icons">Menu
+        </a>
+        <div id="pano-sidebar-wrapper">
+            <aside id="pano-sidebar-container">
+                <p id="pano-title">Panoramic Scenes</p>
+                <ul id="pano-image-list"></ul>
+            </aside>
+            <button id="pano-sidebar-btn">
+                <img src="assets/side-bar-hide.png">
+            </button>
+        </div>
     </header>
     <main id="pano-panel">
-        <aside id="pano-sidebar">
-            <button id="pano-list-btn">Panoramic Images</button>
-            <ul id="pano-image-list"></ul>
-        </aside>
         <div id="pano-viewer"></div>
     </main>
     <script type="module" src="js/client-app.js"></script>
