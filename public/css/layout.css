@@ -4,6 +4,12 @@
   align-items: center;
   padding: 20px 60px;
 }
+#dep_logo {
+  height: 40px;
+  width: 40px;
+  position: absolute;
+  right: 25px;
+}
 .home-main .action-bar {
   display: flex;
   gap: 12px;
