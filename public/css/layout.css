@@ -223,6 +223,9 @@
     margin: -8px 0 12px 0;
     min-height: 1.2em;
 }
+#rename-project-name {
+  border: 1px solid black;
+}
 .project-name-display {
     flex: 1;
     min-width: 0;
