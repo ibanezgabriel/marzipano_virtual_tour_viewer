@@ -198,9 +198,21 @@
     cursor: pointer;
     transition: background 0.7s;
 }
-.project-row .btn-open:hover {
+.project-row .btn-open:hover,
+.btn-open-modal:hover {
     background: #1b5e20;
 }
+.btn-open-modal {
+  background: #328a38 ;
+  padding: 10px 20px;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.7s;
+}
+
 .project-table-wrap {
     max-height: 350px;
     overflow-y: auto;

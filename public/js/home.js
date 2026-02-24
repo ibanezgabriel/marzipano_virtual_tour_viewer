@@ -355,7 +355,7 @@ document.getElementById('btn-open-project').onclick = async () => {
         input.disabled = true;
         input.style.cursor = 'pointer';
         const openBtn = document.createElement('button');
-        openBtn.className = 'btn-open';
+        openBtn.className = 'btn-open-modal';
         openBtn.textContent = 'Open';
         openBtn.onclick = () => {
           openProjectModal.classList.remove('visible');
