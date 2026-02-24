@@ -212,8 +212,13 @@ app.post('/api/projects', (req, res) => {
   if (!name || typeof name !== 'string' || !name.trim()) {
     return res.status(400).json({ success: false, message: 'Project name is required' });
   }
+  const trimmedName = name.trim();
   let id = sanitizeProjectId(name);
   const projects = getProjectsManifest();
+  const normalized = trimmedName.toLowerCase();
+  if (projects.some((p) => (p.name || '').trim().toLowerCase() === normalized)) {
+    return res.status(409).json({ success: false, message: 'A project with this name already exists' });
+  }
   if (projects.some(p => p.id === id)) {
     let suffix = 1;
     while (projects.some(p => p.id === `${id}-${suffix}`)) suffix++;
@@ -221,7 +226,7 @@ app.post('/api/projects', (req, res) => {
   }
   const finalId = id;
   ensureProjectDirs(finalId);
-  const project = { id: finalId, name: name.trim() };
+  const project = { id: finalId, name: trimmedName };
   projects.push(project);
   writeProjectsManifest(projects);
   res.json(project);
@@ -239,8 +244,13 @@ app.put('/api/projects/:id', (req, res) => {
   const projects = getProjectsManifest();
   const idx = projects.findIndex(p => p.id === oldId);
   if (idx === -1) return res.status(404).json({ success: false, message: 'Project not found' });
+  const trimmedName = name.trim();
+  const normalized = trimmedName.toLowerCase();
+  if (projects.some((p, i) => i !== idx && (p.name || '').trim().toLowerCase() === normalized)) {
+    return res.status(409).json({ success: false, message: 'A project with this name already exists' });
+  }
 
-  let newId = sanitizeProjectId(name.trim());
+  let newId = sanitizeProjectId(trimmedName);
   if (projects.some((p, i) => i !== idx && p.id === newId)) {
     let suffix = 1;
     while (projects.some((p, i) => i !== idx && p.id === `${newId}-${suffix}`)) suffix++;
@@ -263,7 +273,7 @@ app.put('/api/projects/:id', (req, res) => {
     }
     projects[idx].id = newId;
   }
-  projects[idx].name = name.trim();
+  projects[idx].name = trimmedName;
   writeProjectsManifest(projects);
   res.json(projects[idx]);
 });

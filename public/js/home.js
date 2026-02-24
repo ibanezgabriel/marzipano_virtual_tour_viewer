@@ -1,7 +1,9 @@
 const projectListEl = document.getElementById('project-list');
 const emptyStateEl = document.getElementById('empty-state');
+const projectSearchInput = document.getElementById('project-search-input');
 const newProjectModal = document.getElementById('new-project-modal');
 const newProjectNameInput = document.getElementById('new-project-name');
+const newProjectErrorEl = document.getElementById('new-project-error');
 const modalCreateBtn = document.getElementById('modal-create');
 const modalCancelBtn = document.getElementById('modal-cancel');
 const openProjectModal = document.getElementById('open-project-modal');
@@ -18,6 +20,17 @@ const deleteModalCancelBtn = document.getElementById('delete-modal-cancel');
 const deleteModalConfirmBtn = document.getElementById('delete-modal-confirm');
 
 const MAX_PROJECT_NAME_LENGTH = 100;
+let allProjects = [];
+
+function normalizeProjectName(name) {
+  return (name || '').trim().toLowerCase();
+}
+
+function projectNameExists(name, excludeId = null) {
+  const n = normalizeProjectName(name);
+  if (!n) return false;
+  return allProjects.some((p) => normalizeProjectName(p.name) === n && (!excludeId || p.id !== excludeId));
+}
 
 /** Sanitize string for URL/folder id */
 function toProjectId(name) {
@@ -103,6 +116,10 @@ function showRenameModal(project, nameDisplayEl) {
       renameProjectErrorEl.textContent = error;
       return;
     }
+    if (projectNameExists(name, project.id)) {
+      renameProjectErrorEl.textContent = 'A project with this name already exists.';
+      return;
+    }
     try {
       const updated = await renameProject(project.id, name.trim());
       project.name = updated.name || name.trim();
@@ -146,8 +163,8 @@ function showDeleteModal(project, rowEl) {
   deleteModalConfirmBtn.onclick = async () => {
     try {
       await deleteProject(project.id);
-      rowEl.remove();
-      updateEmptyState();
+      allProjects = allProjects.filter((p) => p.id !== project.id);
+      applyProjectSearch();
       cleanup();
     } catch (e) {
       alert(e.message);
@@ -201,14 +218,29 @@ function updateEmptyState() {
   emptyStateEl.style.display = count === 0 ? 'block' : 'none';
 }
 
+function renderProjectList(projects) {
+  projectListEl.innerHTML = '';
+  for (const p of projects) {
+    projectListEl.appendChild(renderProjectRow(p));
+  }
+  updateEmptyState();
+}
+
+function applyProjectSearch() {
+  const query = (projectSearchInput && projectSearchInput.value.trim()) || '';
+  if (!query) {
+    renderProjectList(allProjects);
+    return;
+  }
+  const q = query.toLowerCase();
+  const filtered = allProjects.filter((p) => (p.name || '').toLowerCase().includes(q));
+  renderProjectList(filtered);
+}
+
 async function loadProjects() {
   try {
-    const projects = await fetchProjects();
-    projectListEl.innerHTML = '';
-    for (const p of projects) {
-      projectListEl.appendChild(renderProjectRow(p));
-    }
-    updateEmptyState();
+    allProjects = await fetchProjects();
+    renderProjectList(allProjects);
   } catch (e) {
     emptyStateEl.textContent = 'Error loading projects: ' + e.message;
     emptyStateEl.style.display = 'block';
@@ -217,6 +249,7 @@ async function loadProjects() {
 
 document.getElementById('btn-new-project').onclick = () => {
   newProjectNameInput.value = '';
+  if (newProjectErrorEl) newProjectErrorEl.textContent = '';
   newProjectModal.classList.add('visible');
   newProjectNameInput.focus();
 };
@@ -228,16 +261,20 @@ modalCancelBtn.onclick = () => {
 modalCreateBtn.onclick = async () => {
   const name = newProjectNameInput.value.trim();
   if (!name) {
-    alert('Please enter a project name');
+    if (newProjectErrorEl) newProjectErrorEl.textContent = 'Please enter a project name.';
+    return;
+  }
+  if (projectNameExists(name)) {
+    if (newProjectErrorEl) newProjectErrorEl.textContent = 'A project with this name already exists.';
     return;
   }
   try {
     const created = await createProject(name);
-    projectListEl.appendChild(renderProjectRow(created));
-    updateEmptyState();
+    allProjects.push(created);
+    renderProjectList(allProjects);
     newProjectModal.classList.remove('visible');
   } catch (e) {
-    alert(e.message);
+    if (newProjectErrorEl) newProjectErrorEl.textContent = e.message || 'Failed to create project.';
   }
 };
 
@@ -285,5 +322,16 @@ newProjectModal.onclick = (e) => {
 openProjectModal.onclick = (e) => {
   if (e.target === openProjectModal) openProjectModal.classList.remove('visible');
 };
+
+if (projectSearchInput) {
+  projectSearchInput.addEventListener('input', applyProjectSearch);
+  projectSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      projectSearchInput.value = '';
+      applyProjectSearch();
+      projectSearchInput.blur();
+    }
+  });
+}
 
 loadProjects();
