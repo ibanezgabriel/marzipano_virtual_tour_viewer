@@ -99,6 +99,7 @@
 #pano-hotspot-btn,
 #pano-initial-view-btn {
   padding: 5px 10px; 
+  width: auto;
   font-weight: 550;
   font-size: 12px;
   display: flex;
