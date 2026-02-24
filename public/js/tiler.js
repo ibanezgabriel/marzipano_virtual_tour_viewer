@@ -204,7 +204,8 @@ async function buildTilesForImage({
   tilesRootDir,
   tileSize = DEFAULT_TILE_SIZE,
   maxFaceSize = DEFAULT_MAX_FACE_SIZE,
-  jpegQuality = 85
+  jpegQuality = 85,
+  onProgress // optional: (fraction 0..1) => void
 }) {
   const tileId = tileIdFromFilename(filename);
   const outDir = path.join(tilesRootDir, tileId);
@@ -233,6 +234,20 @@ async function buildTilesForImage({
   }
 
   // Generate tiles for each level and face.
+  let totalTiles = 0;
+  for (let z = 0; z < levelSizes.length; z++) {
+    const levelSize = levelSizes[z];
+    const tilesPerSide = Math.max(1, Math.floor(levelSize / tileSize));
+    totalTiles += 6 * tilesPerSide * tilesPerSide;
+  }
+  let writtenTiles = 0;
+  const notify = () => {
+    if (typeof onProgress === 'function') {
+      const frac = totalTiles > 0 ? writtenTiles / totalTiles : 0;
+      try { onProgress(frac); } catch {}
+    }
+  };
+  notify();
   for (let z = 0; z < levelSizes.length; z++) {
     const levelSize = levelSizes[z];
     const tilesPerSide = Math.max(1, Math.floor(levelSize / tileSize));
@@ -260,6 +275,8 @@ async function buildTilesForImage({
           );
         }
         await Promise.all(rowPromises);
+        writtenTiles += tilesPerSide;
+        notify();
       }
     }
   }

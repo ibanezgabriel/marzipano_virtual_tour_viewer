@@ -295,8 +295,33 @@ app.delete('/api/projects/:id', (req, res) => {
   res.json({ success: true });
 });
 
+// ---- Simple in-memory job tracking for async tile processing ----
+const jobs = new Map();
+function createJob(filenames, projectId) {
+  const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const job = {
+    id,
+    projectId,
+    filenames,
+    status: 'processing', // 'processing' | 'done' | 'error'
+    percent: 0,
+    message: '',
+    error: null
+  };
+  jobs.set(id, job);
+  return job;
+}
+function getJob(id) {
+  return jobs.get(id) || null;
+}
+app.get('/api/jobs/:id', (req, res) => {
+  const job = getJob(req.params.id);
+  if (!job) return res.status(404).json({ error: 'Not found' });
+  res.json({ id: job.id, status: job.status, percent: job.percent, message: job.message, error: job.error });
+});
+
 // ---- Panorama APIs (project-scoped via ?project=id) ----
-app.post('/upload', upload.array("panorama", 20), async (req, res)=>{
+app.post('/upload', upload.array("panorama", 20), (req, res)=>{
   if(!req.files || req.files.length === 0) {
     return res.status(400).json({
       success: false,
@@ -307,22 +332,44 @@ app.post('/upload', upload.array("panorama", 20), async (req, res)=>{
   if (!paths) {
     return res.status(400).json({ success: false, message: 'Project required' });
   }
-  try {
-    for (const file of req.files) {
-      await ensureTilesForFilename(paths, file.filename);
+  const filenames = req.files.map(f => f.filename);
+  const job = createJob(filenames, paths.projectId);
+  res.json({
+    success: true,
+    jobId: job.id,
+    uploaded: filenames
+  });
+  (async () => {
+    try {
+      let overall = 0;
+      const totalFiles = filenames.length;
+      for (let i = 0; i < filenames.length; i++) {
+        const name = filenames[i];
+        job.message = `Processing ${name} (${i+1}/${totalFiles})`;
+        await buildTilesForImage({
+          imagePath: path.join(paths.uploadsDir, name),
+          filename: name,
+          tilesRootDir: paths.tilesDir,
+          onProgress: (frac) => {
+            // Map per-file progress to overall percent
+            const combined = ((i + frac) / totalFiles) * 100;
+            if (combined > overall) overall = combined;
+            job.percent = Math.min(100, Math.max(0, Math.round(overall)));
+          }
+        });
+      }
+      panoramaOrderAppend(paths, filenames);
+      job.percent = 100;
+      job.status = 'done';
+      job.message = 'Completed';
+    } catch (e) {
+      console.error('Tile generation failed:', e);
+      const msg = `Tile generation failed: ${e.message || e}`;
+      job.status = 'error';
+      job.error = msg;
+      job.message = msg;
     }
-    panoramaOrderAppend(paths, req.files.map(f => f.filename));
-    res.json({
-      success: true,
-      uploaded: req.files.map(f => f.filename)
-    });
-  } catch (e) {
-    console.error('Tile generation failed:', e);
-    res.status(500).json({
-      success: false,
-      message: `Tile generation failed: ${e.message || e}`
-    });
-  }
+  })();
 });
 
 app.get('/upload', (req, res) => {
@@ -452,67 +499,60 @@ app.put('/upload/rename', (req, res) => {
   });
 });
 
-app.put('/upload/update', upload.single('panorama'), async (req, res) => {
+app.put('/upload/update', upload.single('panorama'), (req, res) => {
   const oldFilename = req.body.oldFilename;
-  
   if (!oldFilename) {
-    return res.status(400).json({
-      success: false,
-      message: 'Old filename is required'
-    });
+    return res.status(400).json({ success: false, message: 'Old filename is required' });
   }
-
   if (!req.file) {
-    return res.status(400).json({
-      success: false,
-      message: 'No new file uploaded'
-    });
+    return res.status(400).json({ success: false, message: 'No new file uploaded' });
   }
-
   if (oldFilename.includes('..') || oldFilename.includes('/') || oldFilename.includes('\\')) {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid filename'
-    });
+    return res.status(400).json({ success: false, message: 'Invalid filename' });
   }
-
   const paths = resolvePaths(req);
   if (!paths) {
-    return res.status(400).json({
-      success: false,
-      message: 'Project required'
-    });
+    return res.status(400).json({ success: false, message: 'Project required' });
   }
   const oldFilePath = path.join(paths.uploadsDir, oldFilename);
-
   if (!fs.existsSync(oldFilePath)) {
-    return res.status(404).json({
-      success: false,
-      message: 'Old file not found'
-    });
+    return res.status(404).json({ success: false, message: 'Old file not found' });
   }
-
-  try {
-    await fs.promises.unlink(oldFilePath).catch((err) => {
-      console.error('Error deleting old file:', err);
-    });
-    await removeDirIfExists(path.join(paths.tilesDir, tileIdFromFilename(oldFilename)));
-    await ensureTilesForFilename(paths, req.file.filename);
-
-    panoramaOrderReplace(paths, oldFilename, req.file.filename);
-    res.json({
-      success: true,
-      message: 'Image updated successfully',
-      newFilename: req.file.filename,
-      oldFilename
-    });
-  } catch (e) {
-    console.error('Error updating image tiles:', e);
-    res.status(500).json({
-      success: false,
-      message: `Error updating image tiles: ${e.message || e}`
-    });
-  }
+  const newFilename = req.file.filename;
+  const job = createJob([newFilename], paths.projectId);
+  res.json({
+    success: true,
+    jobId: job.id,
+    newFilename,
+    oldFilename
+  });
+  (async () => {
+    try {
+      job.message = `Replacing ${oldFilename}…`;
+      await fs.promises.unlink(oldFilePath).catch((err) => {
+        console.error('Error deleting old file:', err);
+      });
+      await removeDirIfExists(path.join(paths.tilesDir, tileIdFromFilename(oldFilename)));
+      await buildTilesForImage({
+        imagePath: path.join(paths.uploadsDir, newFilename),
+        filename: newFilename,
+        tilesRootDir: paths.tilesDir,
+        onProgress: (frac) => {
+          job.percent = Math.min(100, Math.max(0, Math.round(frac * 100)));
+        }
+      });
+      panoramaOrderReplace(paths, oldFilename, newFilename);
+      job.percent = 100;
+      job.status = 'done';
+      job.message = 'Update completed';
+    } catch (e) {
+      console.error('Error updating image tiles:', e);
+      const msg = `Error updating image tiles: ${e.message || e}`;
+      job.status = 'error';
+      job.error = msg;
+      job.message = msg;
+    }
+  })();
 });
 
 app.get('/api/hotspots', (req, res) => {

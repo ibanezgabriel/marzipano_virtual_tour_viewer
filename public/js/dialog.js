@@ -1,5 +1,26 @@
 // Show a non-dismissible progress dialog (e.g., for uploads)
 let progressDialogActive = false;
+function ensureProgressUI() {
+  const box = getBox();
+  if (!box) return null;
+  let wrap = box.querySelector('.app-dialog-progress-wrap');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.className = 'app-dialog-progress-wrap';
+    const bar = document.createElement('div');
+    bar.className = 'app-dialog-progress-bar';
+    const fill = document.createElement('div');
+    fill.className = 'app-dialog-progress-fill';
+    bar.appendChild(fill);
+    const label = document.createElement('div');
+    label.className = 'app-dialog-progress-label';
+    wrap.appendChild(bar);
+    wrap.appendChild(label);
+    const actions = getActions();
+    box.insertBefore(wrap, actions);
+  }
+  return wrap;
+}
 export function showProgressDialog(message = 'Uploading, please wait...') {
   getOrCreateDialog();
   const titleEl = getTitle();
@@ -15,6 +36,14 @@ export function showProgressDialog(message = 'Uploading, please wait...') {
   inputWrap.style.display = 'none';
   selectWrap.style.display = 'none';
   actionsEl.innerHTML = '';
+  const wrap = ensureProgressUI();
+  if (wrap) {
+    const fill = wrap.querySelector('.app-dialog-progress-fill');
+    const label = wrap.querySelector('.app-dialog-progress-label');
+    fill.style.width = '0%';
+    label.textContent = '0%';
+    wrap.style.display = 'block';
+  }
 
   showOverlay();
   progressDialogActive = true;
@@ -22,8 +51,28 @@ export function showProgressDialog(message = 'Uploading, please wait...') {
 
 export function hideProgressDialog() {
   if (progressDialogActive) {
+    const box = getBox();
+    if (box) {
+      const wrap = box.querySelector('.app-dialog-progress-wrap');
+      if (wrap) wrap.style.display = 'none';
+    }
     hideOverlay();
     progressDialogActive = false;
+  }
+}
+export function updateProgressDialog(percent) {
+  const wrap = ensureProgressUI();
+  if (!wrap) return;
+  const p = Math.max(0, Math.min(100, Math.round(percent)));
+  const fill = wrap.querySelector('.app-dialog-progress-fill');
+  const label = wrap.querySelector('.app-dialog-progress-label');
+  fill.style.width = p + '%';
+  label.textContent = p + '%';
+}
+export function setProgressDialogMessage(message) {
+  const messageEl = getMessage();
+  if (messageEl) {
+    messageEl.textContent = message;
   }
 }
 /**
