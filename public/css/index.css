@@ -42,13 +42,14 @@
 }
 #project-container-header {
   display: flex;
+  justify-content: space-evenly;
   width: 100%;
   background-color: #0d3d52;
   border-radius: 5px 5px 0 0;
 }
 #project-container-header p {
   color: white;
-  padding: 1rem 5rem;
+  padding: 1rem 0;
 }
 .action-btn {
     padding: 1rem;
