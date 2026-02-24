@@ -18,19 +18,24 @@
   margin: 0 1rem;
 }
 #project-container {
-  width: 100%;
   width: 80%;
   display: flex;
   flex-direction: column;
   background-color: #3281a8;
   align-items: center;
-  padding: 1rem 0;
+  padding-bottom: 1rem;
   border-radius: 5px;
+  margin: 0 auto;
+  margin-top: 1rem;
 }
 #project-toolbar {
     display: flex;
+    width: 100%;
+    justify-content: space-between;
+    padding: 0 10px;
+    align-items: center;
 }
-#action-bar {
+.action-bar {
   display: flex;
   padding: 1rem;
   gap: .5rem;
@@ -61,12 +66,8 @@
     background: #0d3d52;
 }
 .project-search-wrap {
-  position: relative;
-  width: 100%;
-  max-width: 360px;
-  margin-bottom: 1rem;
-  align-self: flex-start;
-  margin-left: 1rem;
+  padding: 1rem;
+  
 }
 .project-search-icon {
   position: absolute;
@@ -103,7 +104,7 @@
     flex-direction: column;
     gap: 12px;
     width: 100%;
-    max-height: 475px;
+    max-height: 70v;
     overflow-y: auto; 
     padding: 1rem .5rem;
 }
