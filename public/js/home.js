@@ -188,17 +188,69 @@ function renderProjectRow(project) {
   const viewBtn = document.createElement('button');
   viewBtn.type = 'button';
   viewBtn.className = 'btn-open';
-  viewBtn.textContent = 'View';
+  // viewBtn.textContent = 'View';
+  const viewIcon = document.createElement('img')
+  viewIcon.src = "../assets/p-view.png";
+  viewIcon.style.height = '20px';
+  viewIcon.style.width = '20px';
+  viewBtn.appendChild(viewIcon)
+
+  // Store original and hover image paths
+const viewOrigIcon = "../assets/p-view.png";
+const viewHoverIcon = "../assets/w-view.png";
+
+// Change image on hover
+viewBtn.addEventListener("mouseenter", () => {
+  viewIcon.src = viewHoverIcon;
+});
+
+viewBtn.addEventListener("mouseleave", () => {
+  viewIcon.src = viewOrigIcon;
+});
 
   const renameBtn = document.createElement('button');
   renameBtn.type = 'button';
   renameBtn.className = 'btn-rename';
-  renameBtn.textContent = 'Rename';
+  // renameBtn.textContent = 'Rename';
+  const renameIcon = document.createElement('img');
+  renameIcon.src = "../assets/p-rename.png"
+  renameIcon.style.height = "20px";
+  renameIcon.style.width = "20px";
+  renameBtn.appendChild(renameIcon)
+
+  const renameOrigIcon = "../assets/p-rename.png";
+  const renameHoverIcon = "../assets/w-rename.png";
+
+// Change image on hover
+  renameBtn.addEventListener("mouseenter", () => {
+    renameIcon.src = renameHoverIcon;
+  });
+
+  renameBtn.addEventListener("mouseleave", () => {
+    renameIcon.src = renameOrigIcon;
+  })
 
   const deleteBtn = document.createElement('button');
   deleteBtn.type = 'button';
   deleteBtn.className = 'btn-delete';
-  deleteBtn.textContent = 'Delete';
+  const deleteIcon = document.createElement('img');
+  // deleteBtn.textContent = 'Delete';
+  deleteIcon.src = "../assets/p-delete.png"
+  deleteIcon.style.height = "20px";
+  deleteIcon.style.width = "20px";
+  deleteBtn.appendChild(deleteIcon)
+
+  const deleteOrigIcon = "../assets/p-delete.png";
+  const deleteHoverIcon = "../assets/w-delete.png";
+
+  // Change image on hover
+  deleteBtn.addEventListener("mouseenter", () => {
+    deleteIcon.src = deleteHoverIcon;
+  });
+
+  deleteBtn.addEventListener("mouseleave", () => {
+    deleteIcon.src = deleteOrigIcon;
+  })
 
   viewBtn.onclick = () => {
     const params = new URLSearchParams({ project: project.id });

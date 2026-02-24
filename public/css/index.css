@@ -42,7 +42,7 @@
 }
 #project-container-header {
   display: flex;
-  justify-content: space-evenly;
+  justify-content: space-around;
   width: 100%;
   background-color: #0d3d52;
 }
@@ -142,30 +142,31 @@
 }
 .project-row .btn-rename {
     padding: 10px 20px;
-    background: #115272;
+    /* background: #115272; */
     color: #fff;
     border: none;
     border-radius: 4px;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background .7s;
 }
 .project-row .btn-rename:hover {
     background: #0d3d52;
 }
 .project-row .btn-delete {
     padding: 10px 20px;
-    background: #c62828;
+    /* background: #c62828; */
     color: #fff;
-    border: none;
+    /* border: none; */
     border-radius: 4px;
     font-weight: 600;
     margin-right: 2rem;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.7s;
 }
 .project-row .btn-delete:hover {
-    background: #a01d1d;
+    background: #7e1c1c;
+    
 }
 #rename-project-name {
   border: 1px solid black;
@@ -185,16 +186,17 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  width: auto;
 }
 .project-row .btn-open {
     padding: 10px 20px;
-    background: #2e7d32;
+    /* background: #2e7d32; */
     color: #fff;
     border: none;
     border-radius: 4px;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.7s;
 }
 .project-row .btn-open:hover {
     background: #1b5e20;
