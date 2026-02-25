@@ -405,6 +405,27 @@ app.get('/api/panos', async (req, res) => {
   }
 });
 
+// Persist panorama order. Body: { order: [filenames...] }
+app.put('/api/panos/order', (req, res) => {
+  const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
+  const body = req.body;
+  if (!body || !Array.isArray(body.order)) return res.status(400).json({ error: 'Invalid payload' });
+  // Validate filenames are strings
+  const ok = body.order.every(f => typeof f === 'string' && f.length > 0 && !f.includes('..') && !/[\\\/]/.test(f));
+  if (!ok) return res.status(400).json({ error: 'Invalid filenames in order' });
+  try {
+    
+    const dir = path.dirname(paths.panoramaOrderPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    writePanoramaOrder(paths.panoramaOrderPath, body.order);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Error writing panorama order:', e);
+    res.status(500).json({ error: 'Unable to save order' });
+  }
+});
+
 app.get('/api/panos/:filename', async (req, res) => {
   const filename = req.params.filename;
   if (!filename) return res.status(400).json({ error: 'filename required' });

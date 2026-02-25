@@ -160,6 +160,13 @@
     color: #fff;
 }
 
+#pano-image-list li.drag-over {
+  outline: 2px dashed rgba(17,82,114,0.9);
+}
+#pano-image-list li.dragging {
+  opacity: 0.5;
+}
+
 #pano-viewer-wrap {
   flex: 1;
   position: relative;

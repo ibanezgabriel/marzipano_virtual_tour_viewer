@@ -188,13 +188,104 @@ export async function loadImages(onImagesLoaded) {
       }
     }
 
+    // Detect admin context so drag/reorder is enabled only in admin UI
+    const isAdmin = typeof window !== 'undefined' && /admin\.html$/i.test(window.location.pathname);
+
+    // Helper to create a draggable list item for an image
+    function createImageListItem(filename) {
+      const li = document.createElement('li');
+      li.textContent = filename;
+      li.draggable = true;
+      li.dataset.filename = filename;
+      li.onclick = () => loadPanorama(li.dataset.filename);
+
+      // Only enable drag/drop handlers in admin UI
+      if (isAdmin) {
+        li.addEventListener('dragstart', (ev) => {
+          ev.dataTransfer.setData('text/plain', li.dataset.filename);
+          ev.dataTransfer.effectAllowed = 'move';
+          li.classList.add('dragging');
+        });
+
+        li.addEventListener('dragend', () => {
+          li.classList.remove('dragging');
+          document.querySelectorAll('#pano-image-list li').forEach(x => x.classList.remove('drag-over'));
+        });
+
+        li.addEventListener('dragover', (ev) => {
+          ev.preventDefault(); // allow drop
+          ev.dataTransfer.dropEffect = 'move';
+        });
+
+        li.addEventListener('dragenter', () => {
+          li.classList.add('drag-over');
+        });
+
+        li.addEventListener('dragleave', () => {
+          li.classList.remove('drag-over');
+        });
+
+        li.addEventListener('drop', async (ev) => {
+          ev.preventDefault();
+          li.classList.remove('drag-over');
+          const sourceFilename = ev.dataTransfer.getData('text/plain');
+          const targetFilename = li.dataset.filename;
+          if (!sourceFilename || sourceFilename === targetFilename) return;
+
+          // Find the two list items and swap their filenames and onclick handlers
+          const allItems = Array.from(document.querySelectorAll('#pano-image-list li'));
+          const srcLi = allItems.find(x => x.dataset.filename === sourceFilename);
+          const tgtLi = allItems.find(x => x.dataset.filename === targetFilename);
+          if (!srcLi || !tgtLi) return;
+
+          // Swap dataset and text
+          const tmp = srcLi.dataset.filename;
+          srcLi.dataset.filename = tgtLi.dataset.filename;
+          tgtLi.dataset.filename = tmp;
+          srcLi.textContent = srcLi.dataset.filename;
+          tgtLi.textContent = tgtLi.dataset.filename;
+
+          // Reassign onclick handlers to use updated filenames
+          srcLi.onclick = () => loadPanorama(srcLi.dataset.filename);
+          tgtLi.onclick = () => loadPanorama(tgtLi.dataset.filename);
+
+          // Maintain active state if selection moved
+          if (selectedImageName === sourceFilename) selectedImageName = targetFilename;
+          else if (selectedImageName === targetFilename) selectedImageName = sourceFilename;
+
+          // Update visual active classes
+          document.querySelectorAll('#pano-image-list li').forEach(li => li.classList.remove('active'));
+          const activeLi = Array.from(document.querySelectorAll('#pano-image-list li'))
+            .find(li => li.textContent === selectedImageName);
+          if (activeLi) activeLi.classList.add('active');
+
+          // Persist new order to server
+          try {
+            const newOrder = Array.from(document.querySelectorAll('#pano-image-list li')).map(x => x.dataset.filename);
+            const res = await fetch(appendProjectParams('/api/panos/order'), {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ order: newOrder })
+            });
+            if (!res.ok) {
+              const txt = await res.text().catch(() => '');
+              console.warn('Failed to persist panorama order, server responded:', res.status, txt);
+              alert('Failed to save image order: ' + (txt || res.status));
+            } else {
+              console.log('Panorama order saved');
+            }
+          } catch (e) {
+            console.warn('Failed to persist panorama order:', e);
+            alert('Failed to save image order: ' + e.message);
+          }
+        });
+      }
+
+      return li;
+    }
+
     fileList.forEach(file => {
-      const li = document.createElement("li");
-      li.textContent = file;
-      li.onclick = () => {
-        loadPanorama(file);
-      };
-      imageListEl.appendChild(li);
+      imageListEl.appendChild(createImageListItem(file));
     });
 
     if (fileList.length > 0) {
