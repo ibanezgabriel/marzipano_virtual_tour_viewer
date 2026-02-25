@@ -254,7 +254,7 @@ viewBtn.addEventListener("mouseleave", () => {
 
   viewBtn.onclick = () => {
     const params = new URLSearchParams({ project: project.id });
-    window.location.href = `client.html?${params}`;
+    window.open(`client.html?${params}`, '_blank');
   };
 
   // Make the entire row clickable to open the project,
