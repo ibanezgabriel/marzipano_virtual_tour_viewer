@@ -10,7 +10,7 @@ const {
 } = require('./public/js/tiler');
 
 const app = express();
-const PORT = 3000;
+const PORT = 3152;
 
 const projectsDir = path.join(__dirname, 'projects');
 const projectsManifestPath = path.join(projectsDir, 'projects.json');

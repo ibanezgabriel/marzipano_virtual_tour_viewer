@@ -19,6 +19,9 @@ const deleteProjectTextEl = document.getElementById('delete-project-text');
 const deleteModalCancelBtn = document.getElementById('delete-modal-cancel');
 const deleteModalConfirmBtn = document.getElementById('delete-modal-confirm');
 
+// Import dialog functions for delete progress
+import { showProgressDialog, hideProgressDialog, updateProgressDialog, setProgressDialogMessage } from './dialog.js';
+
 const MAX_PROJECT_NAME_LENGTH = 100;
 let allProjects = [];
 
@@ -161,12 +164,37 @@ function showDeleteModal(project, rowEl) {
   deleteModalCancelBtn.onclick = cleanup;
 
   deleteModalConfirmBtn.onclick = async () => {
+    cleanup(); // Close the confirmation modal
+    
     try {
+      // Show deleting progress dialog
+      showProgressDialog('Deleting project...');
+      setProgressDialogMessage(`Deleting "${project.name}"...`);
+      
+      // Simulate progress since delete is usually fast
+      updateProgressDialog(10);
+      
+      // Add a small delay to show progress
+      await new Promise(resolve => setTimeout(resolve, 300));
+      updateProgressDialog(50);
+      
       await deleteProject(project.id);
+      
+      updateProgressDialog(90);
+      
       allProjects = allProjects.filter((p) => p.id !== project.id);
       applyProjectSearch();
-      cleanup();
+      
+      updateProgressDialog(100);
+      
+      // Add a small delay to show completion
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Hide progress dialog when done
+      hideProgressDialog();
     } catch (e) {
+      // Hide progress dialog and show error
+      hideProgressDialog();
       alert(e.message);
     }
   };
