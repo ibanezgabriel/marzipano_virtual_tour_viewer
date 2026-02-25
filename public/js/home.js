@@ -21,6 +21,7 @@ const deleteModalConfirmBtn = document.getElementById('delete-modal-confirm');
 
 // Import dialog functions for delete progress
 import { showProgressDialog, hideProgressDialog, updateProgressDialog, setProgressDialogMessage } from './dialog.js';
+import { io } from '/socket.io/socket.io.esm.min.js';
 
 const MAX_PROJECT_NAME_LENGTH = 100;
 let allProjects = [];
@@ -358,7 +359,12 @@ modalCreateBtn.onclick = async () => {
   }
   try {
     const created = await createProject(name);
-    allProjects.push(created);
+    // Avoid duplicating the project if the realtime socket already added it
+    if (!allProjects.some(p => p.id === created.id)) {
+      allProjects.push(created);
+    } else {
+      allProjects = allProjects.map(p => p.id === created.id ? created : p);
+    }
     renderProjectList(allProjects);
     newProjectModal.classList.remove('visible');
   } catch (e) {
@@ -423,3 +429,15 @@ if (projectSearchInput) {
 }
 
 loadProjects();
+
+// Realtime updates: update project list when other clients change it
+try {
+  const socket = io();
+  socket.on('projects:changed', (projects) => {
+    if (!Array.isArray(projects)) return;
+    allProjects = projects;
+    applyProjectSearch();
+  });
+} catch (e) {
+  // ignore if sockets unavailable
+}

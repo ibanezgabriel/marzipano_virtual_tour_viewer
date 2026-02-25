@@ -11,6 +11,8 @@ const {
 
 const app = express();
 const PORT = 3000;
+const http = require('http');
+const { Server } = require('socket.io');
 
 const projectsDir = path.join(__dirname, 'projects');
 const projectsManifestPath = path.join(projectsDir, 'projects.json');
@@ -190,6 +192,14 @@ projectRouter.use('/tiles', (req, res, next) => {
 });
 app.use('/projects/:projectId', projectRouter);
 
+// Create HTTP server and socket.io for realtime updates
+const server = http.createServer(app);
+const io = new Server(server);
+
+io.on('connection', (socket) => {
+  // No-op for now; clients listen for 'projects:changed'
+});
+
 // Multer: dynamic destination based on project (set by route)
 const upload = multer({
   storage: multer.diskStorage({
@@ -315,6 +325,8 @@ app.post('/api/projects', (req, res) => {
   const project = { id: finalId, name: trimmedName };
   projects.push(project);
   writeProjectsManifest(projects);
+  // Notify connected clients about project list changes
+  try { io.emit('projects:changed', projects); } catch (e) { console.error('Socket emit error:', e); }
   res.json(project);
 });
 
@@ -361,6 +373,7 @@ app.put('/api/projects/:id', (req, res) => {
   }
   projects[idx].name = trimmedName;
   writeProjectsManifest(projects);
+  try { io.emit('projects:changed', projects); } catch (e) { console.error('Socket emit error:', e); }
   res.json(projects[idx]);
 });
 
@@ -378,6 +391,7 @@ app.delete('/api/projects/:id', (req, res) => {
   if (p && fs.existsSync(p.base)) {
     fs.rmSync(p.base, { recursive: true, force: true });
   }
+  try { io.emit('projects:changed', projects); } catch (e) { console.error('Socket emit error:', e); }
   res.json({ success: true });
 });
 
@@ -775,6 +789,6 @@ app.delete('/upload/:filename', (req, res) => {
   });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
