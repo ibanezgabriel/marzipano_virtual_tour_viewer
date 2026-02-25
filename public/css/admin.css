@@ -240,16 +240,21 @@
     pointer-events: auto;
     margin-left: -22px;
     margin-top: -22px;
+    background-color: white;
+    border-radius: 50%;
 }
 .app-hotspot-pin-dot {
     display: block;
-    width: 30px;
-    height: 30px;
-    min-width: 30px;
-    min-height: 30px;
+    width: 40px;
+    height: 40px;
+    /* min-width: 30px;
+    min-height: 30px; */
     flex-shrink: 0;
     box-sizing: border-box;
-    background-color: #4a7ab8;
+    /* background-color: #4a7ab8; */
+    background: url('../assets/arrow.png');
+    background-size: cover;
+    background-position: no-repeat;
     border: 2px solid #fff;
     border-radius: 50%;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
@@ -258,7 +263,6 @@
 }
 .app-hotspot-pin-dot:hover {
     transform: scale(1.1);
-    background-color: #5a8ac8;
 }
 .app-hotspot-remove {
     position: absolute;
