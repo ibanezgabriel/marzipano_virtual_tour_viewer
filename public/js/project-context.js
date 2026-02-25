@@ -4,7 +4,15 @@
 
 function getProjectId() {
   const params = new URLSearchParams(window.location.search);
-  return params.get('project') || null;
+  const explicit = params.get('project');
+  if (explicit) return explicit;
+  // Support legacy/loose URLs like `?myproject` (no `=project` key).
+  // If there's a single bare key with an empty value, treat that key as the project id.
+  for (const [k, v] of params.entries()) {
+    if (v === '') return k;
+    break;
+  }
+  return null;
 }
 
 /** Append ?project=id to a URL if we have a project. */

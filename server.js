@@ -80,6 +80,45 @@ function resolvePaths(req) {
 app.use(express.json());
 
 // Serve static files
+/**
+ * Block access to admin.html and client.html when a project is requested
+ * but the project does not exist or has no uploaded panoramas. This
+ * runs before the static file middleware so we can conditionally deny
+ * serving those pages.
+ */
+function getProjectIdFromQuery(req) {
+  if (req.query && typeof req.query === 'object') {
+    if (typeof req.query.project === 'string' && req.query.project.length > 0) return req.query.project;
+    const keys = Object.keys(req.query);
+    if (keys.length === 1 && req.query[keys[0]] === '') return keys[0];
+  }
+  return null;
+}
+
+app.use((req, res, next) => {
+  try {
+    const ppath = req.path || '';
+    if (ppath === '/admin.html' || ppath === '/client.html') {
+      const projectId = getProjectIdFromQuery(req);
+      if (projectId) {
+        const p = getProjectPaths(projectId);
+        if (!p || !fs.existsSync(p.base)) {
+          return res.status(404).send('<p>Project not Found</p>');
+        }
+        const uploadsDir = p.upload;
+        if (!fs.existsSync(uploadsDir)) return res.status(404).send('Project has no uploaded panoramas');
+        const files = fs.readdirSync(uploadsDir).filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
+        if (!files || files.length === 0) return res.status(404).send('Project has no uploaded panoramas');
+      }
+    }
+  } catch (e) {
+    console.error('Error in admin/client guard middleware:', e);
+    // Fail open to avoid blocking in case of unexpected error
+  }
+  next();
+});
+
+// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
 
