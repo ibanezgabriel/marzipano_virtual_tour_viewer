@@ -3,12 +3,23 @@
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background-color: #c2c2c2;
+    /* background-color: #c2c2c2; */
     padding: 1rem;
+    background: url(../assets/QC-Hall.jpg);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+.login-main::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.591);
 }
 
 .login-container {
-    background-color: #3281a8;
+    position: absolute;
+    background-color: #2d6b8a;
     border-radius: 8px;
     padding: 2rem;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
