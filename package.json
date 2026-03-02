@@ -11,8 +11,17 @@
   "license": "ISC",
   "dependencies": {
     "express": "^5.2.1",
-    "multer": "^2.0.2",
+    "multer": "^2.1.0",
     "sharp": "^0.34.5",
     "socket.io": "^4.8.3"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/with-aeon/marzipano_virtual_tour_viewer.git"
+  },
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/with-aeon/marzipano_virtual_tour_viewer/issues"
+  },
+  "homepage": "https://github.com/with-aeon/marzipano_virtual_tour_viewer#readme"
 }

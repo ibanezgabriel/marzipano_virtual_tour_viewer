@@ -219,7 +219,14 @@ projectRouter.use('/tiles', (req, res, next) => {
 app.use('/projects/:projectId', projectRouter);
 
 // Create HTTP server and socket.io for realtime updates
-const server = http.createServer(app);
+const https = require('https');
+
+const sslOptions = {
+  key: fs.readFileSync(path.join(__dirname, 'key.pem')),
+  cert: fs.readFileSync(path.join(__dirname, 'cert.pem')),
+};
+
+const server = https.createServer(sslOptions, app);
 const io = new Server(server);
 
 io.on('connection', (socket) => {
@@ -840,5 +847,4 @@ app.delete('/upload/:filename', (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+console.log(`Server running at https://localhost:${PORT}`);});
