@@ -38,6 +38,18 @@ function writeProjectsManifest(projects) {
   fs.writeFileSync(projectsManifestPath, JSON.stringify(projects, null, 2), 'utf8');
 }
 
+/**
+ * Look up a project by either its internal id or its human-facing number.
+ * Returns the full project object or null if not found.
+ */
+function findProjectByIdOrNumber(token) {
+  if (!token) return null;
+  const value = String(token).trim();
+  if (!value) return null;
+  const projects = getProjectsManifest();
+  return projects.find((p) => p.id === value || (p.number && String(p.number).trim() === value)) || null;
+}
+
 function sanitizeProjectId(name) {
   return name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '') || 'project';
 }
@@ -65,7 +77,9 @@ function ensureProjectDirs(projectId) {
 
 /** Resolve paths: require project id */
 function resolvePaths(req) {
-  const projectId = req.query.project || (req.body && req.body.project);
+  const projectToken = req.query.project || (req.body && req.body.project);
+  const project = findProjectByIdOrNumber(projectToken);
+  const projectId = project ? project.id : projectToken;
   const p = getProjectPaths(projectId);
   if (!p) return null;
   return {
@@ -90,9 +104,17 @@ app.use(express.json());
  */
 function getProjectIdFromQuery(req) {
   if (req.query && typeof req.query === 'object') {
-    if (typeof req.query.project === 'string' && req.query.project.length > 0) return req.query.project;
-    const keys = Object.keys(req.query);
-    if (keys.length === 1 && req.query[keys[0]] === '') return keys[0];
+    let token = null;
+    if (typeof req.query.project === 'string' && req.query.project.length > 0) {
+      token = req.query.project;
+    } else {
+      const keys = Object.keys(req.query);
+      if (keys.length === 1 && req.query[keys[0]] === '') token = keys[0];
+    }
+    if (token) {
+      const project = findProjectByIdOrNumber(token);
+      return project ? project.id : token;
+    }
   }
   return null;
 }
@@ -175,7 +197,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Project-scoped static: /projects/:id/upload and /projects/:id/tiles
 const projectRouter = express.Router({ mergeParams: true });
 projectRouter.use('/upload', (req, res, next) => {
-  const id = req.params.projectId;
+  const token = req.params.projectId;
+  const project = findProjectByIdOrNumber(token);
+  const id = project ? project.id : token;
   if (id.includes('..') || id.includes('/') || id.includes('\\')) return res.status(400).send('Invalid project');
   const p = getProjectPaths(id);
   if (!p) return res.status(400).send('Invalid project');
@@ -183,7 +207,9 @@ projectRouter.use('/upload', (req, res, next) => {
   express.static(p.upload)(req, res, next);
 });
 projectRouter.use('/tiles', (req, res, next) => {
-  const id = req.params.projectId;
+  const token = req.params.projectId;
+  const project = findProjectByIdOrNumber(token);
+  const id = project ? project.id : token;
   if (id.includes('..') || id.includes('/') || id.includes('\\')) return res.status(400).send('Invalid project');
   const p = getProjectPaths(id);
   if (!p) return res.status(400).send('Invalid project');
@@ -214,7 +240,9 @@ io.on('connection', (socket) => {
 const upload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
-      const projectId = req.query.project || (req.body && req.body.project);
+      const projectToken = req.query.project || (req.body && req.body.project);
+      const project = findProjectByIdOrNumber(projectToken);
+      const projectId = project ? project.id : projectToken;
       const p = getProjectPaths(projectId);
       if (!p) return cb(new Error('Project required'), null);
       const dir = p.upload;
@@ -346,7 +374,7 @@ app.put('/api/projects/:id', (req, res) => {
   if (oldId.includes('..') || oldId.includes('/') || oldId.includes('\\')) {
     return res.status(400).json({ success: false, message: 'Invalid project id' });
   }
-  const { name } = req.body || {};
+  const { name, number } = req.body || {};
   if (!name || typeof name !== 'string' || !name.trim()) {
     return res.status(400).json({ success: false, message: 'Project name is required' });
   }
@@ -354,6 +382,7 @@ app.put('/api/projects/:id', (req, res) => {
   const idx = projects.findIndex(p => p.id === oldId);
   if (idx === -1) return res.status(404).json({ success: false, message: 'Project not found' });
   const trimmedName = name.trim();
+  const trimmedNumber = number ? String(number).trim() : '';
   const normalized = trimmedName.toLowerCase();
   if (projects.some((p, i) => i !== idx && (p.name || '').trim().toLowerCase() === normalized)) {
     return res.status(409).json({ success: false, message: 'A project with this name already exists' });
@@ -383,6 +412,7 @@ app.put('/api/projects/:id', (req, res) => {
     projects[idx].id = newId;
   }
   projects[idx].name = trimmedName;
+  projects[idx].number = trimmedNumber;
   writeProjectsManifest(projects);
   try { io.emit('projects:changed', projects); } catch (e) { console.error('Socket emit error:', e); }
   res.json(projects[idx]);

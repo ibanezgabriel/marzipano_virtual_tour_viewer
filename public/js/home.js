@@ -11,6 +11,7 @@ const openProjectModal = document.getElementById('open-project-modal');
 const openProjectListEl = document.getElementById('open-project-list');
 const openModalCloseBtn = document.getElementById('open-modal-close');
 const renameProjectModal = document.getElementById('rename-project-modal');
+const renameProjectNumberInput = document.getElementById('rename-project-number');
 const renameProjectNameInput = document.getElementById('rename-project-name');
 const renameProjectErrorEl = document.getElementById('rename-project-error');
 const renameModalCancelBtn = document.getElementById('rename-modal-cancel');
@@ -35,6 +36,24 @@ if (newProjectNumberInput) {
   });
   newProjectNumberInput.addEventListener('paste', (e) => {
     // sanitize pasted content
+    e.preventDefault();
+    const paste = (e.clipboardData || window.clipboardData).getData('text') || '';
+    const filtered = paste.replace(/\D+/g, '');
+    const el = e.target;
+    const start = el.selectionStart || 0;
+    const end = el.selectionEnd || 0;
+    const newValue = (el.value.slice(0, start) + filtered + el.value.slice(end)).replace(/\D+/g, '');
+    el.value = newValue;
+  });
+}
+
+// Ensure rename project number input only allows digits
+if (renameProjectNumberInput) {
+  renameProjectNumberInput.addEventListener('input', (e) => {
+    const cleaned = (e.target.value || '').replace(/\D+/g, '');
+    if (e.target.value !== cleaned) e.target.value = cleaned;
+  });
+  renameProjectNumberInput.addEventListener('paste', (e) => {
     e.preventDefault();
     const paste = (e.clipboardData || window.clipboardData).getData('text') || '';
     const filtered = paste.replace(/\D+/g, '');
@@ -82,11 +101,14 @@ async function createProject(name, number) {
   return data;
 }
 
-async function renameProject(id, newName) {
+async function renameProject(id, newName, newNumber) {
   const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: newName.trim() }),
+    body: JSON.stringify({
+      name: newName.trim(),
+      number: newNumber ? newNumber.trim() : '',
+    }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to rename project');
@@ -103,7 +125,9 @@ async function deleteProject(id) {
 }
 
 function openProject(project) {
-  const params = new URLSearchParams({ project: project.id });
+  // Prefer project number in shared URLs when available.
+  const projectToken = (project.number && String(project.number).trim()) || project.id;
+  const params = new URLSearchParams({ project: projectToken });
   window.location.href = `admin.html?${params}`;
 }
 
@@ -112,12 +136,14 @@ function validateProjectName(name, currentName = null) {
   if (!trimmed) return 'Project name is required.';
   if (trimmed.length > MAX_PROJECT_NAME_LENGTH) return `Project name must be ${MAX_PROJECT_NAME_LENGTH} characters or less.`;
   if (/[<>:"/\\|?*]/.test(trimmed)) return 'Project name cannot contain: < > : " / \\ | ? *';
-  if (currentName && trimmed === currentName.trim()) return 'No changes made.';
   return null;
 }
 
 function showRenameModal(project, nameDisplayEl) {
   renameProjectErrorEl.textContent = '';
+  if (renameProjectNumberInput) {
+    renameProjectNumberInput.value = project.number || '';
+  }
   renameProjectNameInput.value = project.name;
   renameProjectModal.classList.add('visible');
   renameProjectNameInput.focus();
@@ -135,22 +161,38 @@ function showRenameModal(project, nameDisplayEl) {
 
   renameModalSaveBtn.onclick = async () => {
     const name = renameProjectNameInput.value;
+    const numberRaw = renameProjectNumberInput ? renameProjectNumberInput.value || '' : '';
+    const number = numberRaw.replace(/\D+/g, '');
     const error = validateProjectName(name, project.name);
     if (error) {
       renameProjectErrorEl.textContent = error;
       return;
     }
-    if (projectNameExists(name, project.id)) {
-      renameProjectErrorEl.textContent = 'A project with this name already exists.';
+    // If the name is changing, enforce the "unique name" rule.
+    if (name.trim() !== project.name.trim()) {
+      if (projectNameExists(name, project.id)) {
+        renameProjectErrorEl.textContent = 'A project with this name already exists.';
+        return;
+      }
+    }
+    // If neither name nor number actually changed, do nothing.
+    const currentNumber = String(project.number || '');
+    if (name.trim() === project.name.trim() && number === currentNumber) {
+      renameProjectErrorEl.textContent = 'No changes made.';
       return;
     }
     try {
-      const updated = await renameProject(project.id, name.trim());
-      project.name = updated.name || name.trim();
-      project.id = updated.id || project.id;
-      nameDisplayEl.textContent = project.name;
-      const row = nameDisplayEl.closest('.project-row');
-      if (row) row.dataset.projectId = project.id;
+      const updated = await renameProject(project.id, name.trim(), number);
+      const finalProject = {
+        ...project,
+        ...updated,
+        name: updated.name || name.trim(),
+        number: updated.number !== undefined ? updated.number : number,
+      };
+      // Update in-memory list
+      allProjects = allProjects.map((p) => (p.id === project.id ? finalProject : p));
+      // Re-render list so both name and number reflect changes
+      renderProjectList(allProjects);
       cleanup();
     } catch (e) {
       renameProjectErrorEl.textContent = e.message || 'Failed to rename project.';
@@ -313,8 +355,11 @@ viewBtn.addEventListener("mouseleave", () => {
     deleteIcon.src = deleteOrigIcon;
   })
 
+  // Prefer project number in shared URLs when available.
+  const projectToken = (project.number && String(project.number).trim()) || project.id;
+
   viewBtn.onclick = () => {
-    const params = new URLSearchParams({ project: project.id });
+    const params = new URLSearchParams({ project: projectToken });
     window.open(`client.html?${params}`, '_blank');
   };
 
@@ -322,7 +367,7 @@ viewBtn.addEventListener("mouseleave", () => {
   // but ignore clicks that originate from the action buttons.
   row.onclick = (e) => {
     if (e.target.closest('button')) return;
-    const params = new URLSearchParams({ project: project.id });
+    const params = new URLSearchParams({ project: projectToken });
     window.location.href = `admin.html?${params}`;
   };
 

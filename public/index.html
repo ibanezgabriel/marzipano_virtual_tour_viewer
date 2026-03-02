@@ -74,8 +74,15 @@
 
     <div class="modal-overlay" id="rename-project-modal">
         <div class="modal">
-            <h2>Rename Project</h2>
-            <input type="text" id="rename-project-name" placeholder="Project Name" maxlength="100">
+            <h2>Edit Project</h2>
+            <div class="form-group">
+                <label for="rename-project-number">Project Number</label>
+                <input type="text" id="rename-project-number" placeholder="Project Number" maxlength="100" inputmode="numeric" pattern="\d*">
+            </div>
+            <div class="form-group">
+                <label for="rename-project-name">Project Name</label>
+                <input type="text" id="rename-project-name" placeholder="Project Name" maxlength="100">
+            </div>
             <p class="modal-error" id="rename-project-error" role="alert"></p>
             <div class="modal-actions">
                 <button type="button" class="btn-secondary" id="rename-modal-cancel">Cancel</button>

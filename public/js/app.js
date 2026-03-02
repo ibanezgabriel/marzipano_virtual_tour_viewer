@@ -9,6 +9,17 @@ import { initMenuCollapsible } from './menu-collapsible.js';
 import { initInitialView } from './features/initial-view.js';
 import { reloadInitialViews } from './marzipano-viewer.js';
 import { io } from '/socket.io/socket.io.esm.min.js';
+
+function resolveProjectId(projects, token) {
+  const value = (token || '').trim();
+  if (!value || !Array.isArray(projects)) return value;
+  const match = projects.find(
+    (p) =>
+      p.id === value ||
+      (p.number && String(p.number).trim() === value)
+  );
+  return match ? match.id : value;
+}
 if (!getProjectId()) {
   window.location.replace('index.html');
 } else {
@@ -25,7 +36,7 @@ if (!getProjectId()) {
       try {
         const res = await fetch('/api/projects');
         const projects = await res.json();
-        const id = getProjectId();
+        const id = resolveProjectId(projects, getProjectId());
         const project = Array.isArray(projects) ? projects.find(p => p.id === id) : null;
         if (project && project.name) setProjectName(project.name);
       } catch {}
@@ -37,14 +48,21 @@ if (!getProjectId()) {
   // Realtime project name updates
   try {
     const socket = io();
-    const pid = getProjectId();
-    if (pid) socket.emit('joinProject', pid);
-    socket.on('projects:changed', (projects) => {
-      const id = getProjectId();
-      if (!id) return;
-      const proj = Array.isArray(projects) ? projects.find(p => p.id === id) : null;
-      if (proj && proj.name) setProjectName(proj.name);
-    });
+    (async () => {
+      try {
+        const res = await fetch('/api/projects');
+        const projects = await res.json();
+        const raw = getProjectId();
+        const pid = resolveProjectId(projects, raw);
+        if (pid) socket.emit('joinProject', pid);
+        socket.on('projects:changed', (projectsUpdate) => {
+          const projId = resolveProjectId(projectsUpdate, raw);
+          if (!projId) return;
+          const proj = Array.isArray(projectsUpdate) ? projectsUpdate.find(p => p.id === projId) : null;
+          if (proj && proj.name) setProjectName(proj.name);
+        });
+      } catch (e) {}
+    })();
 
     socket.on('panos:ready', (payload) => {
       loadImages(cleanupHotspotsForDeletedImages);
