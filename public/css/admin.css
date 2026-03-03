@@ -296,6 +296,12 @@
   background: #fff;
 }
 
+/* Ensure rendered display hotspot layer positions correctly */
+.floorplan-preview .floorplan-image-wrap {
+  position: relative;
+  width: 100%;
+}
+
 /* Expanded floor plan modal */
 .floorplan-modal-overlay {
   position: fixed;
@@ -324,21 +330,47 @@
   overflow: hidden;
 }
 
+.floorplan-modal-header {
+  padding: 10px 12px;
+  background: #ffffff;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.floorplan-modal-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-align: center;
+  color: #0d3d52;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .floorplan-modal-body {
   flex: 1;
   padding: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: auto;
+  display: block;
   background: #f5f5f5;
 }
 
+.floorplan-image-wrap {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.floorplan-modal-body .floorplan-image-wrap {
+  width: 100%;
+}
+
 .floorplan-modal-body img {
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: auto;
   object-fit: contain;
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  display: block;
 }
 
 .floorplan-modal-actions {
@@ -399,26 +431,71 @@ body.floorplan-modal-open #pano-panel {
 /* Hotspots inside expanded floor plan */
 .floorplan-hotspot-layer {
   position: absolute;
-  inset: 12px;
+  inset: 0;
   pointer-events: none;
 }
 
-.floorplan-hotspot-dot {
+.floorplan-hotspot-pin {
   position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.floorplan-hotspot-pin-dot {
   width: 18px;
   height: 18px;
   border-radius: 50%;
   border: 2px solid #ffffff;
   background: #4a7ab8;
   box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-  transform: translate(-50%, -50%);
   cursor: pointer;
+  pointer-events: auto;
+  display: block;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.floorplan-hotspot-pin-dot:hover {
+  transform: scale(1.1);
+  background: #5a8ac8;
+}
+
+.floorplan-hotspot-pin-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+  opacity: 0;
   pointer-events: auto;
 }
 
-.floorplan-hotspot-dot:hover {
-  transform: translate(-50%, -50%) scale(1.1);
-  background: #5a8ac8;
+.floorplan-hotspot-pin-dot:hover ~ .floorplan-hotspot-pin-remove,
+.floorplan-hotspot-pin-remove:hover {
+  opacity: 1;
+}
+
+.floorplan-hotspot-pin-remove:hover {
+  background: #8b3a3a;
+  transform: scale(1.1);
+}
+
+.floorplan-hotspot-pin-remove::before {
+  content: '×';
+  font-weight: bold;
 }
 .no-pano-msg {
     margin: 0;
