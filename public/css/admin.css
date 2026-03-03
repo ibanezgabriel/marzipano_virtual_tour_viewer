@@ -295,6 +295,131 @@
   object-fit: contain;
   background: #fff;
 }
+
+/* Expanded floor plan modal */
+.floorplan-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+
+.floorplan-modal-overlay.visible {
+  display: flex;
+}
+
+.floorplan-modal {
+  background: #ffffff;
+  border-radius: 8px;
+  max-width: 80vw;
+  max-height: 80vh;
+  width: 800px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.floorplan-modal-body {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+}
+
+.floorplan-modal-body img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.floorplan-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border-top: 1px solid #e0e0e0;
+}
+
+.floorplan-action-btn {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  border-radius: 4px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.floorplan-action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+
+.floorplan-update {
+  background: #ffd54f;
+  color: #333;
+}
+
+.floorplan-rename {
+  background: #66bb6a;
+  color: #fff;
+}
+
+.floorplan-delete {
+  background: #e53935;
+  color: #fff;
+}
+
+.floorplan-hotspot {
+  background: #3c7b8e;
+  color: #fff;
+}
+
+.floorplan-hotspot.active {
+  background: #ffffff;
+  color: #0d3d52;
+}
+
+/* Blur main content slightly while modal is open */
+body.floorplan-modal-open #pano-panel {
+  filter: blur(2px);
+}
+
+/* Hotspots inside expanded floor plan */
+.floorplan-hotspot-layer {
+  position: absolute;
+  inset: 12px;
+  pointer-events: none;
+}
+
+.floorplan-hotspot-dot {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  background: #4a7ab8;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.floorplan-hotspot-dot:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+  background: #5a8ac8;
+}
 .no-pano-msg {
     margin: 0;
     padding: 1rem;

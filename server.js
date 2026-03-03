@@ -88,6 +88,7 @@ function resolvePaths(req) {
     floorplansDir: p.floorplans,
     tilesDir: p.tiles,
     hotspotsPath: path.join(p.data, 'hotspots.json'),
+    floorplanHotspotsPath: path.join(p.data, 'floorplan-hotspots.json'),
     initialViewsPath: path.join(p.data, 'initial-views.json'),
     panoramaOrderPath: path.join(p.data, 'panorama-order.json'),
     projectId,
@@ -577,6 +578,100 @@ app.post('/upload-floorplan', floorplanUpload.array('floorplan', 20), async (req
   res.json({ success: true, uploaded: filenames });
 });
 
+// Update/replace a single floor plan image while keeping the filename reference.
+// Body fields (multipart/form-data):
+// - floorplan: new image file
+// - oldFilename: existing floorplan filename to replace
+app.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), async (req, res) => {
+  const oldFilename = req.body && req.body.oldFilename;
+  if (!oldFilename) {
+    return res.status(400).json({ success: false, message: 'Old filename is required' });
+  }
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No new file uploaded' });
+  }
+  if (oldFilename.includes('..') || oldFilename.includes('/') || oldFilename.includes('\\')) {
+    return res.status(400).json({ success: false, message: 'Invalid filename' });
+  }
+  const paths = resolvePaths(req);
+  if (!paths) {
+    return res.status(400).json({ success: false, message: 'Project required' });
+  }
+  const oldFilePath = path.join(paths.floorplansDir, oldFilename);
+  if (!fs.existsSync(oldFilePath)) {
+    return res.status(404).json({ success: false, message: 'Old floor plan not found' });
+  }
+
+  const newFilePath = path.join(paths.floorplansDir, oldFilename);
+  try {
+    await fs.promises.unlink(oldFilePath).catch(() => {});
+    await fs.promises.rename(req.file.path, newFilePath);
+    return res.json({ success: true, message: 'Floor plan updated successfully', filename: oldFilename });
+  } catch (e) {
+    console.error('Error updating floor plan:', e);
+    return res.status(500).json({ success: false, message: 'Error updating floor plan' });
+  }
+});
+
+// Rename a floor plan file.
+app.put('/api/floorplans/rename', (req, res) => {
+  const { oldFilename, newFilename } = req.body || {};
+  if (!oldFilename || !newFilename) {
+    return res.status(400).json({ success: false, message: 'Both old and new filenames are required' });
+  }
+  if (
+    oldFilename.includes('..') || oldFilename.includes('/') || oldFilename.includes('\\') ||
+    newFilename.includes('..') || newFilename.includes('/') || newFilename.includes('\\')
+  ) {
+    return res.status(400).json({ success: false, message: 'Invalid filename' });
+  }
+  const paths = resolvePaths(req);
+  if (!paths) {
+    return res.status(400).json({ success: false, message: 'Project required' });
+  }
+  const oldPath = path.join(paths.floorplansDir, oldFilename);
+  const newPath = path.join(paths.floorplansDir, newFilename);
+  if (!fs.existsSync(oldPath)) {
+    return res.status(404).json({ success: false, message: 'File not found' });
+  }
+  if (fs.existsSync(newPath)) {
+    return res.status(409).json({ success: false, message: 'A file with this name already exists' });
+  }
+  fs.rename(oldPath, newPath, (err) => {
+    if (err) {
+      console.error('Error renaming floor plan:', err);
+      return res.status(500).json({ success: false, message: 'Error renaming file' });
+    }
+    return res.json({ success: true, message: 'Floor plan renamed successfully', oldFilename, newFilename });
+  });
+});
+
+// Delete a floor plan image.
+app.delete('/api/floorplans/:filename', (req, res) => {
+  const filename = req.params.filename;
+  if (!filename) {
+    return res.status(400).json({ success: false, message: 'Filename required' });
+  }
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return res.status(400).json({ success: false, message: 'Invalid filename' });
+  }
+  const paths = resolvePaths(req);
+  if (!paths) {
+    return res.status(400).json({ success: false, message: 'Project required' });
+  }
+  const filePath = path.join(paths.floorplansDir, filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ success: false, message: 'File not found' });
+  }
+  fs.unlink(filePath, (err) => {
+    if (err) {
+      console.error('Error deleting floor plan:', err);
+      return res.status(500).json({ success: false, message: 'Error deleting file' });
+    }
+    return res.json({ success: true, message: 'Floor plan deleted successfully' });
+  });
+});
+
 app.get('/api/floorplans', async (req, res) => {
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
@@ -809,6 +904,43 @@ app.get('/api/hotspots', (req, res) => {
     } catch (e) {
       res.json({});
     }
+  });
+});
+
+// Floor plan hotspots: same shape as pano hotspots but keyed by floor plan filename.
+app.get('/api/floorplan-hotspots', (req, res) => {
+  const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
+  fs.readFile(paths.floorplanHotspotsPath, 'utf8', (err, data) => {
+    if (err) {
+      if (err.code === 'ENOENT') return res.json({});
+      return res.status(500).json({ error: 'Unable to read floor plan hotspots' });
+    }
+    try {
+      const obj = JSON.parse(data);
+      res.json(typeof obj === 'object' && obj !== null ? obj : {});
+    } catch (e) {
+      res.json({});
+    }
+  });
+});
+
+app.post('/api/floorplan-hotspots', (req, res) => {
+  const body = req.body;
+  if (typeof body !== 'object' || body === null) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+  const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
+  const json = JSON.stringify(body, null, 2);
+  const dir = path.dirname(paths.floorplanHotspotsPath);
+  fs.mkdir(dir, { recursive: true }, (mkErr) => {
+    if (mkErr) return res.status(500).json({ error: 'Unable to prepare storage for floor plan hotspots' });
+    fs.writeFile(paths.floorplanHotspotsPath, json, 'utf8', (err) => {
+      if (err) return res.status(500).json({ error: 'Unable to save floor plan hotspots' });
+      res.json({ success: true });
+      try { io.to(`project:${paths.projectId}`).emit('floorplan-hotspots:changed', body); } catch (e) { console.error('Socket emit error:', e); }
+    });
   });
 });
 
