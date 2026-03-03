@@ -1,5 +1,6 @@
 import { initViewer, loadImages, setProjectName, updateInitialViewForRenamedImage } from './marzipano-viewer.js';
 import { getProjectId } from './project-context.js';
+import { initFloorplans } from './features/floorplans.js';
 import { initRename } from './features/rename.js';
 import { initUpdate } from './features/update.js';
 import { initDelete } from './features/delete.js';
@@ -43,6 +44,7 @@ if (!getProjectId()) {
     })();
     initViewer();
     loadImages(cleanupHotspotsForDeletedImages);
+    initFloorplans();
   });
 
   // Realtime project name updates

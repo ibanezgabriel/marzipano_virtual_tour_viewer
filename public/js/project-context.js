@@ -29,10 +29,16 @@ function getUploadBase() {
   return id ? `/projects/${encodeURIComponent(id)}/upload` : '/upload';
 }
 
+/** Base path for floor plan image assets (project-scoped or legacy). */
+function getFloorplanBase() {
+  const id = getProjectId();
+  return id ? `/projects/${encodeURIComponent(id)}/floorplans` : '/floorplans';
+}
+
 /** Base path for tile assets (project-scoped or legacy). */
 function getTilesBase() {
   const id = getProjectId();
   return id ? `/projects/${encodeURIComponent(id)}/tiles` : '/tiles';
 }
 
-export { getProjectId, appendProjectParams, getUploadBase, getTilesBase };
+export { getProjectId, appendProjectParams, getUploadBase, getFloorplanBase, getTilesBase };

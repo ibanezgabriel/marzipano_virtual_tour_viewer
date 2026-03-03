@@ -61,6 +61,7 @@ function getProjectPaths(projectId) {
   return {
     base,
     upload: path.join(base, 'upload'),
+    floorplans: path.join(base, 'floorplans'),
     tiles: path.join(base, 'tiles'),
     data: path.join(base, 'data'),
   };
@@ -69,7 +70,7 @@ function getProjectPaths(projectId) {
 function ensureProjectDirs(projectId) {
   const p = getProjectPaths(projectId);
   if (!p) return null;
-  [p.upload, p.tiles, p.data].forEach(dir => {
+  [p.upload, p.floorplans, p.tiles, p.data].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   });
   return p;
@@ -84,6 +85,7 @@ function resolvePaths(req) {
   if (!p) return null;
   return {
     uploadsDir: p.upload,
+    floorplansDir: p.floorplans,
     tilesDir: p.tiles,
     hotspotsPath: path.join(p.data, 'hotspots.json'),
     initialViewsPath: path.join(p.data, 'initial-views.json'),
@@ -206,6 +208,16 @@ projectRouter.use('/upload', (req, res, next) => {
   if (!fs.existsSync(p.upload)) return next();
   express.static(p.upload)(req, res, next);
 });
+projectRouter.use('/floorplans', (req, res, next) => {
+  const token = req.params.projectId;
+  const project = findProjectByIdOrNumber(token);
+  const id = project ? project.id : token;
+  if (id.includes('..') || id.includes('/') || id.includes('\\')) return res.status(400).send('Invalid project');
+  const p = getProjectPaths(id);
+  if (!p) return res.status(400).send('Invalid project');
+  if (!fs.existsSync(p.floorplans)) return next();
+  express.static(p.floorplans)(req, res, next);
+});
 projectRouter.use('/tiles', (req, res, next) => {
   const token = req.params.projectId;
   const project = findProjectByIdOrNumber(token);
@@ -262,9 +274,38 @@ const upload = multer({
   }),
 });
 
+// Separate storage for floor plan images (project-scoped "floorplans" directory)
+const floorplanUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const projectToken = req.query.project || (req.body && req.body.project);
+      const project = findProjectByIdOrNumber(projectToken);
+      const projectId = project ? project.id : projectToken;
+      const p = getProjectPaths(projectId);
+      if (!p) return cb(new Error('Project required'), null);
+      const dir = p.floorplans;
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      cb(null, Date.now() + '-' + file.originalname);
+    },
+  }),
+});
+
 async function listUploadedImages(uploadsDir) {
   const files = await fs.promises.readdir(uploadsDir);
   return files.filter(file => /\.(jpg|jpeg|png|gif|webp)$/i.test(file));
+}
+
+async function listFloorplanImages(floorplansDir) {
+  try {
+    const files = await fs.promises.readdir(floorplansDir);
+    return files.filter(file => /\.(jpg|jpeg|png|gif|webp)$/i.test(file));
+  } catch (e) {
+    if (e.code !== 'ENOENT') console.error('Error reading floorplans dir:', e);
+    return [];
+  }
 }
 
 /** Return ordered list of panorama filenames: stored order first, then any new uploads not in list. */
@@ -521,6 +562,30 @@ app.post('/upload', upload.array("panorama", 20), (req, res)=>{
       job.message = msg;
     }
   })();
+});
+
+// ---- Floor plan APIs (project-scoped via ?project=id) ----
+app.post('/upload-floorplan', floorplanUpload.array('floorplan', 20), async (req, res) => {
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ success: false, message: 'no file uploaded' });
+  }
+  const paths = resolvePaths(req);
+  if (!paths) {
+    return res.status(400).json({ success: false, message: 'Project required' });
+  }
+  const filenames = req.files.map((f) => f.filename);
+  res.json({ success: true, uploaded: filenames });
+});
+
+app.get('/api/floorplans', async (req, res) => {
+  const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
+  try {
+    const files = await listFloorplanImages(paths.floorplansDir);
+    res.json(files);
+  } catch (e) {
+    res.status(500).json({ error: 'Unable to list floor plans' });
+  }
 });
 
 app.get('/upload', (req, res) => {

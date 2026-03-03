@@ -270,6 +270,31 @@
   inset: 0;
   background: #000;
 }
+
+/* Bottom-left floor plan preview (image only, no title) */
+.floorplan-preview {
+  position: absolute;
+  left: 1rem;
+  bottom: 6rem;
+  max-width: 260px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px;
+  border-radius: 4px;
+  display: none;
+  z-index: 5;
+  transition: transform 0.2s;
+}
+.floorplan-preview:hover {
+  transform: scale(1.05);
+}
+
+.floorplan-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  background: #fff;
+}
 .no-pano-msg {
     margin: 0;
     padding: 1rem;
