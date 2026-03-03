@@ -82,12 +82,18 @@ export function initFloorplans() {
   const previewContainer = document.createElement('div');
   previewContainer.id = 'floorplan-preview';
   previewContainer.className = 'floorplan-preview';
-  previewContainer.innerHTML = '<img id="floorplan-preview-img" alt="Floor plan">';
+  previewContainer.innerHTML = `
+    <div class="floorplan-image-wrap">
+      <img id="floorplan-preview-img" alt="Floor plan">
+      <div class="floorplan-hotspot-layer" data-layer="rendered"></div>
+    </div>
+  `;
   const viewerWrap = document.getElementById('pano-viewer-wrap');
   if (viewerWrap) {
     viewerWrap.appendChild(previewContainer);
   }
   const previewImg = previewContainer.querySelector('img');
+  const previewHotspotLayer = previewContainer.querySelector('.floorplan-hotspot-layer');
 
   // Modal elements for full-screen floor plan view
   const modalOverlay = document.createElement('div');
@@ -95,8 +101,14 @@ export function initFloorplans() {
   modalOverlay.className = 'floorplan-modal-overlay';
   modalOverlay.innerHTML = `
     <div class="floorplan-modal" role="dialog" aria-modal="true">
+      <div class="floorplan-modal-header">
+        <div class="floorplan-modal-title" id="floorplan-modal-title"></div>
+      </div>
       <div class="floorplan-modal-body">
-        <img id="floorplan-modal-img" alt="Floor plan expanded">
+        <div class="floorplan-image-wrap">
+          <img id="floorplan-modal-img" alt="Floor plan expanded">
+          <div class="floorplan-hotspot-layer" data-layer="expanded"></div>
+        </div>
       </div>
       <div class="floorplan-modal-actions">
         <button type="button" id="floorplan-update-btn" class="floorplan-action-btn floorplan-update">Update</button>
@@ -110,6 +122,8 @@ export function initFloorplans() {
 
   const modalImg = modalOverlay.querySelector('#floorplan-modal-img');
   const modalEl = modalOverlay.querySelector('.floorplan-modal');
+  const modalTitleEl = modalOverlay.querySelector('#floorplan-modal-title');
+  const modalHotspotLayer = modalOverlay.querySelector('.floorplan-hotspot-layer[data-layer="expanded"]');
   const updateBtn = modalOverlay.querySelector('#floorplan-update-btn');
   const renameBtn = modalOverlay.querySelector('#floorplan-rename-btn');
   const deleteBtn = modalOverlay.querySelector('#floorplan-delete-btn');
@@ -136,6 +150,7 @@ export function initFloorplans() {
     const src = `${base}/${encodeURIComponent(filename)}`;
     modalImg.src = src;
     modalImg.alt = filename;
+    if (modalTitleEl) modalTitleEl.textContent = filename;
     modalOverlay.classList.add('visible');
     document.body.classList.add('floorplan-modal-open');
     // Re-render hotspots whenever modal opens
@@ -169,6 +184,7 @@ export function initFloorplans() {
     const base = getFloorplanBase();
     previewImg.src = `${base}/${encodeURIComponent(filename)}`;
     previewContainer.style.display = 'block';
+    renderRenderedHotspots();
   }
 
   function setActiveFloorplanLi(filename) {
@@ -247,36 +263,60 @@ export function initFloorplans() {
   }
 
   // Floor plan hotspot rendering inside the modal
-  function renderFloorplanHotspots() {
-    if (!modalEl || !modalImg || !selectedFloorplan) return;
-    // Remove any existing overlay container
-    let overlay = modalEl.querySelector('.floorplan-hotspot-layer');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.className = 'floorplan-hotspot-layer';
-      const body = modalEl.querySelector('.floorplan-modal-body');
-      if (!body) return;
-      body.style.position = 'relative';
-      body.appendChild(overlay);
-    } else {
-      overlay.innerHTML = '';
-    }
-
+  function renderHotspotsToLayer(layerEl, { allowDelete }) {
+    if (!layerEl || !selectedFloorplan) return;
+    layerEl.innerHTML = '';
     const list = floorplanHotspotsByFile.get(selectedFloorplan) || [];
+
     list.forEach((entry) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'floorplan-hotspot-pin';
+      wrapper.style.left = `${entry.x * 100}%`;
+      wrapper.style.top = `${entry.y * 100}%`;
+      wrapper.setAttribute('data-floorplan-hotspot-id', String(entry.id));
+
       const dot = document.createElement('button');
       dot.type = 'button';
-      dot.className = 'floorplan-hotspot-dot';
-      dot.style.left = `${entry.x * 100}%`;
-      dot.style.top = `${entry.y * 100}%`;
+      dot.className = 'floorplan-hotspot-pin-dot';
       dot.title = entry.linkTo ? `Links to ${entry.linkTo}` : 'Unlinked hotspot';
       dot.addEventListener('click', async (e) => {
         e.stopPropagation();
+        e.preventDefault();
         if (!entry.linkTo) return;
         await loadPanorama(entry.linkTo);
       });
-      overlay.appendChild(dot);
+
+      wrapper.appendChild(dot);
+
+      if (allowDelete) {
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'floorplan-hotspot-pin-remove';
+        removeBtn.setAttribute('aria-label', 'Remove hotspot');
+        removeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          const list = floorplanHotspotsByFile.get(selectedFloorplan) || [];
+          const idx = list.findIndex((x) => x.id === entry.id);
+          if (idx !== -1) list.splice(idx, 1);
+          if (list.length === 0) floorplanHotspotsByFile.delete(selectedFloorplan);
+          saveFloorplanHotspotsToStorage();
+          renderFloorplanHotspots();
+          renderRenderedHotspots();
+        });
+        wrapper.appendChild(removeBtn);
+      }
+
+      layerEl.appendChild(wrapper);
     });
+  }
+
+  function renderFloorplanHotspots() {
+    renderHotspotsToLayer(modalHotspotLayer, { allowDelete: true });
+  }
+
+  function renderRenderedHotspots() {
+    renderHotspotsToLayer(previewHotspotLayer, { allowDelete: false });
   }
 
   async function addFloorplanHotspotAt(clientX, clientY) {
@@ -322,6 +362,7 @@ export function initFloorplans() {
     list.push(entry);
     saveFloorplanHotspotsToStorage();
     renderFloorplanHotspots();
+    renderRenderedHotspots();
   }
 
   if (modalImg) {
@@ -456,10 +497,12 @@ export function initFloorplans() {
   }
 
   // Open modal when clicking the small preview
-  previewContainer.addEventListener('click', () => {
-    if (selectedFloorplan) {
-      openModalFor(selectedFloorplan);
+  previewContainer.addEventListener('click', (e) => {
+    // If user clicked a hotspot in the rendered display, do NOT open modal.
+    if (e.target && e.target.closest && e.target.closest('.floorplan-hotspot-pin')) {
+      return;
     }
+    if (selectedFloorplan) openModalFor(selectedFloorplan);
   });
 
   // Initial load: hotspots then floorplans
