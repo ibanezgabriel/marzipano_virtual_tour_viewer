@@ -13,8 +13,10 @@
         <img id="dep_logo" src="assets/dep_eng.png">
         <div id="pano-sidebar-wrapper">
             <aside id="pano-sidebar-container">
-                <p id="pano-title">Panoramic Scenes</p>
-                <ul id="pano-image-list"></ul>
+                <button id="pano-floorplan-toggle" type="button">Floor Plan</button>
+                <ul id="pano-floorplan-list"></ul>
+                <!-- Panoramic scene list is kept for internal use but hidden from the viewer -->
+                <ul id="pano-image-list" style="display: none;"></ul>
             </aside>
             <button id="pano-sidebar-btn">
                 <img src="assets/side-bar-hide.png">
@@ -25,6 +27,6 @@
         <div id="pano-viewer"></div>
     </main>
     <script type="module" src="js/client-app.js"></script>
-    <!-- <script src="js/login.js"></script> -->
+    <script src="js/login.js"></script>
 </body>
 </html>

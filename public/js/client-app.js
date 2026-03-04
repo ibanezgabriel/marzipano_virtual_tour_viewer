@@ -1,5 +1,6 @@
 import { initViewer, loadImages, setProjectName } from './marzipano-viewer.js';
 import { initHotspotsClient, reloadHotspots as reloadHotspotsClient } from './features/hotspots-client.js';
+import { initFloorplansClient, reloadFloorplanHotspotsClient } from './features/floorplans-client.js';
 import { getProjectId } from './project-context.js';
 import { initMenuCollapsible } from './menu-collapsible.js';
 import { io } from '/socket.io/socket.io.esm.min.js';
@@ -31,6 +32,7 @@ if (!getProjectId()) {
     } catch {}
     initViewer();
     loadImages();
+    initFloorplansClient();
   });
 
   // Realtime project name updates for client viewers
@@ -57,6 +59,7 @@ if (!getProjectId()) {
     socket.on('pano:removed', () => loadImages());
     socket.on('panos:order', () => loadImages());
     socket.on('hotspots:changed', () => { try { reloadHotspotsClient(); } catch (e) {} });
+    socket.on('floorplan-hotspots:changed', () => { try { reloadFloorplanHotspotsClient(); } catch (e) {} });
     socket.on('initial-views:changed', async () => {
       try {
         const { reloadInitialViews, getSelectedImageName, loadPanorama } = await import('./marzipano-viewer.js');
