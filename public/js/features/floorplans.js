@@ -331,9 +331,20 @@ export function initFloorplans() {
     const originalSelection = selectedFloorplan;
     try {
       const images = await getImageList();
-      const options = images;
+      // Disallow binding the same panoramic image to multiple floorplan hotspots.
+      // Build a set of all pano filenames already used as linkTo in any floorplan hotspot.
+      const usedLinks = new Set();
+      floorplanHotspotsByFile.forEach((list) => {
+        list.forEach((entry) => {
+          if (entry.linkTo) usedLinks.add(entry.linkTo);
+        });
+      });
+      const options = images.filter((name) => !usedLinks.has(name));
       if (!options || options.length === 0) {
-        await showAlert('No panoramic scenes available to link. Upload a panorama first.', 'Hotspot');
+        await showAlert(
+          'All panoramic scenes are already linked to floor plan hotspots. Delete an existing floor plan hotspot or upload a new panorama to create another link.',
+          'Hotspot'
+        );
         return;
       }
       const selected = await showSelectWithPreview(
