@@ -150,7 +150,11 @@ export function initFloorplans() {
     const src = `${base}/${encodeURIComponent(filename)}`;
     modalImg.src = src;
     modalImg.alt = filename;
-    if (modalTitleEl) modalTitleEl.textContent = filename;
+    if (modalTitleEl) {
+      const dot = filename.lastIndexOf('.');
+      const displayName = dot > 0 ? filename.substring(0, dot) : filename;
+      modalTitleEl.textContent = displayName;
+    }
     modalOverlay.classList.add('visible');
     document.body.classList.add('floorplan-modal-open');
     // Re-render hotspots whenever modal opens
@@ -382,6 +386,9 @@ export function initFloorplans() {
     saveFloorplanHotspotsToStorage();
     renderFloorplanHotspots();
     renderRenderedHotspots();
+    // After placing one hotspot, require the user to click the Hotspot button again
+    hotspotPlaceMode = false;
+    if (hotspotBtn) hotspotBtn.classList.remove('active');
   }
 
   if (modalImg) {

@@ -26,41 +26,52 @@ import { showProgressDialog, hideProgressDialog, updateProgressDialog, setProgre
 import { io } from '/socket.io/socket.io.esm.min.js';
 
 const MAX_PROJECT_NAME_LENGTH = 100;
+const MAX_PROJECT_NUMBER_LENGTH = 20;
 let allProjects = [];
 
-// Ensure project number input only allows digits
+// Ensure project number input only allows alphanumeric characters and "-"
 if (newProjectNumberInput) {
   newProjectNumberInput.addEventListener('input', (e) => {
-    const cleaned = (e.target.value || '').replace(/\D+/g, '');
-    if (e.target.value !== cleaned) e.target.value = cleaned;
+    let value = e.target.value || '';
+    // Strip disallowed characters and enforce max length
+    value = value.replace(/[^A-Za-z0-9-]+/g, '').slice(0, MAX_PROJECT_NUMBER_LENGTH);
+    if (e.target.value !== value) e.target.value = value;
   });
   newProjectNumberInput.addEventListener('paste', (e) => {
-    // sanitize pasted content
     e.preventDefault();
     const paste = (e.clipboardData || window.clipboardData).getData('text') || '';
-    const filtered = paste.replace(/\D+/g, '');
+    const filtered = paste.replace(/[^A-Za-z0-9-]+/g, '');
     const el = e.target;
     const start = el.selectionStart || 0;
     const end = el.selectionEnd || 0;
-    const newValue = (el.value.slice(0, start) + filtered + el.value.slice(end)).replace(/\D+/g, '');
+    let newValue = (el.value.slice(0, start) + filtered + el.value.slice(end)).replace(/[^A-Za-z0-9-]+/g, '');
+    if (newValue.length > MAX_PROJECT_NUMBER_LENGTH) {
+      newValue = newValue.slice(0, MAX_PROJECT_NUMBER_LENGTH);
+    }
     el.value = newValue;
   });
 }
 
-// Ensure rename project number input only allows digits
+// Ensure rename project number input only allows alphanumeric characters and "-"
 if (renameProjectNumberInput) {
   renameProjectNumberInput.addEventListener('input', (e) => {
-    const cleaned = (e.target.value || '').replace(/\D+/g, '');
-    if (e.target.value !== cleaned) e.target.value = cleaned;
+    let value = (e.target.value || '').replace(/[^A-Za-z0-9-]+/g, '');
+    if (value.length > MAX_PROJECT_NUMBER_LENGTH) {
+      value = value.slice(0, MAX_PROJECT_NUMBER_LENGTH);
+    }
+    if (e.target.value !== value) e.target.value = value;
   });
   renameProjectNumberInput.addEventListener('paste', (e) => {
     e.preventDefault();
     const paste = (e.clipboardData || window.clipboardData).getData('text') || '';
-    const filtered = paste.replace(/\D+/g, '');
+    const filtered = paste.replace(/[^A-Za-z0-9-]+/g, '');
     const el = e.target;
     const start = el.selectionStart || 0;
     const end = el.selectionEnd || 0;
-    const newValue = (el.value.slice(0, start) + filtered + el.value.slice(end)).replace(/\D+/g, '');
+    let newValue = (el.value.slice(0, start) + filtered + el.value.slice(end)).replace(/[^A-Za-z0-9-]+/g, '');
+    if (newValue.length > MAX_PROJECT_NUMBER_LENGTH) {
+      newValue = newValue.slice(0, MAX_PROJECT_NUMBER_LENGTH);
+    }
     el.value = newValue;
   });
 }
@@ -162,7 +173,7 @@ function showRenameModal(project, nameDisplayEl) {
   renameModalSaveBtn.onclick = async () => {
     const name = renameProjectNameInput.value;
     const numberRaw = renameProjectNumberInput ? renameProjectNumberInput.value || '' : '';
-    const number = numberRaw.replace(/\D+/g, '');
+    const number = numberRaw.replace(/[^A-Za-z0-9-]+/g, '').slice(0, MAX_PROJECT_NUMBER_LENGTH);
     const error = validateProjectName(name, project.name);
     if (error) {
       renameProjectErrorEl.textContent = error;
@@ -434,7 +445,8 @@ modalCancelBtn.onclick = () => {
 };
 
 modalCreateBtn.onclick = async () => {
-  const number = (newProjectNumberInput.value || '').trim().replace(/\D+/g, '');
+  const numberRaw = (newProjectNumberInput.value || '').trim();
+  const number = numberRaw.replace(/[^A-Za-z0-9-]+/g, '').slice(0, MAX_PROJECT_NUMBER_LENGTH);
   const name = newProjectNameInput.value.trim();
   if (!name) {
     if (newProjectErrorEl) newProjectErrorEl.textContent = 'Please enter a project name.';

@@ -16,6 +16,7 @@ const { Server } = require('socket.io');
 
 const projectsDir = path.join(__dirname, 'projects');
 const projectsManifestPath = path.join(projectsDir, 'projects.json');
+const MAX_PROJECT_NUMBER_LENGTH = 20;
 
 if (!fs.existsSync(projectsDir)) {
   fs.mkdirSync(projectsDir, { recursive: true });
@@ -397,6 +398,14 @@ app.post('/api/projects', (req, res) => {
   }
   const trimmedName = name.trim();
   const trimmedNumber = number ? String(number).trim() : '';
+  if (trimmedNumber) {
+    if (!/^[A-Za-z0-9-]+$/.test(trimmedNumber)) {
+      return res.status(400).json({ success: false, message: 'Project number can only contain letters, numbers, and "-"' });
+    }
+    if (trimmedNumber.length > MAX_PROJECT_NUMBER_LENGTH) {
+      return res.status(400).json({ success: false, message: `Project number must be ${MAX_PROJECT_NUMBER_LENGTH} characters or less` });
+    }
+  }
   let id = sanitizeProjectId(name);
   const projects = getProjectsManifest();
   const normalized = trimmedName.toLowerCase();
@@ -435,6 +444,14 @@ app.put('/api/projects/:id', (req, res) => {
   if (idx === -1) return res.status(404).json({ success: false, message: 'Project not found' });
   const trimmedName = name.trim();
   const trimmedNumber = number ? String(number).trim() : '';
+  if (trimmedNumber) {
+    if (!/^[A-Za-z0-9-]+$/.test(trimmedNumber)) {
+      return res.status(400).json({ success: false, message: 'Project number can only contain letters, numbers, and "-"' });
+    }
+    if (trimmedNumber.length > MAX_PROJECT_NUMBER_LENGTH) {
+      return res.status(400).json({ success: false, message: `Project number must be ${MAX_PROJECT_NUMBER_LENGTH} characters or less` });
+    }
+  }
   const normalized = trimmedName.toLowerCase();
   if (projects.some((p, i) => i !== idx && (p.name || '').trim().toLowerCase() === normalized)) {
     return res.status(409).json({ success: false, message: 'A project with this name already exists' });

@@ -19,8 +19,8 @@ function setAuthenticated(status) {
 function checkAuthentication() {
     const currentPage = window.location.pathname.split('/').pop();
     
-    // Don't check authentication for login page itself
-    if (currentPage === 'login.html') {
+  // Don't check authentication for login page itself or public client view
+  if (currentPage === 'login.html' || currentPage === 'client.html') {
         return;
     }
     
