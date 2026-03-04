@@ -350,8 +350,14 @@ export function initFloorplans() {
       const selected = await showSelectWithPreview(
         'Bind hotspot to panoramic scene',
         options,
-        (val) => loadPanorama(val)
+        (val) => {
+          // When previewing a panorama, revert floorplan back to Rendered Display.
+          closeModal();
+          loadPanorama(val);
+        }
       );
+      // When the preview flow ends (OK/Cancel), revert floorplan back to Expanded Display.
+      openModalFor(originalSelection);
       if (selected === null) {
         // User cancelled; nothing to do
         return;
@@ -361,6 +367,8 @@ export function initFloorplans() {
     } catch (e) {
       console.warn('Error selecting pano for floorplan hotspot', e);
       linkTo = undefined;
+      // If the modal was closed for preview, restore it on error as well.
+      openModalFor(originalSelection);
     }
 
     const id = nextFloorplanHotspotId++;

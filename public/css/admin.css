@@ -348,24 +348,33 @@
 
 .floorplan-modal-body {
   flex: 1;
+  min-height: 0;
   padding: 12px;
-  overflow: auto;
-  display: block;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: #f5f5f5;
 }
 
 .floorplan-image-wrap {
   position: relative;
-  display: inline-block;
   width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .floorplan-modal-body .floorplan-image-wrap {
-  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .floorplan-modal-body img {
-  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
   height: auto;
   object-fit: contain;
   border-radius: 4px;
