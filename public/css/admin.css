@@ -274,9 +274,9 @@
 /* Bottom-left floor plan preview (image only, no title) */
 .floorplan-preview {
   position: absolute;
-  left: 1rem;
-  bottom: 6rem;
-  max-width: 260px;
+  left: .5rem;
+  bottom: .5rem;
+  max-width: 300px;
   background: rgba(0, 0, 0, 0.4);
   padding: 4px;
   border-radius: 4px;
