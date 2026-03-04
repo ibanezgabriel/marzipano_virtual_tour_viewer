@@ -403,6 +403,9 @@ app.post('/api/projects', (req, res) => {
   if (projects.some((p) => (p.name || '').trim().toLowerCase() === normalized)) {
     return res.status(409).json({ success: false, message: 'A project with this name already exists' });
   }
+  if (trimmedNumber && projects.some((p) => String(p.number || '').trim() === trimmedNumber)) {
+    return res.status(409).json({ success: false, message: 'A project with this number already exists' });
+  }
   if (projects.some(p => p.id === id)) {
     let suffix = 1;
     while (projects.some(p => p.id === `${id}-${suffix}`)) suffix++;
@@ -435,6 +438,9 @@ app.put('/api/projects/:id', (req, res) => {
   const normalized = trimmedName.toLowerCase();
   if (projects.some((p, i) => i !== idx && (p.name || '').trim().toLowerCase() === normalized)) {
     return res.status(409).json({ success: false, message: 'A project with this name already exists' });
+  }
+  if (trimmedNumber && projects.some((p, i) => i !== idx && String(p.number || '').trim() === trimmedNumber)) {
+    return res.status(409).json({ success: false, message: 'A project with this number already exists' });
   }
 
   let newId = sanitizeProjectId(trimmedName);
