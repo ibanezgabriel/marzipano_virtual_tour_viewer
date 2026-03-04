@@ -136,6 +136,10 @@ export function initFloorplans() {
     document.body.classList.remove('floorplan-modal-open');
     hotspotPlaceMode = false;
     if (hotspotBtn) hotspotBtn.classList.remove('active');
+    // When leaving Expanded Display, return to Rendered Display if a floor plan is selected.
+    if (previewContainer) {
+      previewContainer.style.display = selectedFloorplan ? 'block' : 'none';
+    }
   }
 
   modalOverlay.addEventListener('click', (e) => {
@@ -154,6 +158,10 @@ export function initFloorplans() {
       const dot = filename.lastIndexOf('.');
       const displayName = dot > 0 ? filename.substring(0, dot) : filename;
       modalTitleEl.textContent = displayName;
+    }
+    // When entering Expanded Display, hide the Rendered Display (minimized preview).
+    if (previewContainer) {
+      previewContainer.style.display = 'none';
     }
     modalOverlay.classList.add('visible');
     document.body.classList.add('floorplan-modal-open');

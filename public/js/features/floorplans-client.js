@@ -170,6 +170,10 @@ function openModalFor(filename) {
     const displayName = dot > 0 ? filename.substring(0, dot) : filename;
     modalTitleEl.textContent = displayName;
   }
+  // When entering Expanded Display, hide the Rendered Display (minimized preview).
+  if (previewContainer) {
+    previewContainer.style.display = 'none';
+  }
   modalOverlay.classList.add('visible');
   document.body.classList.add('floorplan-modal-open');
   renderFloorplanHotspots();
@@ -234,7 +238,9 @@ async function loadFloorplans() {
     floorList.innerHTML = '';
     files.forEach((filename) => {
       const li = document.createElement('li');
-      li.textContent = filename;
+      const dotIndex = filename.lastIndexOf('.');
+      const displayName = dotIndex > 0 ? filename.substring(0, dotIndex) : filename;
+      li.textContent = displayName;
       li.dataset.filename = filename;
       li.addEventListener('click', () => {
         selectedFloorplan = filename;
