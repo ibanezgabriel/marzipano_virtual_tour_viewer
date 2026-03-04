@@ -118,6 +118,10 @@ export async function loadPanorama(imageName) {
   saveLastPanorama(imageName);
   updateHeaderText();
 
+  if (panoViewerEl && panoViewerEl.querySelector('.no-pano-msg')) {
+    panoViewerEl.innerHTML = '';
+  }
+
   if (!viewer) {
     viewer = initViewer();
     if (!viewer) {
@@ -186,28 +190,35 @@ export async function loadImages(onImagesLoaded) {
 
     imageListEl.innerHTML = "";
 
+    // Detect admin context so drag/reorder is enabled only in admin UI
+    const isAdmin = typeof window !== 'undefined' && /admin\.html$/i.test(window.location.pathname);
+
     if (fileList.length > 0) {
-      // Clear "No panoramas" placeholder so the viewer can show the first image (e.g. after first upload)
+      // Admin: ensure viewer ready for immediate panorama loading
+      // Client: do not auto-load any panorama; show guidance text instead
       if (panoViewerEl && panoViewerEl.querySelector('.no-pano-msg')) {
         panoViewerEl.innerHTML = '';
       }
-      if (!viewer) {
-        viewer = initViewer();
+      if (isAdmin) {
         if (!viewer) {
-          console.error('Viewer not initialized');
-          return;
+          viewer = initViewer();
+          if (!viewer) {
+            console.error('Viewer not initialized');
+            return;
+          }
+        }
+      } else {
+        if (!viewer && panoViewerEl) {
+          panoViewerEl.innerHTML = '<div class="no-pano-msg"><p>Select a Floor Plan from the list</p></div>';
         }
       }
     }
-
-    // Detect admin context so drag/reorder is enabled only in admin UI
-    const isAdmin = typeof window !== 'undefined' && /admin\.html$/i.test(window.location.pathname);
 
     // Helper to create a draggable list item for an image
     function createImageListItem(filename) {
       const li = document.createElement('li');
       li.textContent = filename;
-      li.draggable = true;
+      li.draggable = isAdmin;
       li.dataset.filename = filename;
       li.onclick = () => loadPanorama(li.dataset.filename);
 
@@ -301,21 +312,26 @@ export async function loadImages(onImagesLoaded) {
     });
 
     if (fileList.length > 0) {
-      const lastSaved = (() => {
-        const pid = getProjectId();
-        if (!pid) return null;
-        try {
-          return localStorage.getItem(LAST_PANO_KEY_PREFIX + pid);
-        } catch (e) {
-          return null;
-        }
-      })();
-      const imageToShow = (lastSaved && fileList.includes(lastSaved))
-        ? lastSaved
-        : (selectedImageName && fileList.includes(selectedImageName))
-          ? selectedImageName
-          : fileList[0];
-      await loadPanorama(imageToShow);
+      if (isAdmin) {
+        const lastSaved = (() => {
+          const pid = getProjectId();
+          if (!pid) return null;
+          try {
+            return localStorage.getItem(LAST_PANO_KEY_PREFIX + pid);
+          } catch (e) {
+            return null;
+          }
+        })();
+        const imageToShow = (lastSaved && fileList.includes(lastSaved))
+          ? lastSaved
+          : (selectedImageName && fileList.includes(selectedImageName))
+            ? selectedImageName
+            : fileList[0];
+        await loadPanorama(imageToShow);
+      } else {
+        // Client: do not auto-load any panorama; wait for hotspot selection
+        // Do not alter viewer or clear its DOM to avoid black screen issues.
+      }
     } else {
       currentScene = null;
       currentImagePath = null;

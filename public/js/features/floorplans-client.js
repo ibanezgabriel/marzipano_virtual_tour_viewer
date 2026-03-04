@@ -8,6 +8,7 @@ const LAST_FLOORPLAN_KEY_PREFIX = 'marzipano-last-floorplan-';
 const floorplanHotspotsByFile = new Map();
 let nextFloorplanHotspotId = 0;
 let selectedFloorplan = null;
+let selectedHotspotId = null;
 
 let previewContainer = null;
 let previewImg = null;
@@ -203,7 +204,7 @@ function renderHotspotsToLayer(layerEl, { allowClickToPanorama, showTitle }) {
 
     const dot = document.createElement('button');
     dot.type = 'button';
-    dot.className = 'floorplan-hotspot-pin-dot';
+    dot.className = 'floorplan-hotspot-pin-dot' + (selectedHotspotId === entry.id ? ' selected' : '');
     if (showTitle) {
       dot.title = entry.linkTo ? `Go to ${entry.linkTo}` : 'Hotspot';
     }
@@ -212,6 +213,9 @@ function renderHotspotsToLayer(layerEl, { allowClickToPanorama, showTitle }) {
       dot.addEventListener('click', async (e) => {
         e.stopPropagation();
         e.preventDefault();
+        selectedHotspotId = entry.id;
+        renderFloorplanHotspots();
+        renderRenderedHotspots();
         closeModal();
         await loadPanorama(entry.linkTo);
       });
@@ -248,41 +252,28 @@ async function loadFloorplans() {
     if (!res.ok) return;
     const files = await res.json();
     floorList.innerHTML = '';
-    const lastSaved = (() => {
-      const pid = getProjectId();
-      if (!pid) return null;
-      try {
-        return localStorage.getItem(LAST_FLOORPLAN_KEY_PREFIX + pid);
-      } catch (e) {
-        return null;
-      }
-    })();
     files.forEach((filename) => {
       const li = document.createElement('li');
       const dotIndex = filename.lastIndexOf('.');
       const displayName = dotIndex > 0 ? filename.substring(0, dotIndex) : filename;
       li.textContent = displayName;
       li.dataset.filename = filename;
-      li.addEventListener('click', () => {
-        selectedFloorplan = filename;
-        saveLastFloorplan(filename);
+      li.draggable = false;
+      li.onclick = () => {
+        const name = li.dataset.filename;
+        selectedFloorplan = name;
         Array.from(floorList.querySelectorAll('li')).forEach((node) => {
           node.classList.toggle('active', node === li);
         });
-        showPreview(filename);
-        openModalFor(filename);
-      });
+        showPreview(name);
+        openModalFor(name);
+      };
       floorList.appendChild(li);
     });
-    if (files.length > 0 && lastSaved && files.includes(lastSaved)) {
-      selectedFloorplan = lastSaved;
-      const activeLi = floorList.querySelector(`li[data-filename="${CSS.escape(lastSaved)}"]`);
-      if (activeLi) {
-        Array.from(floorList.querySelectorAll('li')).forEach((node) => {
-          node.classList.toggle('active', node === activeLi);
-        });
-        showPreview(lastSaved);
-      }
+    if (!files || files.length === 0) {
+      selectedFloorplan = null;
+      if (previewContainer) previewContainer.style.display = 'none';
+      floorList.innerHTML = "<li class='active' style='text-align: center'>No Uploaded Floor Plans</li>";
     }
   } catch (e) {
     console.error('Error loading client floorplans', e);
@@ -313,8 +304,8 @@ export function initFloorplansClient() {
     floorList.style.display = isVisible ? 'none' : 'block';
   });
 
-  // Hide list by default; user opens it via the Floor Plan toggle
-  floorList.style.display = 'none';
+  // Show list by default on client; no preselection
+  floorList.style.display = 'block';
 
   (async () => {
     loadFloorplanHotspotsFromStorage();

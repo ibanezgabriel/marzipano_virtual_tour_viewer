@@ -30,7 +30,6 @@ if (!getProjectId()) {
       const project = Array.isArray(projects) ? projects.find(p => p.id === canonicalId) : null;
       if (project && project.name) setProjectName(project.name);
     } catch {}
-    initViewer();
     loadImages();
     initFloorplansClient();
   });

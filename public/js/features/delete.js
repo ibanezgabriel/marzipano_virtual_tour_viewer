@@ -29,6 +29,17 @@ async function handleDelete() {
     errors.push(`${selectedName}: ${err.message}`);
   }
 
+  if (errors.length === 0) {
+    try {
+      const { floorplanApi } = await import('./floorplans.js');
+      if (floorplanApi && typeof floorplanApi.cleanupForDeletedPano === 'function') {
+        floorplanApi.cleanupForDeletedPano(selectedName);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
   const { clearSelection, loadImages } = await import('../marzipano-viewer.js');
   clearSelection();
   await loadImages(cleanupHotspotsForDeletedImages);

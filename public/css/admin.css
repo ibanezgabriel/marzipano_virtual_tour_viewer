@@ -469,6 +469,12 @@ body.floorplan-modal-open #pano-panel {
   background: #5a8ac8;
 }
 
+/* Selected floor plan hotspot: highlight in light green */
+.floorplan-hotspot-pin-dot.selected {
+  background: #8bc34a;
+  border-color: #c8e6c9;
+}
+
 .floorplan-hotspot-pin-remove {
   position: absolute;
   top: -6px;

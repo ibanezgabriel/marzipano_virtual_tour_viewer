@@ -9,6 +9,7 @@ function selectEl(id) {
 /** Called when a panorama is renamed; updates floor plan hotspot linkTo and persists. */
 export const floorplanApi = {
   updateForRenamedPano(_oldName, _newName) {},
+  cleanupForDeletedPano(_deletedName) {},
 };
 
 export function initFloorplans() {
@@ -29,6 +30,7 @@ export function initFloorplans() {
   const LAST_FLOORPLAN_KEY_PREFIX = 'marzipano-last-floorplan-';
   const floorplanHotspotsByFile = new Map();
   let nextFloorplanHotspotId = 0;
+  let selectedHotspotId = null;
 
   function saveLastFloorplan(filename) {
     const pid = getProjectId();
@@ -103,6 +105,27 @@ export function initFloorplans() {
           changed = true;
         }
       });
+    });
+    if (changed) {
+      saveFloorplanHotspotsToStorage();
+      renderFloorplanHotspots();
+      renderRenderedHotspots();
+    }
+  };
+
+  floorplanApi.cleanupForDeletedPano = function (deletedName) {
+    let changed = false;
+    floorplanHotspotsByFile.forEach((list, filename) => {
+      const originalLen = list.length;
+      const filtered = list.filter((entry) => entry.linkTo !== deletedName);
+      if (filtered.length !== originalLen) {
+        changed = true;
+        if (filtered.length > 0) {
+          floorplanHotspotsByFile.set(filename, filtered);
+        } else {
+          floorplanHotspotsByFile.delete(filename);
+        }
+      }
     });
     if (changed) {
       saveFloorplanHotspotsToStorage();
@@ -250,13 +273,9 @@ export function initFloorplans() {
   }
 
   function clearFloorplanItems() {
-    // Keep the last <li> that wraps the "+" button; remove others.
+    // Remove all existing floor plan list items; keep the "+" button (which is a <button>, not <li>)
     const items = Array.from(floorList.querySelectorAll('li'));
-    if (items.length === 0) return;
-    const last = items[items.length - 1];
-    items.slice(0, -1).forEach((li) => li.remove());
-    // Ensure "+" li remains last
-    floorList.appendChild(last);
+    items.forEach((li) => li.remove());
   }
 
   async function loadFloorplans() {
@@ -265,7 +284,7 @@ export function initFloorplans() {
       if (!res.ok) return;
       const files = await res.json();
       clearFloorplanItems();
-      const plusLi = floorList.querySelector('li:last-child') || null;
+      const addBtn = document.getElementById('add-plan-btn');
       const lastSaved = (() => {
         const pid = getProjectId();
         if (!pid) return null;
@@ -282,7 +301,7 @@ export function initFloorplans() {
         li.draggable = true;
         li.addEventListener('click', () => onFloorplanClick(filename));
         li.addEventListener('dragstart', (ev) => {
-          ev.dataTransfer.setData('text/plain', filename);
+          ev.dataTransfer.setData('text/plain', li.dataset.filename);
           ev.dataTransfer.effectAllowed = 'move';
           li.classList.add('dragging');
         });
@@ -320,8 +339,8 @@ export function initFloorplans() {
             console.warn('Failed to save floor plan order', e);
           }
         });
-        if (plusLi) {
-          floorList.insertBefore(li, plusLi);
+        if (addBtn && addBtn.parentElement === floorList) {
+          floorList.insertBefore(li, addBtn);
         } else {
           floorList.appendChild(li);
         }
@@ -374,13 +393,16 @@ export function initFloorplans() {
 
       const dot = document.createElement('button');
       dot.type = 'button';
-      dot.className = 'floorplan-hotspot-pin-dot';
+      dot.className = 'floorplan-hotspot-pin-dot' + (selectedHotspotId === entry.id ? ' selected' : '');
       if (showTitle) {
         dot.title = entry.linkTo ? `Links to ${entry.linkTo}` : 'Unlinked hotspot';
       }
       dot.addEventListener('click', async (e) => {
         e.stopPropagation();
         e.preventDefault();
+        selectedHotspotId = entry.id;
+        renderFloorplanHotspots();
+        renderRenderedHotspots();
         if (!entry.linkTo) return;
         await loadPanorama(entry.linkTo);
       });
@@ -402,6 +424,7 @@ export function initFloorplans() {
           saveFloorplanHotspotsToStorage();
           renderFloorplanHotspots();
           renderRenderedHotspots();
+          if (selectedHotspotId === entry.id) selectedHotspotId = null;
         });
         wrapper.appendChild(removeBtn);
       }
