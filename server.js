@@ -92,6 +92,7 @@ function resolvePaths(req) {
     floorplanHotspotsPath: path.join(p.data, 'floorplan-hotspots.json'),
     initialViewsPath: path.join(p.data, 'initial-views.json'),
     panoramaOrderPath: path.join(p.data, 'panorama-order.json'),
+    floorplanOrderPath: path.join(p.data, 'floorplan-order.json'),
     projectId,
   };
 }
@@ -308,6 +309,33 @@ async function listFloorplanImages(floorplansDir) {
     if (e.code !== 'ENOENT') console.error('Error reading floorplans dir:', e);
     return [];
   }
+}
+
+function readFloorplanOrder(floorplanOrderPath) {
+  try {
+    const raw = fs.readFileSync(floorplanOrderPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    if (e.code !== 'ENOENT') console.error('Error reading floorplan order:', e);
+    return [];
+  }
+}
+
+function writeFloorplanOrder(floorplanOrderPath, order) {
+  const dir = path.dirname(floorplanOrderPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(floorplanOrderPath, JSON.stringify(order, null, 2), 'utf8');
+}
+
+/** Return ordered list of floor plan filenames; stored order first, then any new files not in list. */
+async function getOrderedFloorplanFilenames(paths) {
+  const existing = await listFloorplanImages(paths.floorplansDir);
+  const existingSet = new Set(existing);
+  let order = readFloorplanOrder(paths.floorplanOrderPath).filter(f => existingSet.has(f));
+  const inOrder = new Set(order);
+  const appended = existing.filter(f => !inOrder.has(f));
+  return [...order, ...appended];
 }
 
 /** Return ordered list of panorama filenames: stored order first, then any new uploads not in list. */
@@ -658,13 +686,18 @@ app.put('/api/floorplans/rename', (req, res) => {
     return res.status(404).json({ success: false, message: 'File not found' });
   }
   if (fs.existsSync(newPath)) {
-    return res.status(409).json({ success: false, message: 'A file with this name already exists' });
+    return res.status(409).json({ success: false, message: 'An image with this name already exists' });
   }
   fs.rename(oldPath, newPath, (err) => {
     if (err) {
       console.error('Error renaming floor plan:', err);
       return res.status(500).json({ success: false, message: 'Error renaming file' });
     }
+    try {
+      const order = readFloorplanOrder(paths.floorplanOrderPath);
+      const newOrder = order.map(f => f === oldFilename ? newFilename : f);
+      writeFloorplanOrder(paths.floorplanOrderPath, newOrder);
+    } catch (e) {}
     return res.json({ success: true, message: 'Floor plan renamed successfully', oldFilename, newFilename });
   });
 });
@@ -699,10 +732,29 @@ app.get('/api/floorplans', async (req, res) => {
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
   try {
-    const files = await listFloorplanImages(paths.floorplansDir);
+    const files = await getOrderedFloorplanFilenames(paths);
     res.json(files);
   } catch (e) {
     res.status(500).json({ error: 'Unable to list floor plans' });
+  }
+});
+
+app.put('/api/floorplans/order', (req, res) => {
+  const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
+  const body = req.body;
+  if (!body || !Array.isArray(body.order)) return res.status(400).json({ error: 'Invalid payload' });
+  const ok = body.order.every(f => typeof f === 'string' && f.length > 0 && !f.includes('..') && !/[\\\/]/.test(f));
+  if (!ok) return res.status(400).json({ error: 'Invalid filenames in order' });
+  try {
+    const dir = path.dirname(paths.floorplanOrderPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    writeFloorplanOrder(paths.floorplanOrderPath, body.order);
+    res.json({ success: true });
+    try { io.to(`project:${paths.projectId}`).emit('floorplans:order', { order: body.order }); } catch (e) { console.error('Socket emit error:', e); }
+  } catch (e) {
+    console.error('Error writing floorplan order:', e);
+    res.status(500).json({ error: 'Unable to save order' });
   }
 });
 
@@ -815,7 +867,7 @@ app.put('/upload/rename', (req, res) => {
   if (fs.existsSync(newFilePath)) {
     return res.status(409).json({
       success: false,
-      message: 'A file with this name already exists'
+      message: 'An image with this name already exists'
     });
   }
 

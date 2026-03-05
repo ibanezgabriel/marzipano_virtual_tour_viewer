@@ -1,6 +1,6 @@
 import { initViewer, loadImages, setProjectName, updateInitialViewForRenamedImage } from './marzipano-viewer.js';
 import { getProjectId } from './project-context.js';
-import { initFloorplans } from './features/floorplans.js';
+import { initFloorplans, floorplanApi } from './features/floorplans.js';
 import { initRename } from './features/rename.js';
 import { initUpdate } from './features/update.js';
 import { initDelete } from './features/delete.js';
@@ -75,6 +75,7 @@ if (!getProjectId()) {
     socket.on('pano:renamed', (payload) => {
       try { updateInitialViewForRenamedImage(payload.oldFilename, payload.newFilename); } catch (e) {}
       try { updateHotspotsForRenamedImage(payload.oldFilename, payload.newFilename); } catch (e) {}
+      try { floorplanApi.updateForRenamedPano(payload.oldFilename, payload.newFilename); } catch (e) {}
       loadImages(cleanupHotspotsForDeletedImages);
     });
     socket.on('pano:updated', (payload) => {
