@@ -3,7 +3,45 @@
   flex-direction: column;
   justify-content: center;
 }
+/* Logout button styles */
+.logout-btn {
+  padding: 8px 16px;
+  background: #c62828;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  gap: 0.5rem;
+}
+
+.logout-btn:hover {
+  background: #b71c1c;
+}
+
+#pano-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background-color: #0d3d52;
+    color: white;
+}
+
+#pano-header > * {
+    margin: 0;
+}
+
+/* Home title logout button positioning */
+
+#home-title .logout-btn {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+}
 #home-title {
+  position: relative;
   color: white;
   font-weight: 500;
   display: flex;

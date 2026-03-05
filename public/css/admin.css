@@ -10,7 +10,6 @@
 #pano-sidebar-container {
   width: 320px;
   max-height: 400px;
-  margin: .5rem;
   overflow: hidden;
   background-color: #115272;
   display: flex;
@@ -113,6 +112,7 @@
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 600;
+  height: 44px;
 }
 
 #pano-sidebar-tabs button + button {

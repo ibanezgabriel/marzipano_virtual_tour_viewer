@@ -4,3 +4,10 @@
   position: absolute;
   right: 25px;
 }
+#pano-floorplan-toggle {
+  height: 43px;
+  color: white;
+  font-weight: 600;
+  background-color: #18719e;
+  cursor: pointer;
+}
