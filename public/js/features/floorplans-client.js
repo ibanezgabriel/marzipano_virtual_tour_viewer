@@ -1,5 +1,5 @@
 import { appendProjectParams, getFloorplanBase, getProjectId } from '../project-context.js';
-import { loadPanorama } from '../marzipano-viewer.js';
+import { loadPanorama, registerOnSceneLoad, getSelectedImageName } from '../marzipano-viewer.js';
 
 const FLOORPLAN_HOTSPOTS_KEY = 'floorplan-hotspots';
 const LAST_FLOORPLAN_KEY_PREFIX = 'marzipano-last-floorplan-';
@@ -298,6 +298,19 @@ export function initFloorplansClient() {
 
   ensurePreviewElements();
   ensureModalElements();
+
+  // Highlight hotspot when panorama loads in viewer
+  try {
+    registerOnSceneLoad(() => {
+      const current = getSelectedImageName();
+      if (!current || !selectedFloorplan) return;
+      const list = floorplanHotspotsByFile.get(selectedFloorplan) || [];
+      const match = list.find((e) => e.linkTo === current);
+      selectedHotspotId = match ? match.id : null;
+      renderFloorplanHotspots();
+      renderRenderedHotspots();
+    });
+  } catch (e) {}
 
   toggleBtn.addEventListener('click', () => {
     const isVisible = floorList.style.display === 'block';

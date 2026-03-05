@@ -1,6 +1,6 @@
 import { appendProjectParams, getFloorplanBase, getProjectId } from '../project-context.js';
 import { showAlert, showConfirm, showPrompt, showSelectWithPreview } from '../dialog.js';
-import { getImageList, loadPanorama } from '../marzipano-viewer.js';
+import { getImageList, loadPanorama, registerOnSceneLoad, getSelectedImageName } from '../marzipano-viewer.js';
 
 function selectEl(id) {
   return document.getElementById(id);
@@ -193,7 +193,7 @@ export function initFloorplans() {
     if (hotspotBtn) hotspotBtn.classList.remove('active');
     // When leaving Expanded Display, return to Rendered Display if a floor plan is selected.
     if (previewContainer) {
-      previewContainer.style.display = selectedFloorplan ? 'block' : 'none';
+      previewContainer.style.display = (selectedFloorplan && isFloorTabActive()) ? 'block' : 'none';
     }
   }
 
@@ -238,6 +238,7 @@ export function initFloorplans() {
     floorTab.classList.add('active-tab');
     panoList.style.display = 'none';
     floorList.style.display = 'block';
+    if (selectedFloorplan) previewContainer.style.display = 'block';
   }
 
   panoTab.addEventListener('click', showPanos);
@@ -246,11 +247,15 @@ export function initFloorplans() {
   // Default state
   showPanos();
 
+  function isFloorTabActive() {
+    return floorTab.classList.contains('active-tab');
+  }
+
   function showPreview(filename) {
     if (!previewImg) return;
     const base = getFloorplanBase();
     previewImg.src = `${base}/${encodeURIComponent(filename)}`;
-    previewContainer.style.display = 'block';
+    previewContainer.style.display = isFloorTabActive() ? 'block' : 'none';
     renderRenderedHotspots();
   }
 
@@ -352,6 +357,19 @@ export function initFloorplans() {
       console.error('Error loading floorplans', e);
     }
   }
+
+  // Highlight hotspot when panorama loads in viewer (admin)
+  try {
+    registerOnSceneLoad(() => {
+      const current = getSelectedImageName();
+      if (!current || !selectedFloorplan) return;
+      const list = floorplanHotspotsByFile.get(selectedFloorplan) || [];
+      const match = list.find((e) => e.linkTo === current);
+      selectedHotspotId = match ? match.id : null;
+      renderFloorplanHotspots();
+      renderRenderedHotspots();
+    });
+  } catch (e) {}
 
   if (addPlanBtn && addFloorInput) {
     addPlanBtn.addEventListener('click', () => addFloorInput.click());
