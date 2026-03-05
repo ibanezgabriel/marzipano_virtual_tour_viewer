@@ -1,7 +1,8 @@
-import { appendProjectParams, getFloorplanBase } from '../project-context.js';
+import { appendProjectParams, getFloorplanBase, getProjectId } from '../project-context.js';
 import { loadPanorama } from '../marzipano-viewer.js';
 
 const FLOORPLAN_HOTSPOTS_KEY = 'floorplan-hotspots';
+const LAST_FLOORPLAN_KEY_PREFIX = 'marzipano-last-floorplan-';
 
 // filename -> Array<{ id, x, y, linkTo }>
 const floorplanHotspotsByFile = new Map();
@@ -188,7 +189,7 @@ function showPreview(filename) {
   renderRenderedHotspots();
 }
 
-function renderHotspotsToLayer(layerEl, { allowClickToPanorama }) {
+function renderHotspotsToLayer(layerEl, { allowClickToPanorama, showTitle }) {
   if (!layerEl || !selectedFloorplan) return;
   layerEl.innerHTML = '';
   const list = floorplanHotspotsByFile.get(selectedFloorplan) || [];
@@ -203,7 +204,9 @@ function renderHotspotsToLayer(layerEl, { allowClickToPanorama }) {
     const dot = document.createElement('button');
     dot.type = 'button';
     dot.className = 'floorplan-hotspot-pin-dot';
-    dot.title = entry.linkTo ? `Go to ${entry.linkTo}` : 'Hotspot';
+    if (showTitle) {
+      dot.title = entry.linkTo ? `Go to ${entry.linkTo}` : 'Hotspot';
+    }
 
     if (allowClickToPanorama && entry.linkTo) {
       dot.addEventListener('click', async (e) => {
@@ -221,12 +224,21 @@ function renderHotspotsToLayer(layerEl, { allowClickToPanorama }) {
 
 function renderFloorplanHotspots() {
   if (!modalHotspotLayer) return;
-  renderHotspotsToLayer(modalHotspotLayer, { allowClickToPanorama: true });
+  renderHotspotsToLayer(modalHotspotLayer, { allowClickToPanorama: true, showTitle: true });
 }
 
 function renderRenderedHotspots() {
   if (!previewHotspotLayer) return;
-  renderHotspotsToLayer(previewHotspotLayer, { allowClickToPanorama: true });
+  renderHotspotsToLayer(previewHotspotLayer, { allowClickToPanorama: true, showTitle: false });
+}
+
+function saveLastFloorplan(filename) {
+  const pid = getProjectId();
+  if (pid) {
+    try {
+      localStorage.setItem(LAST_FLOORPLAN_KEY_PREFIX + pid, filename);
+    } catch (e) {}
+  }
 }
 
 async function loadFloorplans() {
@@ -236,6 +248,15 @@ async function loadFloorplans() {
     if (!res.ok) return;
     const files = await res.json();
     floorList.innerHTML = '';
+    const lastSaved = (() => {
+      const pid = getProjectId();
+      if (!pid) return null;
+      try {
+        return localStorage.getItem(LAST_FLOORPLAN_KEY_PREFIX + pid);
+      } catch (e) {
+        return null;
+      }
+    })();
     files.forEach((filename) => {
       const li = document.createElement('li');
       const dotIndex = filename.lastIndexOf('.');
@@ -244,6 +265,7 @@ async function loadFloorplans() {
       li.dataset.filename = filename;
       li.addEventListener('click', () => {
         selectedFloorplan = filename;
+        saveLastFloorplan(filename);
         Array.from(floorList.querySelectorAll('li')).forEach((node) => {
           node.classList.toggle('active', node === li);
         });
@@ -252,6 +274,16 @@ async function loadFloorplans() {
       });
       floorList.appendChild(li);
     });
+    if (files.length > 0 && lastSaved && files.includes(lastSaved)) {
+      selectedFloorplan = lastSaved;
+      const activeLi = floorList.querySelector(`li[data-filename="${CSS.escape(lastSaved)}"]`);
+      if (activeLi) {
+        Array.from(floorList.querySelectorAll('li')).forEach((node) => {
+          node.classList.toggle('active', node === activeLi);
+        });
+        showPreview(lastSaved);
+      }
+    }
   } catch (e) {
     console.error('Error loading client floorplans', e);
   }
@@ -261,6 +293,10 @@ export async function reloadFloorplanHotspotsClient() {
   await loadFloorplanHotspotsFromServer();
   renderFloorplanHotspots();
   renderRenderedHotspots();
+}
+
+export async function reloadFloorplansListClient() {
+  await loadFloorplans();
 }
 
 export function initFloorplansClient() {

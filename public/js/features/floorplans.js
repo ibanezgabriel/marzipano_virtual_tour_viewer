@@ -1,10 +1,15 @@
-import { appendProjectParams, getFloorplanBase } from '../project-context.js';
+import { appendProjectParams, getFloorplanBase, getProjectId } from '../project-context.js';
 import { showAlert, showConfirm, showPrompt, showSelectWithPreview } from '../dialog.js';
 import { getImageList, loadPanorama } from '../marzipano-viewer.js';
 
 function selectEl(id) {
   return document.getElementById(id);
 }
+
+/** Called when a panorama is renamed; updates floor plan hotspot linkTo and persists. */
+export const floorplanApi = {
+  updateForRenamedPano(_oldName, _newName) {},
+};
 
 export function initFloorplans() {
   const panoTab = selectEl('pano-scenes');
@@ -21,8 +26,18 @@ export function initFloorplans() {
   // In-memory + persisted floor plan hotspots:
   // filename -> Array<{ id, x, y, linkTo }>
   const FLOORPLAN_HOTSPOTS_KEY = 'floorplan-hotspots';
+  const LAST_FLOORPLAN_KEY_PREFIX = 'marzipano-last-floorplan-';
   const floorplanHotspotsByFile = new Map();
   let nextFloorplanHotspotId = 0;
+
+  function saveLastFloorplan(filename) {
+    const pid = getProjectId();
+    if (pid) {
+      try {
+        localStorage.setItem(LAST_FLOORPLAN_KEY_PREFIX + pid, filename);
+      } catch (e) {}
+    }
+  }
 
   function loadFloorplanHotspotsFromStorage() {
     try {
@@ -78,6 +93,23 @@ export function initFloorplans() {
       body: JSON.stringify(payload),
     }).catch((err) => console.warn('Could not save floorplan hotspots to server', err));
   }
+
+  floorplanApi.updateForRenamedPano = function (oldName, newName) {
+    let changed = false;
+    floorplanHotspotsByFile.forEach((list) => {
+      list.forEach((entry) => {
+        if (entry.linkTo === oldName) {
+          entry.linkTo = newName;
+          changed = true;
+        }
+      });
+    });
+    if (changed) {
+      saveFloorplanHotspotsToStorage();
+      renderFloorplanHotspots();
+      renderRenderedHotspots();
+    }
+  };
 
   const previewContainer = document.createElement('div');
   previewContainer.id = 'floorplan-preview';
@@ -212,6 +244,7 @@ export function initFloorplans() {
 
   function onFloorplanClick(filename) {
     selectedFloorplan = filename;
+    saveLastFloorplan(filename);
     setActiveFloorplanLi(filename);
     showPreview(filename);
   }
@@ -233,17 +266,69 @@ export function initFloorplans() {
       const files = await res.json();
       clearFloorplanItems();
       const plusLi = floorList.querySelector('li:last-child') || null;
+      const lastSaved = (() => {
+        const pid = getProjectId();
+        if (!pid) return null;
+        try {
+          return localStorage.getItem(LAST_FLOORPLAN_KEY_PREFIX + pid);
+        } catch (e) {
+          return null;
+        }
+      })();
       files.forEach((filename) => {
         const li = document.createElement('li');
         li.textContent = filename;
         li.dataset.filename = filename;
+        li.draggable = true;
         li.addEventListener('click', () => onFloorplanClick(filename));
+        li.addEventListener('dragstart', (ev) => {
+          ev.dataTransfer.setData('text/plain', filename);
+          ev.dataTransfer.effectAllowed = 'move';
+          li.classList.add('dragging');
+        });
+        li.addEventListener('dragend', () => {
+          li.classList.remove('dragging');
+          floorList.querySelectorAll('li').forEach(x => x.classList.remove('drag-over'));
+        });
+        li.addEventListener('dragover', (ev) => {
+          ev.preventDefault();
+          ev.dataTransfer.dropEffect = 'move';
+          if (li.classList.contains('dragging')) return;
+          li.classList.add('drag-over');
+        });
+        li.addEventListener('dragleave', () => li.classList.remove('drag-over'));
+        li.addEventListener('drop', async (ev) => {
+          ev.preventDefault();
+          li.classList.remove('drag-over');
+          const sourceFilename = ev.dataTransfer.getData('text/plain');
+          if (!sourceFilename || sourceFilename === filename) return;
+          const items = Array.from(floorList.querySelectorAll('li[data-filename]'));
+          const srcIdx = items.findIndex(el => el.dataset.filename === sourceFilename);
+          const tgtIdx = items.findIndex(el => el.dataset.filename === filename);
+          if (srcIdx === -1 || tgtIdx === -1) return;
+          const reordered = items.map(el => el.dataset.filename);
+          const [removed] = reordered.splice(srcIdx, 1);
+          reordered.splice(tgtIdx, 0, removed);
+          try {
+            const orderRes = await fetch(appendProjectParams('/api/floorplans/order'), {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ order: reordered }),
+            });
+            if (orderRes.ok) await loadFloorplans();
+          } catch (e) {
+            console.warn('Failed to save floor plan order', e);
+          }
+        });
         if (plusLi) {
           floorList.insertBefore(li, plusLi);
         } else {
           floorList.appendChild(li);
         }
       });
+      if (files.length > 0 && lastSaved && files.includes(lastSaved)) {
+        onFloorplanClick(lastSaved);
+      }
     } catch (e) {
       console.error('Error loading floorplans', e);
     }
@@ -275,7 +360,7 @@ export function initFloorplans() {
   }
 
   // Floor plan hotspot rendering inside the modal
-  function renderHotspotsToLayer(layerEl, { allowDelete }) {
+  function renderHotspotsToLayer(layerEl, { allowDelete, showTitle }) {
     if (!layerEl || !selectedFloorplan) return;
     layerEl.innerHTML = '';
     const list = floorplanHotspotsByFile.get(selectedFloorplan) || [];
@@ -290,7 +375,9 @@ export function initFloorplans() {
       const dot = document.createElement('button');
       dot.type = 'button';
       dot.className = 'floorplan-hotspot-pin-dot';
-      dot.title = entry.linkTo ? `Links to ${entry.linkTo}` : 'Unlinked hotspot';
+      if (showTitle) {
+        dot.title = entry.linkTo ? `Links to ${entry.linkTo}` : 'Unlinked hotspot';
+      }
       dot.addEventListener('click', async (e) => {
         e.stopPropagation();
         e.preventDefault();
@@ -324,11 +411,11 @@ export function initFloorplans() {
   }
 
   function renderFloorplanHotspots() {
-    renderHotspotsToLayer(modalHotspotLayer, { allowDelete: true });
+    renderHotspotsToLayer(modalHotspotLayer, { allowDelete: true, showTitle: true });
   }
 
   function renderRenderedHotspots() {
-    renderHotspotsToLayer(previewHotspotLayer, { allowDelete: false });
+    renderHotspotsToLayer(previewHotspotLayer, { allowDelete: false, showTitle: false });
   }
 
   async function addFloorplanHotspotAt(clientX, clientY) {

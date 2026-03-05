@@ -1,5 +1,7 @@
 import Marzipano from "//cdn.skypack.dev/marzipano";
-import { getUploadBase, getTilesBase, appendProjectParams } from './project-context.js';
+import { getUploadBase, getTilesBase, appendProjectParams, getProjectId } from './project-context.js';
+
+const LAST_PANO_KEY_PREFIX = 'marzipano-last-pano-';
 
 // --- constants ---
 const MAX_FOV = 100 * Math.PI / 180;
@@ -92,6 +94,15 @@ export function initViewer() {
   return viewer;
 }
 
+function saveLastPanorama(imageName) {
+  const pid = getProjectId();
+  if (pid && imageName) {
+    try {
+      localStorage.setItem(LAST_PANO_KEY_PREFIX + pid, imageName);
+    } catch (e) {}
+  }
+}
+
 // Load a panorama image into Marzipano (exported for hotspot links and list)
 export async function loadPanorama(imageName) {
   const imagePath = `${getUploadBase()}/${imageName}`;
@@ -104,6 +115,7 @@ export async function loadPanorama(imageName) {
   }
   currentImagePath = imagePath;
   selectedImageName = imageName;
+  saveLastPanorama(imageName);
   updateHeaderText();
 
   if (!viewer) {
@@ -289,9 +301,20 @@ export async function loadImages(onImagesLoaded) {
     });
 
     if (fileList.length > 0) {
-      const imageToShow = (selectedImageName && fileList.includes(selectedImageName))
-        ? selectedImageName
-        : fileList[0];
+      const lastSaved = (() => {
+        const pid = getProjectId();
+        if (!pid) return null;
+        try {
+          return localStorage.getItem(LAST_PANO_KEY_PREFIX + pid);
+        } catch (e) {
+          return null;
+        }
+      })();
+      const imageToShow = (lastSaved && fileList.includes(lastSaved))
+        ? lastSaved
+        : (selectedImageName && fileList.includes(selectedImageName))
+          ? selectedImageName
+          : fileList[0];
       await loadPanorama(imageToShow);
     } else {
       currentScene = null;

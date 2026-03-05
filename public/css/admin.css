@@ -240,6 +240,11 @@
   background: #c5d4db;
 }
 
+#pano-floorplan-list li.active {
+  background-color: #115272;
+  color: #fff;
+}
+
 /* Circle "+" button for adding floor plans */
 #add-plan-btn {
   width: 32px;
