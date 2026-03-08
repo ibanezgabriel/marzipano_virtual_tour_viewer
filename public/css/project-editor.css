@@ -481,7 +481,7 @@ body.floorplan-modal-open #pano-panel {
   height: 20px;
   border-radius: 50%;
   border: 2px solid #ffffff;
-  background: #4a7ab8;
+  background: #71a7ec;
   box-shadow: 0 2px 8px rgba(0,0,0,0.4);
   cursor: pointer;
   pointer-events: auto;
@@ -496,7 +496,7 @@ body.floorplan-modal-open #pano-panel {
 
 /* Selected floor plan hotspot: highlight in light green */
 .floorplan-hotspot-pin-dot.selected {
-  background: #8bc34a;
+  background: #1b4f93;
   border-color: #c8e6c9;
 }
 
@@ -608,16 +608,15 @@ body.floorplan-modal-open #pano-panel {
     min-height: 30px;
     flex-shrink: 0;
     box-sizing: border-box;
-    background-color: #4a7ab8;
+    background-color: #71a7ec;
     border: 2px solid #fff;
     border-radius: 50%;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
     cursor: pointer;
-    transition: transform 0.15s ease, background-color 0.15s ease;
+    transition: transform 0.15s ease;
 }
 .app-hotspot-pin-dot:hover {
     transform: scale(1.1);
-    background-color: #5a8ac8;
 }
 .app-hotspot-remove {
     position: absolute;

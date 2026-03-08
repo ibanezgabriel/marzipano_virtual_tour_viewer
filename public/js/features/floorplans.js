@@ -460,6 +460,7 @@ export function initFloorplans() {
           xhr.onerror = () => reject(new Error('Network error'));
           xhr.send(formData);
         });
+        updateProgressDialog(100);
         hideProgressDialog();
         if (!data.ok || !data.json || !data.json.success) {
           await showAlert(
@@ -674,6 +675,7 @@ export function initFloorplans() {
             xhr.onerror = () => reject(new Error('Network error'));
             xhr.send(formData);
           });
+          updateProgressDialog(100);
           hideProgressDialog();
           const data = response.json;
           if (!response.ok || !data.success) {
@@ -699,7 +701,7 @@ export function initFloorplans() {
             await loadFloorplans();
             onFloorplanClick(updatedFilename);
             openModalFor(updatedFilename);
-            await showTimedAlert('Floor plan updated successfully.', 'Update floor plan', 800);
+            await showTimedAlert('Floor plan updated successfully.', 'Update floor plan', 500);
           }
         } catch (e) {
           hideProgressDialog();
@@ -751,7 +753,7 @@ export function initFloorplans() {
           await loadFloorplans();
           onFloorplanClick(selectedFloorplan);
           openModalFor(selectedFloorplan);
-          await showTimedAlert('Floor plan renamed successfully.', 'Rename floor plan', 800);
+          await showTimedAlert('Floor plan renamed successfully.', 'Rename floor plan', 500);
         }
       } catch (e) {
         await showAlert('Error renaming floor plan: ' + e, 'Rename floor plan');
@@ -787,7 +789,7 @@ export function initFloorplans() {
           closeModal();
           await loadFloorplans();
           setPreviewVisible(false);
-          await showTimedAlert('Floor plan deleted successfully.', 'Delete floor plan', 800);
+          await showTimedAlert('Floor plan deleted successfully.', 'Delete floor plan', 500);
         }
       } catch (e) {
         hideProgressDialog();
