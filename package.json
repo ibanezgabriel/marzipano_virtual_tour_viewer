@@ -13,7 +13,6 @@
     "express": "^5.2.1",
     "multer": "^2.1.1",
     "sharp": "^0.34.5",
-    "socket": "^1.1.66",
     "socket.io": "^4.8.3"
   },
   "repository": {
