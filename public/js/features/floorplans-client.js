@@ -273,7 +273,7 @@ async function loadFloorplans() {
     if (!files || files.length === 0) {
       selectedFloorplan = null;
       if (previewContainer) previewContainer.style.display = 'none';
-      floorList.innerHTML = "<li class='active' style='text-align: center'>No Uploaded Floor Plans</li>";
+      floorList.innerHTML = "<li class='active' style='text-align: center'>No floor plan uploaded</li>";
     }
   } catch (e) {
     console.error('Error loading client floorplans', e);

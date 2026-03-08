@@ -139,7 +139,7 @@ function openProject(project) {
   // Prefer project number in shared URLs when available.
   const projectToken = (project.number && String(project.number).trim()) || project.id;
   const params = new URLSearchParams({ project: projectToken });
-  window.location.href = `admin.html?${params}`;
+  window.location.href = `project-editor.html?${params}`;
 }
 
 function validateProjectName(name, currentName = null) {
@@ -317,45 +317,44 @@ function renderProjectRow(project) {
   const viewBtn = document.createElement('button');
   viewBtn.type = 'button';
   viewBtn.className = 'btn-open';
-  // viewBtn.textContent = 'View';
   const viewIcon = document.createElement('img')
-  viewIcon.src = "../assets/p-view.png";
+  viewIcon.src = "../assets/icons/view1.png";
   viewIcon.style.height = '20px';
   viewIcon.style.width = '20px';
   viewBtn.appendChild(viewIcon)
 
   // Store original and hover image paths
-const viewOrigIcon = "../assets/p-view.png";
-const viewHoverIcon = "../assets/w-view.png";
+  const viewOrigIcon = "../assets/icons/view1.png";
+  const viewHoverIcon = "../assets/icons/view2.png";
 
-// Change image on hover
-viewBtn.addEventListener("mouseenter", () => {
-  viewIcon.src = viewHoverIcon;
-});
+  // Change image on hover
+  viewBtn.addEventListener("mouseenter", () => {
+    viewIcon.src = viewHoverIcon;
+  });
 
-viewBtn.addEventListener("mouseleave", () => {
-  viewIcon.src = viewOrigIcon;
-});
+  viewBtn.addEventListener("mouseleave", () => {
+    viewIcon.src = viewOrigIcon;
+  });
 
-  const renameBtn = document.createElement('button');
-  renameBtn.type = 'button';
-  renameBtn.className = 'btn-rename';
-  // renameBtn.textContent = 'Rename';
+  const editBTN = document.createElement('button');
+  editBTN.type = 'button';
+  editBTN.className = 'btn-edit';
+  // editBTN.textContent = 'Rename';
   const renameIcon = document.createElement('img');
-  renameIcon.src = "../assets/p-rename.png"
+  renameIcon.src = "../assets/icons/edit1.png"
   renameIcon.style.height = "20px";
   renameIcon.style.width = "20px";
-  renameBtn.appendChild(renameIcon)
+  editBTN.appendChild(renameIcon)
 
-  const renameOrigIcon = "../assets/p-rename.png";
-  const renameHoverIcon = "../assets/w-rename.png";
+  const renameOrigIcon = "../assets/icons/edit1.png";
+  const renameHoverIcon = "../assets/icons/edit2.png";
 
-// Change image on hover
-  renameBtn.addEventListener("mouseenter", () => {
+  // Change image on hover
+  editBTN.addEventListener("mouseenter", () => {
     renameIcon.src = renameHoverIcon;
   });
 
-  renameBtn.addEventListener("mouseleave", () => {
+  editBTN.addEventListener("mouseleave", () => {
     renameIcon.src = renameOrigIcon;
   })
 
@@ -364,13 +363,13 @@ viewBtn.addEventListener("mouseleave", () => {
   deleteBtn.className = 'btn-delete';
   const deleteIcon = document.createElement('img');
   // deleteBtn.textContent = 'Delete';
-  deleteIcon.src = "../assets/p-delete.png"
+  deleteIcon.src = "../assets/icons/delete1.png"
   deleteIcon.style.height = "20px";
   deleteIcon.style.width = "20px";
   deleteBtn.appendChild(deleteIcon)
 
-  const deleteOrigIcon = "../assets/p-delete.png";
-  const deleteHoverIcon = "../assets/w-delete.png";
+  const deleteOrigIcon = "../assets/icons/delete1.png";
+  const deleteHoverIcon = "../assets/icons/delete2.png";
 
   // Change image on hover
   deleteBtn.addEventListener("mouseenter", () => {
@@ -386,7 +385,7 @@ viewBtn.addEventListener("mouseleave", () => {
 
   viewBtn.onclick = () => {
     const params = new URLSearchParams({ project: projectToken });
-    window.open(`client.html?${params}`, '_blank');
+    window.open(`project-viewer.html?${params}`, '_blank');
   };
 
   // Make the entire row clickable to open the project,
@@ -394,17 +393,17 @@ viewBtn.addEventListener("mouseleave", () => {
   row.onclick = (e) => {
     if (e.target.closest('button')) return;
     const params = new URLSearchParams({ project: projectToken });
-    window.location.href = `admin.html?${params}`;
+    window.location.href = `project-editor.html?${params}`;
   };
 
-  renameBtn.onclick = () => showRenameModal(project, nameDisplay);
+  editBTN.onclick = () => showRenameModal(project, nameDisplay);
 
   deleteBtn.onclick = () => showDeleteModal(project, row);
 
   // group buttons into their own cell
   const actionsCell = document.createElement('div');
   actionsCell.className = 'project-actions-cell';
-  actionsCell.append(viewBtn, renameBtn, deleteBtn);
+  actionsCell.append(viewBtn, editBTN, deleteBtn);
 
   row.append(numberCell, nameCell, actionsCell);
   return row;

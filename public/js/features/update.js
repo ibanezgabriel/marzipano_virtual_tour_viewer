@@ -6,6 +6,7 @@ import { appendProjectParams } from '../project-context.js';
 const updateBtnEl = document.getElementById('pano-update-btn');
 
 export function initUpdate() {
+  if (!updateBtnEl) return;
   updateBtnEl.addEventListener('click', handleUpdate);
 }
 

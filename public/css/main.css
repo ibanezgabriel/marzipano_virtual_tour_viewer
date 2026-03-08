@@ -1,7 +1,7 @@
 
-@import url("index.css");
-@import url("admin.css");
-@import url("client.css");
+@import url("dashboard.css");
+@import url("project-editor.css");
+@import url("project-viewer.css");
 @import url("dialog.css");
 @import url("scrollbar-styles.css");
 @import url("login.css");

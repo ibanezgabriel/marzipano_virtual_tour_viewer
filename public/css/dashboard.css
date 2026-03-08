@@ -1,11 +1,17 @@
-.home-main {
+.dashboard {
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
 /* Logout button styles */
+#dashboard-title .logout-btn {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
 .logout-btn {
-  padding: 8px 16px;
+  padding: 8px 10px;
   background: #c62828;
   color: #fff;
   border: none;
@@ -13,10 +19,10 @@
   font-weight: 600;
   cursor: pointer;
   gap: 0.5rem;
+  transition: background 0.5s;
 }
-
 .logout-btn:hover {
-  background: #b71c1c;
+  background: #9d1818;
 }
 
 #pano-header {
@@ -33,14 +39,7 @@
 }
 
 /* Home title logout button positioning */
-
-#home-title .logout-btn {
-    position: absolute;
-    right: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
-}
-#home-title {
+#dashboard-title {
   position: relative;
   color: white;
   font-weight: 500;
@@ -50,7 +49,7 @@
   background-color: #0d3d52;
   padding: 1rem;
 }
-#home-title > img {
+#dashboard-title > img {
   height: 3rem;
   width: 3rem;
   margin: 0 1rem;
@@ -135,7 +134,7 @@
     width: 100%;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.5s;
 }
 .action-btn:hover {
     background: #0d3d52;
@@ -221,7 +220,7 @@
     border-color: #115272;
     background: #fff;
 }
-.project-row .btn-rename {
+.project-row .btn-edit {
     padding: 10px 20px;
     /* background: #115272; */
     color: #fff;
@@ -231,7 +230,7 @@
     cursor: pointer;
     transition: background .7s;
 }
-.project-row .btn-rename:hover {
+.project-row .btn-edit:hover {
     background: #0d3d52;
 }
 .project-row .btn-delete {
@@ -239,7 +238,6 @@
     color: #fff;
     border-radius: 4px;
     font-weight: 600;
-    /* margin-right: 2rem; */
     cursor: pointer;
     transition: background 0.7s;
 }

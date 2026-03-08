@@ -182,8 +182,6 @@
   max-height: 45vh;
   display: block; /* shown when Panoramic Scenes tab is active */
 }
-
-
 #pano-image-list li {
     padding: 5px 10px;
     margin: .2rem;
