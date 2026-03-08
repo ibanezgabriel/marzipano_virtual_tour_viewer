@@ -150,6 +150,16 @@ function validateProjectName(name, currentName = null) {
   return null;
 }
 
+function validateProjectNumber(number, requiredMessage = 'Project number is required.') {
+  const trimmed = (number || '').trim();
+  if (!trimmed) return requiredMessage;
+  if (!/^[A-Za-z0-9-]+$/.test(trimmed)) return 'Project number can only contain letters, numbers, and "-".';
+  if (trimmed.length > MAX_PROJECT_NUMBER_LENGTH) {
+    return `Project number must be ${MAX_PROJECT_NUMBER_LENGTH} characters or less.`;
+  }
+  return null;
+}
+
 function showRenameModal(project, nameDisplayEl) {
   renameProjectErrorEl.textContent = '';
   if (renameProjectNumberInput) {
@@ -174,6 +184,11 @@ function showRenameModal(project, nameDisplayEl) {
     const name = renameProjectNameInput.value;
     const numberRaw = renameProjectNumberInput ? renameProjectNumberInput.value || '' : '';
     const number = numberRaw.replace(/[^A-Za-z0-9-]+/g, '').slice(0, MAX_PROJECT_NUMBER_LENGTH);
+    const numberError = validateProjectNumber(number, 'Project number is required.');
+    if (numberError) {
+      renameProjectErrorEl.textContent = numberError;
+      return;
+    }
     const error = validateProjectName(name, project.name);
     if (error) {
       renameProjectErrorEl.textContent = error;
@@ -448,6 +463,11 @@ modalCreateBtn.onclick = async () => {
   const numberRaw = (newProjectNumberInput.value || '').trim();
   const number = numberRaw.replace(/[^A-Za-z0-9-]+/g, '').slice(0, MAX_PROJECT_NUMBER_LENGTH);
   const name = newProjectNameInput.value.trim();
+  const numberError = validateProjectNumber(number, 'Please enter a project number.');
+  if (numberError) {
+    if (newProjectErrorEl) newProjectErrorEl.textContent = numberError;
+    return;
+  }
   if (!name) {
     if (newProjectErrorEl) newProjectErrorEl.textContent = 'Please enter a project name.';
     return;

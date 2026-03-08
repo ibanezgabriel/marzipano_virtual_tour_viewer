@@ -421,18 +421,19 @@ app.get('/api/projects', (req, res) => {
 
 app.post('/api/projects', (req, res) => {
   const { name, number } = req.body || {};
+  if (number === undefined || number === null || !String(number).trim()) {
+    return res.status(400).json({ success: false, message: 'Project number is required' });
+  }
   if (!name || typeof name !== 'string' || !name.trim()) {
     return res.status(400).json({ success: false, message: 'Project name is required' });
   }
   const trimmedName = name.trim();
-  const trimmedNumber = number ? String(number).trim() : '';
-  if (trimmedNumber) {
-    if (!/^[A-Za-z0-9-]+$/.test(trimmedNumber)) {
-      return res.status(400).json({ success: false, message: 'Project number can only contain letters, numbers, and "-"' });
-    }
-    if (trimmedNumber.length > MAX_PROJECT_NUMBER_LENGTH) {
-      return res.status(400).json({ success: false, message: `Project number must be ${MAX_PROJECT_NUMBER_LENGTH} characters or less` });
-    }
+  const trimmedNumber = String(number).trim();
+  if (!/^[A-Za-z0-9-]+$/.test(trimmedNumber)) {
+    return res.status(400).json({ success: false, message: 'Project number can only contain letters, numbers, and "-"' });
+  }
+  if (trimmedNumber.length > MAX_PROJECT_NUMBER_LENGTH) {
+    return res.status(400).json({ success: false, message: `Project number must be ${MAX_PROJECT_NUMBER_LENGTH} characters or less` });
   }
   let id = sanitizeProjectId(name);
   const projects = getProjectsManifest();
@@ -440,7 +441,7 @@ app.post('/api/projects', (req, res) => {
   if (projects.some((p) => (p.name || '').trim().toLowerCase() === normalized)) {
     return res.status(409).json({ success: false, message: 'A project with this name already exists' });
   }
-  if (trimmedNumber && projects.some((p) => String(p.number || '').trim() === trimmedNumber)) {
+  if (projects.some((p) => String(p.number || '').trim() === trimmedNumber)) {
     return res.status(409).json({ success: false, message: 'A project with this number already exists' });
   }
   if (projects.some(p => p.id === id)) {
@@ -464,6 +465,9 @@ app.put('/api/projects/:id', (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid project id' });
   }
   const { name, number } = req.body || {};
+  if (number === undefined || number === null || !String(number).trim()) {
+    return res.status(400).json({ success: false, message: 'Project number is required' });
+  }
   if (!name || typeof name !== 'string' || !name.trim()) {
     return res.status(400).json({ success: false, message: 'Project name is required' });
   }
@@ -471,20 +475,18 @@ app.put('/api/projects/:id', (req, res) => {
   const idx = projects.findIndex(p => p.id === oldId);
   if (idx === -1) return res.status(404).json({ success: false, message: 'Project not found' });
   const trimmedName = name.trim();
-  const trimmedNumber = number ? String(number).trim() : '';
-  if (trimmedNumber) {
-    if (!/^[A-Za-z0-9-]+$/.test(trimmedNumber)) {
-      return res.status(400).json({ success: false, message: 'Project number can only contain letters, numbers, and "-"' });
-    }
-    if (trimmedNumber.length > MAX_PROJECT_NUMBER_LENGTH) {
-      return res.status(400).json({ success: false, message: `Project number must be ${MAX_PROJECT_NUMBER_LENGTH} characters or less` });
-    }
+  const trimmedNumber = String(number).trim();
+  if (!/^[A-Za-z0-9-]+$/.test(trimmedNumber)) {
+    return res.status(400).json({ success: false, message: 'Project number can only contain letters, numbers, and "-"' });
+  }
+  if (trimmedNumber.length > MAX_PROJECT_NUMBER_LENGTH) {
+    return res.status(400).json({ success: false, message: `Project number must be ${MAX_PROJECT_NUMBER_LENGTH} characters or less` });
   }
   const normalized = trimmedName.toLowerCase();
   if (projects.some((p, i) => i !== idx && (p.name || '').trim().toLowerCase() === normalized)) {
     return res.status(409).json({ success: false, message: 'A project with this name already exists' });
   }
-  if (trimmedNumber && projects.some((p, i) => i !== idx && String(p.number || '').trim() === trimmedNumber)) {
+  if (projects.some((p, i) => i !== idx && String(p.number || '').trim() === trimmedNumber)) {
     return res.status(409).json({ success: false, message: 'A project with this number already exists' });
   }
 
