@@ -20,7 +20,7 @@ function checkAuthentication() {
     const currentPage = window.location.pathname.split('/').pop();
     
   // Don't check authentication for login page itself or public client view
-  if (currentPage === 'login.html' || currentPage === 'client.html') {
+  if (currentPage === 'login.html' || currentPage === 'project-viewer.html') {
         return;
     }
     
@@ -70,7 +70,7 @@ function handleSuccessfulLogin() {
 }
 
 function redirectToStoredPage() {
-    const redirectUrl = localStorage.getItem(REDIRECT_KEY) || 'index.html';
+    const redirectUrl = localStorage.getItem(REDIRECT_KEY) || 'dashboard.html';
     localStorage.removeItem(REDIRECT_KEY);
     window.location.href = redirectUrl;
 }

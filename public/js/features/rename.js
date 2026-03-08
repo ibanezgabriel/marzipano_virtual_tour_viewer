@@ -6,6 +6,7 @@ import { appendProjectParams } from '../project-context.js';
 const renameBtnEl = document.getElementById('pano-rename-btn');
 
 export function initRename() {
+  if (!renameBtnEl) return;
   renameBtnEl.addEventListener('click', handleRename);
 }
 

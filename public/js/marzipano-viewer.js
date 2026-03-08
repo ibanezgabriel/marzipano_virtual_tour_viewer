@@ -191,7 +191,7 @@ export async function loadImages(onImagesLoaded) {
     imageListEl.innerHTML = "";
 
     // Detect admin context so drag/reorder is enabled only in admin UI
-    const isAdmin = typeof window !== 'undefined' && /admin\.html$/i.test(window.location.pathname);
+    const isAdmin = typeof window !== 'undefined' && /project-editor\.html$/i.test(window.location.pathname);
 
     if (fileList.length > 0) {
       // Admin: ensure viewer ready for immediate panorama loading
@@ -341,7 +341,7 @@ export async function loadImages(onImagesLoaded) {
       if (panoViewerEl) {
         panoViewerEl.innerHTML = '<div class="no-pano-msg"><p>No panoramas. Upload one to get started.</p></div>';
         
-        imageListEl.innerHTML = "<li class='active' style='text-align: center'>No Uploaded Images</li>"
+        imageListEl.innerHTML = "<li class='active' style='text-align: center'>No images uploaded</li>"
       }
     }
   } catch (error) {

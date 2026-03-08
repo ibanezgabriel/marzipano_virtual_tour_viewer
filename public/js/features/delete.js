@@ -5,6 +5,7 @@ import { appendProjectParams } from '../project-context.js';
 const deleteBtnEl = document.getElementById('pano-delete-btn');
 
 export function initDelete() {
+  if (!deleteBtnEl) return;
   deleteBtnEl.addEventListener('click', handleDelete);
 }
 

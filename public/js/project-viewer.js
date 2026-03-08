@@ -17,7 +17,7 @@ function resolveProjectId(projects, token) {
 }
 
 if (!getProjectId()) {
-  window.location.replace('index.html');
+  window.location.replace('dashboard.html');
 } else {
   initHotspotsClient();
   document.addEventListener('DOMContentLoaded', async () => {
@@ -71,3 +71,4 @@ if (!getProjectId()) {
 
 // Initialize the menu collapsible functionality
 initMenuCollapsible();
+

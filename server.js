@@ -127,7 +127,7 @@ function getProjectIdFromQuery(req) {
 app.use((req, res, next) => {
   const ppath = req.path || '';
   // Only guard admin.html and client.html; allow other static assets
-  if (ppath !== '/admin.html' && ppath !== '/client.html') return next();
+  if (ppath !== '/dashboard.html' && ppath !== '/project-viewer.html') return next();
   try {
     const projectId = getProjectIdFromQuery(req);
     // If no project specified, let the page load (admin shows list, client may show generic view)
@@ -164,7 +164,7 @@ app.use((req, res, next) => {
     }
 
     // Admin may access an empty project (to upload/manage)
-    if (ppath === '/admin.html') return next();
+    if (ppath === '/dashboard.html') return next();
 
     // Client requires at least one generated tileset (meta.json under tiles)
     const tilesDir = p.tiles;
@@ -184,12 +184,12 @@ app.use((req, res, next) => {
     };
 
     if (!hasReadyTiles(tilesDir)) {
-      return res.status(404).send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not ready</title><style>html,body{height:100%;margin:0} .c{height:100vh;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif} .msg{font-style:italic;font-weight:700}</style></head><body><div class="c"><div class="msg">Project is not yet published — please generate panoramas in the admin.</div></div></body></html>`);
+      return res.status(404).send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Not ready</title><style>html,body{height:100%;margin:0} .c{height:100vh;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif} .msg{font-style:italic;font-weight:700}</style></head><body><div class="c"><div class="msg">Project is not yet published.</div></div></body></html>`);
     }
 
     return next();
   } catch (e) {
-    console.error('Error in admin/client guard middleware:', e);
+    console.error('Error in dashboard/project-viewer guard middleware:', e);
     return next();
   }
 });

@@ -5,6 +5,7 @@ import { appendProjectParams } from '../project-context.js';
 const addPanoEl = document.getElementById('add-scene');
 
 export function initUpload() {
+  if (!addPanoEl) return;
   addPanoEl.addEventListener('change', handleUpload);
 }
 

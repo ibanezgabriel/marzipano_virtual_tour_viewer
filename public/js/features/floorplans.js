@@ -350,6 +350,19 @@ export function initFloorplans() {
           floorList.appendChild(li);
         }
       });
+      if (!files || files.length === 0) {
+        selectedFloorplan = null;
+        previewContainer.style.display = 'none';
+        const emptyLi = document.createElement('li');
+        emptyLi.className = 'active';
+        emptyLi.style.textAlign = 'center';
+        emptyLi.textContent = 'No floor plan uploaded';
+        if (addBtn && addBtn.parentElement === floorList) {
+          floorList.insertBefore(emptyLi, addBtn);
+        } else {
+          floorList.appendChild(emptyLi);
+        }
+      }
       if (files.length > 0 && lastSaved && files.includes(lastSaved)) {
         onFloorplanClick(lastSaved);
       }
