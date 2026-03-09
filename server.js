@@ -89,6 +89,7 @@ function resolvePaths(req) {
     floorplansDir: p.floorplans,
     tilesDir: p.tiles,
     hotspotsPath: path.join(p.data, 'hotspots.json'),
+    blurMasksPath: path.join(p.data, 'blur-masks.json'),
     floorplanHotspotsPath: path.join(p.data, 'floorplan-hotspots.json'),
     initialViewsPath: path.join(p.data, 'initial-views.json'),
     panoramaOrderPath: path.join(p.data, 'panorama-order.json'),
@@ -343,6 +344,50 @@ function writeFloorplanHotspots(floorplanHotspotsPath, hotspots) {
   const dir = path.dirname(floorplanHotspotsPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(floorplanHotspotsPath, JSON.stringify(hotspots, null, 2), 'utf8');
+}
+
+function readBlurMasks(blurMasksPath) {
+  try {
+    const raw = fs.readFileSync(blurMasksPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (e) {
+    if (e.code !== 'ENOENT') console.error('Error reading blur masks:', e);
+    return {};
+  }
+}
+
+function writeBlurMasks(blurMasksPath, blurMasks) {
+  const dir = path.dirname(blurMasksPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(blurMasksPath, JSON.stringify(blurMasks, null, 2), 'utf8');
+}
+
+function renameBlurMasksForPano(paths, oldFilename, newFilename) {
+  if (!oldFilename || !newFilename || oldFilename === newFilename) {
+    return { changed: false, blurMasks: null };
+  }
+  const blurMasks = readBlurMasks(paths.blurMasksPath);
+  if (!Object.prototype.hasOwnProperty.call(blurMasks, oldFilename)) {
+    return { changed: false, blurMasks: null };
+  }
+  const oldList = Array.isArray(blurMasks[oldFilename]) ? blurMasks[oldFilename] : [];
+  const newList = Array.isArray(blurMasks[newFilename]) ? blurMasks[newFilename] : [];
+  blurMasks[newFilename] = [...newList, ...oldList];
+  delete blurMasks[oldFilename];
+  writeBlurMasks(paths.blurMasksPath, blurMasks);
+  return { changed: true, blurMasks };
+}
+
+function clearBlurMasksForPano(paths, filename) {
+  if (!filename) return { changed: false, blurMasks: null };
+  const blurMasks = readBlurMasks(paths.blurMasksPath);
+  if (!Object.prototype.hasOwnProperty.call(blurMasks, filename)) {
+    return { changed: false, blurMasks: null };
+  }
+  delete blurMasks[filename];
+  writeBlurMasks(paths.blurMasksPath, blurMasks);
+  return { changed: true, blurMasks };
 }
 
 function clearFloorplanHotspotsForFilenames(paths, filenames) {
@@ -993,6 +1038,10 @@ app.put('/upload/rename', (req, res) => {
     }
 
     panoramaOrderReplace(paths, oldFilename, newFilename);
+    const blurRename = renameBlurMasksForPano(paths, oldFilename, newFilename);
+    if (blurRename.changed) {
+      try { io.to(`project:${paths.projectId}`).emit('blur-masks:changed', blurRename.blurMasks); } catch (e) { console.error('Socket emit error:', e); }
+    }
     try { io.to(`project:${paths.projectId}`).emit('pano:renamed', { oldFilename, newFilename }); } catch (e) { console.error('Socket emit error:', e); }
     res.json({
       success: true,
@@ -1046,6 +1095,10 @@ app.put('/upload/update', upload.single('panorama'), (req, res) => {
         }
       });
       panoramaOrderReplace(paths, oldFilename, newFilename);
+      const blurRename = renameBlurMasksForPano(paths, oldFilename, newFilename);
+      if (blurRename.changed) {
+        try { io.to(`project:${paths.projectId}`).emit('blur-masks:changed', blurRename.blurMasks); } catch (e) { console.error('Socket emit error:', e); }
+      }
       job.percent = 100;
       job.status = 'done';
       job.message = 'Update completed';
@@ -1067,6 +1120,23 @@ app.get('/api/hotspots', (req, res) => {
     if (err) {
       if (err.code === 'ENOENT') return res.json({});
       return res.status(500).json({ error: 'Unable to read hotspots' });
+    }
+    try {
+      const obj = JSON.parse(data);
+      res.json(typeof obj === 'object' && obj !== null ? obj : {});
+    } catch (e) {
+      res.json({});
+    }
+  });
+});
+
+app.get('/api/blur-masks', (req, res) => {
+  const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
+  fs.readFile(paths.blurMasksPath, 'utf8', (err, data) => {
+    if (err) {
+      if (err.code === 'ENOENT') return res.json({});
+      return res.status(500).json({ error: 'Unable to read blur masks' });
     }
     try {
       const obj = JSON.parse(data);
@@ -1110,6 +1180,25 @@ app.post('/api/floorplan-hotspots', (req, res) => {
       if (err) return res.status(500).json({ error: 'Unable to save floor plan hotspots' });
       res.json({ success: true });
       try { io.to(`project:${paths.projectId}`).emit('floorplan-hotspots:changed', body); } catch (e) { console.error('Socket emit error:', e); }
+    });
+  });
+});
+
+app.post('/api/blur-masks', (req, res) => {
+  const body = req.body;
+  if (typeof body !== 'object' || body === null) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+  const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
+  const json = JSON.stringify(body, null, 2);
+  const dir = path.dirname(paths.blurMasksPath);
+  fs.mkdir(dir, { recursive: true }, (mkErr) => {
+    if (mkErr) return res.status(500).json({ error: 'Unable to prepare storage for blur masks' });
+    fs.writeFile(paths.blurMasksPath, json, 'utf8', (err) => {
+      if (err) return res.status(500).json({ error: 'Unable to save blur masks' });
+      res.json({ success: true });
+      try { io.to(`project:${paths.projectId}`).emit('blur-masks:changed', body); } catch (e) { console.error('Socket emit error:', e); }
     });
   });
 });
@@ -1199,6 +1288,10 @@ app.delete('/upload/:filename', (req, res) => {
       });
     }
     panoramaOrderRemove(paths, filename);
+    const blurCleanup = clearBlurMasksForPano(paths, filename);
+    if (blurCleanup.changed) {
+      try { io.to(`project:${paths.projectId}`).emit('blur-masks:changed', blurCleanup.blurMasks); } catch (e) { console.error('Socket emit error:', e); }
+    }
     try { io.to(`project:${paths.projectId}`).emit('pano:removed', { filename }); } catch (e) { console.error('Socket emit error:', e); }
     const tilesPath = path.join(paths.tilesDir, tileIdFromFilename(filename));
     if (fs.existsSync(tilesPath)) {

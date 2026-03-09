@@ -143,6 +143,8 @@
 #pano-rename-btn,
 #pano-delete-btn,
 #pano-hotspot-btn,
+#pano-blur-btn,
+#pano-blur-add-btn,
 #pano-initial-view-btn {
   padding: 5px 10px;
   width: auto;
@@ -168,6 +170,15 @@
 }
 #pano-update-btn {
     background-color: rgb(209, 209, 32);
+}
+#pano-blur-btn {
+    background-color: rgb(79, 120, 141);
+    color: #fff;
+}
+#pano-blur-add-btn {
+    background-color: rgb(56, 149, 96);
+    color: #fff;
+    display: none;
 }
 #pano-initial-view-btn {
     background-color: rgb(203, 80, 80);
@@ -579,6 +590,8 @@ body.floorplan-modal-open #pano-panel {
 #pano-rename-btn:hover,
 #pano-delete-btn:hover,
 #pano-hotspot-btn:hover,
+#pano-blur-btn:hover,
+#pano-blur-add-btn:hover,
 #pano-initial-view-btn:hover {
   transform: scale(1.05);
 }
@@ -587,11 +600,144 @@ body.floorplan-modal-open #pano-panel {
   background-color: #ffffff;
   color: #0d3d52;
 }
+#pano-blur-btn.active {
+  background-color: #ffffff;
+  color: #0d3d52;
+}
+#pano-blur-add-btn.active {
+  background-color: #ffffff;
+  color: #0d3d52;
+}
+#pano-action.blur-mode {
+  padding: 8px 10px;
+  gap: 8px;
+}
+#pano-action.blur-mode .action-btn,
+#pano-action.blur-mode label.action-btn {
+  display: none;
+}
+#pano-action.blur-mode #pano-blur-btn,
+#pano-action.blur-mode #pano-blur-add-btn {
+  display: flex;
+  margin-bottom: 0;
+}
 #pano-hotspot-btn.active img {
   content: url('../assets/hotspot-icon2.png');
 }
 #pano-viewer.app-hotspot-place-mode {
     cursor: crosshair !important;
+}
+#pano-viewer.app-blur-place-mode {
+    cursor: none !important;
+}
+.app-blur-cursor-preview {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    /* border: 2px dashed rgba(255, 255, 255, 0.9); */
+    background: rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 11;
+    transition: opacity 80ms ease;
+}
+.app-blur-cursor-preview.visible {
+    opacity: 1;
+}
+.app-blur-mask {
+    position: relative;
+    display: inline-block;
+    pointer-events: none;
+}
+.app-blur-mask-confirmed {
+    pointer-events: none;
+}
+#pano-viewer.app-blur-edit-mode .app-blur-mask-confirmed {
+    pointer-events: auto;
+    cursor: pointer;
+}
+.app-blur-mask-core {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    /* border: 2px solid rgba(255, 255, 255, 0.55); */
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+.app-blur-mask-pending {
+    pointer-events: auto;
+}
+.app-blur-mask-pending .app-blur-mask-core {
+    border-style: dashed;
+    border-color: rgba(255, 255, 255, 0.95);
+}
+.app-blur-mask-confirmed.editing .app-blur-mask-core {
+    border-color: #ffffff;
+    border-style: dashed;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.45), 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+.app-blur-confirm-btn,
+.app-blur-cancel-btn {
+    position: absolute;
+    top: -16px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    pointer-events: auto;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.app-blur-confirm-btn {
+    left: -6px;
+    background: #2e7d32;
+}
+.app-blur-cancel-btn {
+    right: -6px;
+    background: #c62828;
+}
+.app-blur-confirm-btn:hover {
+    background: #1b5e20;
+}
+.app-blur-cancel-btn:hover {
+    background: #8e0000;
+}
+.app-blur-delete-btn {
+    position: absolute;
+    top: -16px;
+    right: -6px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid #fff;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    pointer-events: auto;
+    color: #fff;
+    background: #c62828;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.app-blur-mask-confirmed.editing .app-blur-delete-btn {
+    display: flex;
+}
+.app-blur-delete-btn:hover {
+    background: #8e0000;
 }
 .app-hotspot-pin {
     position: relative;

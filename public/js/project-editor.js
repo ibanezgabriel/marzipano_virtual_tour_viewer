@@ -6,6 +6,7 @@ import { initUpdate } from './features/update.js';
 import { initDelete } from './features/delete.js';
 import { initUpload } from './features/upload.js';
 import { initHotspots, cleanupHotspotsForDeletedImages, updateHotspotsForRenamedImage, reloadHotspots } from './features/hotspots.js';
+import { initBlurMasks, cleanupBlurMasksForDeletedImages, updateBlurMasksForRenamedImage, reloadBlurMasks } from './features/blur-masks.js';
 import { initMenuCollapsible } from './menu-collapsible.js';
 import { initInitialView } from './features/initial-view.js';
 import { reloadInitialViews } from './marzipano-viewer.js';
@@ -21,6 +22,12 @@ function resolveProjectId(projects, token) {
   );
   return match ? match.id : value;
 }
+
+function cleanupSceneLinkedData(validImageNames) {
+  try { cleanupHotspotsForDeletedImages(validImageNames); } catch (e) {}
+  try { cleanupBlurMasksForDeletedImages(validImageNames); } catch (e) {}
+}
+
 if (!getProjectId()) {
   window.location.replace('dashboard.html');
 } else {
@@ -29,6 +36,7 @@ if (!getProjectId()) {
   initDelete();
   initUpload();
   initHotspots();
+  initBlurMasks();
   initMenuCollapsible();
   initInitialView();
 
@@ -43,7 +51,7 @@ if (!getProjectId()) {
       } catch {}
     })();
     initViewer();
-    loadImages(cleanupHotspotsForDeletedImages);
+    loadImages(cleanupSceneLinkedData);
     initFloorplans();
   });
 
@@ -67,25 +75,29 @@ if (!getProjectId()) {
     })();
 
     socket.on('panos:ready', (payload) => {
-      loadImages(cleanupHotspotsForDeletedImages);
+      loadImages(cleanupSceneLinkedData);
     });
     socket.on('panos:order', (payload) => {
-      loadImages(cleanupHotspotsForDeletedImages);
+      loadImages(cleanupSceneLinkedData);
     });
     socket.on('pano:renamed', (payload) => {
       try { updateInitialViewForRenamedImage(payload.oldFilename, payload.newFilename); } catch (e) {}
       try { updateHotspotsForRenamedImage(payload.oldFilename, payload.newFilename); } catch (e) {}
+      try { updateBlurMasksForRenamedImage(payload.oldFilename, payload.newFilename); } catch (e) {}
       try { floorplanApi.updateForRenamedPano(payload.oldFilename, payload.newFilename); } catch (e) {}
-      loadImages(cleanupHotspotsForDeletedImages);
+      loadImages(cleanupSceneLinkedData);
     });
     socket.on('pano:updated', (payload) => {
-      loadImages(cleanupHotspotsForDeletedImages);
+      loadImages(cleanupSceneLinkedData);
     });
     socket.on('pano:removed', (payload) => {
-      loadImages(cleanupHotspotsForDeletedImages);
+      loadImages(cleanupSceneLinkedData);
     });
     socket.on('hotspots:changed', (payload) => {
       try { reloadHotspots(); } catch (e) {}
+    });
+    socket.on('blur-masks:changed', () => {
+      try { reloadBlurMasks(); } catch (e) {}
     });
     socket.on('initial-views:changed', async (payload) => {
       try { await reloadInitialViews(); } catch (e) {}

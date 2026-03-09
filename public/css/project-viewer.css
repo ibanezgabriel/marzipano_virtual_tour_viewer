@@ -11,3 +11,139 @@
   background-color: #18719e;
   cursor: pointer;
 }
+
+.floorplan-modal-overlay-client .floorplan-modal {
+  position: relative;
+  overflow: visible;
+}
+
+.floorplan-modal-overlay-client .floorplan-magnifier-controls {
+  position: absolute;
+  right: -76px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 8;
+}
+
+.floorplan-modal-overlay-client .floorplan-magnifier-levels {
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(17, 82, 114, 0.9);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.floorplan-modal-overlay-client .floorplan-magnifier-levels.enabled {
+  display: flex;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.floorplan-modal-overlay-client .floorplan-magnifier-levels button {
+  min-width: 46px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.floorplan-modal-overlay-client .floorplan-magnifier-levels button:disabled {
+  cursor: default;
+}
+
+.floorplan-modal-overlay-client .floorplan-magnifier-levels button.active {
+  background: #ffffff;
+  color: #115272;
+  border-color: #ffffff;
+}
+
+.floorplan-modal-overlay-client .floorplan-magnifier-toggle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  background: #115272;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+
+.floorplan-modal-overlay-client .floorplan-magnifier-toggle:hover {
+  transform: scale(1.05);
+}
+
+.floorplan-modal-overlay-client .floorplan-magnifier-toggle img {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.floorplan-modal-overlay-client .floorplan-magnifier-toggle.active {
+  background: #ffffff;
+  border-color: #0d3d52;
+}
+
+.floorplan-modal-overlay-client .floorplan-hotspot-layer[data-layer='expanded'] {
+  transition: opacity 150ms ease, visibility 0s linear 150ms;
+}
+
+.floorplan-modal-overlay-client .floorplan-hotspot-layer[data-layer='expanded'].floorplan-hotspots-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.floorplan-modal-overlay-client #floorplan-modal-img.magnifier-active {
+  cursor: none;
+}
+
+.floorplan-modal-overlay-client .floorplan-magnifier-lens {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  border: 3px solid #115272;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+  background-repeat: no-repeat;
+  background-color: #ffffff;
+  pointer-events: none;
+  z-index: 7;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, -50%);
+  transition: opacity 100ms ease;
+}
+
+.floorplan-modal-overlay-client .floorplan-magnifier-lens.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+@media (max-width: 980px) {
+  .floorplan-modal-overlay-client .floorplan-magnifier-controls {
+    right: 12px;
+    bottom: 12px;
+  }
+}

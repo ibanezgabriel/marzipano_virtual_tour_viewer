@@ -1,5 +1,6 @@
 import { initViewer, loadImages, setProjectName } from './marzipano-viewer.js';
 import { initHotspotsClient, reloadHotspots as reloadHotspotsClient } from './features/hotspots-client.js';
+import { initBlurMasksClient, reloadBlurMasksClient } from './features/blur-masks-client.js';
 import { initFloorplansClient, reloadFloorplanHotspotsClient, reloadFloorplansListClient } from './features/floorplans-client.js';
 import { getProjectId } from './project-context.js';
 import { initMenuCollapsible } from './menu-collapsible.js';
@@ -20,8 +21,10 @@ if (!getProjectId()) {
   window.location.replace('dashboard.html');
 } else {
   initHotspotsClient();
+  initBlurMasksClient();
   document.addEventListener('DOMContentLoaded', async () => {
     await initHotspotsClient();
+    await initBlurMasksClient();
     let canonicalId = getProjectId();
     try {
       const res = await fetch('/api/projects');
@@ -58,6 +61,7 @@ if (!getProjectId()) {
     socket.on('pano:removed', () => loadImages());
     socket.on('panos:order', () => loadImages());
     socket.on('hotspots:changed', () => { try { reloadHotspotsClient(); } catch (e) {} });
+    socket.on('blur-masks:changed', () => { try { reloadBlurMasksClient(); } catch (e) {} });
     socket.on('floorplan-hotspots:changed', () => { try { reloadFloorplanHotspotsClient(); } catch (e) {} });
     socket.on('floorplans:order', () => { try { reloadFloorplansListClient(); } catch (e) {} });
     socket.on('initial-views:changed', async () => {
