@@ -75,9 +75,6 @@ function createClientHotspotElement(entry) {
   pin.className = 'app-hotspot-pin-dot';
   pin.setAttribute('role', 'button');
   pin.setAttribute('tabindex', '0');
-  if (entry.linkTo) {
-    pin.setAttribute('title', `Go to ${entry.linkTo}`);
-  }
 
   wrapper.appendChild(pin);
   return wrapper;

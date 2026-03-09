@@ -434,10 +434,6 @@ function renderHotspotsToLayer(layerEl, { allowClickToPanorama, showTitle }) {
     const dot = document.createElement('button');
     dot.type = 'button';
     dot.className = 'floorplan-hotspot-pin-dot' + (selectedHotspotId === entry.id ? ' selected' : '');
-    if (showTitle) {
-      dot.title = entry.linkTo ? `Go to ${entry.linkTo}` : 'Hotspot';
-    }
-
     if (allowClickToPanorama && entry.linkTo) {
       dot.addEventListener('click', async (e) => {
         if (magnifierEnabled) return;
@@ -458,7 +454,7 @@ function renderHotspotsToLayer(layerEl, { allowClickToPanorama, showTitle }) {
 
 function renderFloorplanHotspots() {
   if (!modalHotspotLayer) return;
-  renderHotspotsToLayer(modalHotspotLayer, { allowClickToPanorama: true, showTitle: true });
+  renderHotspotsToLayer(modalHotspotLayer, { allowClickToPanorama: true, showTitle: false });
 }
 
 function renderRenderedHotspots() {
@@ -556,4 +552,3 @@ export function initFloorplansClient() {
     await loadFloorplans();
   })();
 }
-
