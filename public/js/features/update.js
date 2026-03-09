@@ -3,11 +3,19 @@ import { cleanupHotspotsForDeletedImages } from './hotspots.js';
 import { showAlert, showTimedAlert, showProgressDialog, hideProgressDialog, updateProgressDialog, setProgressDialogMessage } from '../dialog.js';
 import { appendProjectParams } from '../project-context.js';
 
-const updateBtnEl = document.getElementById('pano-update-btn');
-
 export function initUpdate() {
-  if (!updateBtnEl) return;
-  updateBtnEl.addEventListener('click', handleUpdate);
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-pano-action="update"]');
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const li = button.closest('#pano-image-list li');
+    if (li?.dataset?.filename) {
+      await loadPanorama(li.dataset.filename);
+    }
+    await handleUpdate();
+  });
 }
 
 async function handleUpdate() {
@@ -35,13 +43,17 @@ async function handleUpdate() {
     // Find the corresponding <li> and show updating text
     const imageListEl = document.getElementById('pano-image-list');
     let updatingLi = null;
+    let updatingNameEl = null;
     if (imageListEl) {
       updatingLi = Array.from(imageListEl.children).find(
-        li => li.textContent === selectedImageName
+        li => li.dataset.filename === selectedImageName
       );
       if (updatingLi) {
-        updatingLi.dataset.originalText = updatingLi.textContent;
-        updatingLi.textContent = 'Updating image…';
+        updatingNameEl = updatingLi.querySelector('.pano-item-name');
+        if (updatingNameEl) {
+          updatingLi.dataset.originalText = updatingNameEl.textContent;
+          updatingNameEl.textContent = 'Updating image...';
+        }
       }
     }
 
@@ -112,8 +124,8 @@ async function handleUpdate() {
           } catch (error) {
             clearInterval(pollInterval);
             hideProgressDialog();
-            if (updatingLi && updatingLi.dataset.originalText) {
-              updatingLi.textContent = updatingLi.dataset.originalText;
+            if (updatingNameEl && updatingLi && updatingLi.dataset.originalText) {
+              updatingNameEl.textContent = updatingLi.dataset.originalText;
               delete updatingLi.dataset.originalText;
             }
             await showAlert(error.message || 'Processing failed', 'Processing Error');
@@ -121,16 +133,16 @@ async function handleUpdate() {
         }, 500);
       } else {
         hideProgressDialog();
-        if (updatingLi && updatingLi.dataset.originalText) {
-          updatingLi.textContent = updatingLi.dataset.originalText;
+        if (updatingNameEl && updatingLi && updatingLi.dataset.originalText) {
+          updatingNameEl.textContent = updatingLi.dataset.originalText;
           delete updatingLi.dataset.originalText;
         }
         await showAlert('Error updating image: ' + (uploadData && uploadData.message), 'Update');
       }
     } catch (error) {
       hideProgressDialog();
-      if (updatingLi && updatingLi.dataset.originalText) {
-        updatingLi.textContent = updatingLi.dataset.originalText;
+      if (updatingNameEl && updatingLi && updatingLi.dataset.originalText) {
+        updatingNameEl.textContent = updatingLi.dataset.originalText;
         delete updatingLi.dataset.originalText;
       }
       await showAlert('Error updating image: ' + error, 'Update');

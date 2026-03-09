@@ -139,9 +139,6 @@
 }
 
 #pano-upload-btn,
-#pano-update-btn,
-#pano-rename-btn,
-#pano-delete-btn,
 #pano-hotspot-btn,
 #pano-blur-btn,
 #pano-blur-add-btn,
@@ -161,15 +158,6 @@
 }
 #pano-upload-btn {
     background-color: rgb(0, 0, 193);
-}
-#pano-delete-btn {
-  background-color: rgb(198, 0, 0);
-}
-#pano-rename-btn {
-    background-color: rgb(0, 203, 0);
-}
-#pano-update-btn {
-    background-color: rgb(209, 209, 32);
 }
 #pano-blur-btn {
     background-color: rgb(79, 120, 141);
@@ -197,14 +185,54 @@
     padding: 5px 10px;
     margin: .2rem;
     border-radius: 4px;
-    cursor: pointer;
-    white-space: nowrap; 
-    overflow: hidden;   
-    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     background: #d4dfe4;
     color: #333;
     transition: background 0.2s ease, color 0.2s ease;
     cursor: pointer;
+}
+.pano-item-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pano-item-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+#pano-image-list li:hover .pano-item-actions,
+#pano-image-list li.active .pano-item-actions {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+.pano-item-action-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease;
+}
+.pano-item-action-btn img {
+  width: 14px;
+  height: 14px;
+}
+.pano-item-action-btn:hover {
+  background: rgba(0, 0, 0, 0.12);
 }
 #pano-image-list li:hover {
     background: #c5d4db;
@@ -586,9 +614,6 @@ body.floorplan-modal-open #pano-panel {
   transition: transform 0.5s;
 }
 #pano-upload-btn:hover,
-#pano-update-btn:hover,
-#pano-rename-btn:hover,
-#pano-delete-btn:hover,
 #pano-hotspot-btn:hover,
 #pano-blur-btn:hover,
 #pano-blur-add-btn:hover,

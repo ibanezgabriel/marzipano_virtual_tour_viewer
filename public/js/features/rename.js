@@ -3,11 +3,19 @@ import { updateHotspotsForRenamedImage } from './hotspots.js';
 import { showAlert, showPrompt, showTimedAlert } from '../dialog.js';
 import { appendProjectParams } from '../project-context.js';
 
-const renameBtnEl = document.getElementById('pano-rename-btn');
-
 export function initRename() {
-  if (!renameBtnEl) return;
-  renameBtnEl.addEventListener('click', handleRename);
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-pano-action="rename"]');
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const li = button.closest('#pano-image-list li');
+    if (li?.dataset?.filename) {
+      await loadPanorama(li.dataset.filename);
+    }
+    await handleRename();
+  });
 }
 
 async function handleRename() {
@@ -47,8 +55,8 @@ async function handleRename() {
     if (data.success) {
       updateHotspotsForRenamedImage(selectedImageName, newFileName);
       updateInitialViewForRenamedImage(selectedImageName, newFileName);
-      await loadImages();
       await loadPanorama(newFileName);
+      await loadImages();
       await showTimedAlert('Panorama image renamed successfully.', 'Rename', 500);
     } else {
       await showAlert('Error renaming image: ' + data.message, 'Rename');

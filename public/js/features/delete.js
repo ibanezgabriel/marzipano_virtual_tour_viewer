@@ -2,11 +2,20 @@ import { cleanupHotspotsForDeletedImages } from './hotspots.js';
 import { showAlert, showConfirm, showTimedAlert } from '../dialog.js';
 import { appendProjectParams } from '../project-context.js';
 
-const deleteBtnEl = document.getElementById('pano-delete-btn');
-
 export function initDelete() {
-  if (!deleteBtnEl) return;
-  deleteBtnEl.addEventListener('click', handleDelete);
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-pano-action="delete"]');
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const li = button.closest('#pano-image-list li');
+    if (li?.dataset?.filename) {
+      const { loadPanorama } = await import('../marzipano-viewer.js');
+      await loadPanorama(li.dataset.filename);
+    }
+    await handleDelete();
+  });
 }
 
 async function handleDelete() {

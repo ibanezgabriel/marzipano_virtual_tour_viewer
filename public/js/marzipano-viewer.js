@@ -74,6 +74,12 @@ const panoViewerEl = document.getElementById('pano-viewer');
 const headerTextEl = document.getElementById('pano-header-text');
 const headerEl = document.getElementById('pano-header');
 
+function setListItemFilename(li, filename) {
+  li.dataset.filename = filename;
+  const nameEl = li.querySelector('.pano-item-name');
+  if (nameEl) nameEl.textContent = filename;
+}
+
 function updateHeaderText() {
   if (headerTextEl && headerEl) {
     headerTextEl.textContent = projectName || '';
@@ -109,7 +115,7 @@ export async function loadPanorama(imageName) {
   if (selectedImageName === imageName) {
     // Same image already shown; list may have been rebuilt (e.g. after upload), so re-apply highlight
     document.querySelectorAll('#pano-image-list li').forEach(li => li.classList.remove('active'));
-    const sameLi = Array.from(document.querySelectorAll('#pano-image-list li')).find(li => li.textContent === imageName);
+    const sameLi = Array.from(document.querySelectorAll('#pano-image-list li')).find(li => li.dataset.filename === imageName);
     if (sameLi) sameLi.classList.add('active');
     return;
   }
@@ -171,7 +177,7 @@ export async function loadPanorama(imageName) {
     li.classList.remove('active');
   });
   const activeLi = Array.from(document.querySelectorAll('#pano-image-list li'))
-    .find(li => li.textContent === imageName);
+    .find(li => li.dataset.filename === imageName);
   if (activeLi) {
     activeLi.classList.add('active');
   }
@@ -217,9 +223,42 @@ export async function loadImages(onImagesLoaded) {
     // Helper to create a draggable list item for an image
     function createImageListItem(filename) {
       const li = document.createElement('li');
-      li.textContent = filename;
+      const nameEl = document.createElement('span');
+      nameEl.className = 'pano-item-name';
+      nameEl.textContent = filename;
+      li.appendChild(nameEl);
+
+      if (isAdmin) {
+        const actionsEl = document.createElement('div');
+        actionsEl.className = 'pano-item-actions';
+
+        const actionButtons = [
+          { action: 'update', icon: 'assets/update.png', alt: 'Update image' },
+          { action: 'rename', icon: 'assets/rename.png', alt: 'Rename image' },
+          { action: 'delete', icon: 'assets/icons/delete1.png', alt: 'Delete image' }
+        ];
+
+        actionButtons.forEach(({ action, icon, alt }) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `pano-item-action-btn pano-item-action-${action}`;
+          btn.dataset.panoAction = action;
+          btn.title = alt;
+          btn.setAttribute('aria-label', alt);
+
+          const iconEl = document.createElement('img');
+          iconEl.src = icon;
+          iconEl.alt = '';
+          btn.appendChild(iconEl);
+
+          actionsEl.appendChild(btn);
+        });
+
+        li.appendChild(actionsEl);
+      }
+
       li.draggable = isAdmin;
-      li.dataset.filename = filename;
+      setListItemFilename(li, filename);
       li.onclick = () => loadPanorama(li.dataset.filename);
 
       // Only enable drag/drop handlers in admin UI
@@ -263,10 +302,8 @@ export async function loadImages(onImagesLoaded) {
 
           // Swap dataset and text
           const tmp = srcLi.dataset.filename;
-          srcLi.dataset.filename = tgtLi.dataset.filename;
-          tgtLi.dataset.filename = tmp;
-          srcLi.textContent = srcLi.dataset.filename;
-          tgtLi.textContent = tgtLi.dataset.filename;
+          setListItemFilename(srcLi, tgtLi.dataset.filename);
+          setListItemFilename(tgtLi, tmp);
 
           // Reassign onclick handlers to use updated filenames
           srcLi.onclick = () => loadPanorama(srcLi.dataset.filename);
@@ -279,7 +316,7 @@ export async function loadImages(onImagesLoaded) {
           // Update visual active classes
           document.querySelectorAll('#pano-image-list li').forEach(li => li.classList.remove('active'));
           const activeLi = Array.from(document.querySelectorAll('#pano-image-list li'))
-            .find(li => li.textContent === selectedImageName);
+            .find(li => li.dataset.filename === selectedImageName);
           if (activeLi) activeLi.classList.add('active');
 
           // Persist new order to server
