@@ -181,12 +181,13 @@
 }
 #pano-image-list {
   overflow-y: auto;
+  overflow-x: hidden;
   border-radius: .2rem;
   margin: .3rem;
   list-style: none;
   background-color: white;
   list-style: none;
-  max-height: 45vh;
+  max-height: 340px;
   display: block; /* shown when Panoramic Scenes tab is active */
 }
 #pano-image-list li {
@@ -268,11 +269,12 @@
 /* Floor plan list: separate content from pano-image-list */
 #pano-floorplan-list {
   overflow-y: auto;
+  overflow-x: hidden;
   border-radius: .2rem;
   margin: .3rem;
   list-style: none;
   background-color: white;
-  max-height: 45vh;
+  max-height: 340px;
   display: none; /* hidden by default; shown when Floor Plan tab is active */
 }
 
@@ -844,4 +846,3 @@ body.floorplan-modal-open #pano-panel {
     content: '×';
     font-weight: bold;
 }
-

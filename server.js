@@ -428,18 +428,25 @@ async function getOrderedFloorplanFilenames(paths) {
 async function getOrderedFilenames(paths) {
   const existing = await listUploadedImages(paths.uploadsDir);
   const existingSet = new Set(existing);
-  let order = [];
+  let parsedOrder = [];
   try {
     const raw = fs.readFileSync(paths.panoramaOrderPath, 'utf8');
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) order = parsed.filter(f => existingSet.has(f));
+    if (Array.isArray(parsed)) parsedOrder = parsed;
   } catch (e) {
     if (e.code !== 'ENOENT') console.error('Error reading panorama order:', e);
   }
+  const seen = new Set();
+  const order = parsedOrder.filter((f) => {
+    if (!existingSet.has(f) || seen.has(f)) return false;
+    seen.add(f);
+    return true;
+  });
   const inOrder = new Set(order);
   const appended = existing.filter(f => !inOrder.has(f));
   const result = [...order, ...appended];
-  if (order.length === 0 && result.length > 0) {
+  const orderChanged = parsedOrder.length !== order.length || parsedOrder.some((v, i) => v !== order[i]);
+  if ((orderChanged || appended.length > 0) && result.length > 0) {
     writePanoramaOrder(paths.panoramaOrderPath, result);
   }
   return result;
@@ -462,10 +469,16 @@ function writePanoramaOrder(panoramaOrderPath, order) {
 
 function panoramaOrderReplace(paths, oldFilename, newFilename) {
   const order = readPanoramaOrder(paths.panoramaOrderPath);
-  const i = order.indexOf(oldFilename);
-  if (i !== -1) order[i] = newFilename;
-  else order.push(newFilename);
-  writePanoramaOrder(paths.panoramaOrderPath, order);
+  const replaced = order.map((f) => (f === oldFilename ? newFilename : f));
+  const deduped = [];
+  const seen = new Set();
+  for (const f of replaced) {
+    if (seen.has(f)) continue;
+    seen.add(f);
+    deduped.push(f);
+  }
+  if (!seen.has(newFilename)) deduped.push(newFilename);
+  writePanoramaOrder(paths.panoramaOrderPath, deduped);
 }
 
 function panoramaOrderRemove(paths, filename) {
