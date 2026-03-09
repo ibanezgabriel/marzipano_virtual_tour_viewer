@@ -183,6 +183,14 @@
     max-height: 60vh;
     overflow-y: auto; 
     padding: 1rem .5rem;
+    opacity: 1;
+    transition: opacity 140ms ease;
+}
+.project-list.search-fade-out {
+    opacity: 0;
+}
+.project-list.search-fade-in {
+    opacity: 1;
 }
 .project-row {
     display: flex;

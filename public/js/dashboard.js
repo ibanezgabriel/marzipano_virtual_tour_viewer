@@ -28,6 +28,9 @@ import { io } from '/socket.io/socket.io.esm.min.js';
 const MAX_PROJECT_NAME_LENGTH = 100;
 const MAX_PROJECT_NUMBER_LENGTH = 20;
 let allProjects = [];
+const SEARCH_FADE_MS = 140;
+let searchFadeOutTimer = null;
+let searchFadeInTimer = null;
 
 // Ensure project number input only allows alphanumeric characters and "-"
 if (newProjectNumberInput) {
@@ -363,12 +366,12 @@ function renderProjectRow(project) {
   deleteBtn.className = 'btn-delete';
   const deleteIcon = document.createElement('img');
   // deleteBtn.textContent = 'Delete';
-  deleteIcon.src = "../assets/icons/delete1.png"
+  deleteIcon.src = "../assets/icons/delete-r.png"
   deleteIcon.style.height = "20px";
   deleteIcon.style.width = "20px";
   deleteBtn.appendChild(deleteIcon)
 
-  const deleteOrigIcon = "../assets/icons/delete1.png";
+  const deleteOrigIcon = "../assets/icons/delete-r.png";
   const deleteHoverIcon = "../assets/icons/delete2.png";
 
   // Change image on hover
@@ -422,18 +425,58 @@ function renderProjectList(projects) {
   updateEmptyState();
 }
 
-function applyProjectSearch() {
-  const query = (projectSearchInput && projectSearchInput.value.trim()) || '';
-  if (!query) {
-    renderProjectList(allProjects);
+function renderProjectListWithSearchAnimation(projects) {
+  if (!projectListEl) {
+    renderProjectList(projects);
     return;
   }
-  const q = query.toLowerCase();
-  const filtered = allProjects.filter((p) => 
-    (p.name || '').toLowerCase().includes(q) || 
-    (p.number || '').toLowerCase().includes(q)
-  );
-  renderProjectList(filtered);
+
+  if (searchFadeOutTimer) {
+    clearTimeout(searchFadeOutTimer);
+    searchFadeOutTimer = null;
+  }
+  if (searchFadeInTimer) {
+    clearTimeout(searchFadeInTimer);
+    searchFadeInTimer = null;
+  }
+
+  projectListEl.classList.remove('search-fade-in');
+  projectListEl.classList.add('search-fade-out');
+
+  searchFadeOutTimer = setTimeout(() => {
+    renderProjectList(projects);
+    projectListEl.classList.remove('search-fade-out');
+    projectListEl.classList.add('search-fade-in');
+
+    searchFadeInTimer = setTimeout(() => {
+      projectListEl.classList.remove('search-fade-in');
+      searchFadeInTimer = null;
+    }, SEARCH_FADE_MS);
+
+    searchFadeOutTimer = null;
+  }, SEARCH_FADE_MS);
+}
+
+function applyProjectSearch(options = {}) {
+  const { animate = false } = options;
+  const query = (projectSearchInput && projectSearchInput.value.trim()) || '';
+  let projectsToRender = allProjects;
+
+  if (!query) {
+    projectsToRender = allProjects;
+  } else {
+    const q = query.toLowerCase();
+    projectsToRender = allProjects.filter((p) => 
+      (p.name || '').toLowerCase().includes(q) || 
+      (p.number || '').toLowerCase().includes(q)
+    );
+  }
+
+  if (animate) {
+    renderProjectListWithSearchAnimation(projectsToRender);
+  } else {
+    renderProjectList(projectsToRender);
+  }
 }
 
 async function loadProjects() {
@@ -536,11 +579,11 @@ openProjectModal.onclick = (e) => {
 };
 
 if (projectSearchInput) {
-  projectSearchInput.addEventListener('input', applyProjectSearch);
+  projectSearchInput.addEventListener('input', () => applyProjectSearch({ animate: true }));
   projectSearchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       projectSearchInput.value = '';
-      applyProjectSearch();
+      applyProjectSearch({ animate: true });
       projectSearchInput.blur();
     }
   });
