@@ -538,7 +538,7 @@ body.floorplan-modal-open #pano-panel {
   height: 20px;
   border-radius: 50%;
   border: 2px solid #ffffff;
-  background: #71a7ec;
+  background: #1b4f93;
   box-shadow: 0 2px 8px rgba(0,0,0,0.4);
   cursor: pointer;
   pointer-events: auto;
@@ -553,7 +553,7 @@ body.floorplan-modal-open #pano-panel {
 
 /* Selected floor plan hotspot: highlight in light green */
 .floorplan-hotspot-pin-dot.selected {
-  background: #1b4f93;
+  background: rgb(222, 222, 21);
   border-color: #c8e6c9;
 }
 
