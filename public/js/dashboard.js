@@ -9,6 +9,7 @@ const modalCreateBtn = document.getElementById('modal-create');
 const modalCancelBtn = document.getElementById('modal-cancel');
 const openProjectModal = document.getElementById('open-project-modal');
 const openProjectListEl = document.getElementById('open-project-list');
+const openProjectSearchInput = document.getElementById('open-project-search-input');
 const openModalCloseBtn = document.getElementById('open-modal-close');
 const renameProjectModal = document.getElementById('rename-project-modal');
 const renameProjectNumberInput = document.getElementById('rename-project-number');
@@ -28,6 +29,7 @@ import { io } from '/socket.io/socket.io.esm.min.js';
 const MAX_PROJECT_NAME_LENGTH = 100;
 const MAX_PROJECT_NUMBER_LENGTH = 20;
 let allProjects = [];
+let openProjectProjects = [];
 const SEARCH_FADE_MS = 140;
 let searchFadeOutTimer = null;
 let searchFadeInTimer = null;
@@ -425,6 +427,35 @@ function renderProjectList(projects) {
   updateEmptyState();
 }
 
+function renderOpenProjectList(projects) {
+  if (!openProjectListEl) return;
+  openProjectListEl.innerHTML = '';
+  if (!projects || projects.length === 0) {
+    openProjectListEl.innerHTML = '<p class="empty-state">No projects yet.</p>';
+    return;
+  }
+  for (const p of projects) {
+    const row = document.createElement('div');
+    row.className = 'project-row';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'project-name-input';
+    input.value = p.name;
+    input.disabled = true;
+    input.style.cursor = 'pointer';
+    const openBtn = document.createElement('button');
+    openBtn.className = 'btn-open-modal';
+    openBtn.textContent = 'Open';
+    openBtn.onclick = () => {
+      openProjectModal.classList.remove('visible');
+      openProject(p);
+    };
+    input.onclick = () => openProject(p);
+    row.append(input, openBtn);
+    openProjectListEl.appendChild(row);
+  }
+}
+
 function renderProjectListWithSearchAnimation(projects) {
   if (!projectListEl) {
     renderProjectList(projects);
@@ -477,6 +508,21 @@ function applyProjectSearch(options = {}) {
   } else {
     renderProjectList(projectsToRender);
   }
+}
+
+function applyOpenProjectSearch() {
+  const query = (openProjectSearchInput && openProjectSearchInput.value.trim()) || '';
+  let projectsToRender = openProjectProjects;
+  if (!query) {
+    projectsToRender = openProjectProjects;
+  } else {
+    const q = query.toLowerCase();
+    projectsToRender = openProjectProjects.filter((p) =>
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.number || '').toLowerCase().includes(q)
+    );
+  }
+  renderOpenProjectList(projectsToRender);
 }
 
 async function loadProjects() {
@@ -536,32 +582,13 @@ modalCreateBtn.onclick = async () => {
 document.getElementById('btn-open-project').onclick = async () => {
   try {
     const projects = await fetchProjects();
-    openProjectListEl.innerHTML = '';
-    if (projects.length === 0) {
-      openProjectListEl.innerHTML = '<p class="empty-state">No projects yet.</p>';
-    } else {
-      for (const p of projects) {
-        const row = document.createElement('div');
-        row.className = 'project-row';
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'project-name-input';
-        input.value = p.name;
-        input.disabled = true;
-        input.style.cursor = 'pointer';
-        const openBtn = document.createElement('button');
-        openBtn.className = 'btn-open-modal';
-        openBtn.textContent = 'Open';
-        openBtn.onclick = () => {
-          openProjectModal.classList.remove('visible');
-          openProject(p);
-        };
-        input.onclick = () => openProject(p);
-        row.append(input, openBtn);
-        openProjectListEl.appendChild(row);
-      }
+    openProjectProjects = Array.isArray(projects) ? projects : [];
+    if (openProjectSearchInput) {
+      openProjectSearchInput.value = '';
     }
+    applyOpenProjectSearch();
     openProjectModal.classList.add('visible');
+    if (openProjectSearchInput) openProjectSearchInput.focus();
   } catch (e) {
     alert('Error loading projects: ' + e.message);
   }
@@ -585,6 +612,17 @@ if (projectSearchInput) {
       projectSearchInput.value = '';
       applyProjectSearch({ animate: true });
       projectSearchInput.blur();
+    }
+  });
+}
+
+if (openProjectSearchInput) {
+  openProjectSearchInput.addEventListener('input', () => applyOpenProjectSearch());
+  openProjectSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      openProjectSearchInput.value = '';
+      applyOpenProjectSearch();
+      openProjectSearchInput.blur();
     }
   });
 }

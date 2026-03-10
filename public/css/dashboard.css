@@ -186,6 +186,42 @@
     opacity: 1;
     transition: opacity 140ms ease;
 }
+
+/* Open Project modal layout */
+.open-project-modal {
+  display: flex;
+  flex-direction: column;
+  height: 70vh;
+  min-height: 420px;
+}
+
+.open-project-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.open-project-modal-header h2 {
+  margin-bottom: 0;
+}
+
+.open-project-modal-header .project-search-wrap {
+  padding: 0;
+  position: relative;
+}
+
+.open-project-modal-header .project-search-input {
+  width: 240px;
+}
+
+#open-project-modal .project-list {
+  flex: 1;
+  max-height: none;
+  overflow-y: auto;
+  padding: 0.5rem 0.25rem;
+}
 .project-list.search-fade-out {
     opacity: 0;
 }

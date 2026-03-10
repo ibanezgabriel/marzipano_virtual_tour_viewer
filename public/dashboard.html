@@ -69,8 +69,13 @@
     </div>
 
     <div class="modal-overlay" id="open-project-modal">
-        <div class="modal">
-            <h2>Open Project</h2>
+        <div class="modal open-project-modal">
+            <div class="open-project-modal-header">
+                <h2>Open Project</h2>
+                <div class="project-search-wrap">
+                    <input type="text" id="open-project-search-input" class="project-search-input" placeholder="Search" autocomplete="off">
+                </div>
+            </div>
             <div class="project-list" id="open-project-list"></div>
             <div class="modal-actions" style="margin-top: 16px;">
                 <button type="button" class="btn-secondary" id="open-modal-close">Close</button>
