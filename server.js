@@ -410,8 +410,15 @@ function floorplanOrderReplace(paths, oldFilename, newFilename) {
   const i = order.indexOf(oldFilename);
   if (i !== -1) order[i] = newFilename;
   else order.push(newFilename);
-  writeFloorplanOrder(paths.floorplanOrderPath, order);
-  return order;
+  const deduped = [];
+  const seen = new Set();
+  for (const f of order) {
+    if (seen.has(f)) continue;
+    seen.add(f);
+    deduped.push(f);
+  }
+  writeFloorplanOrder(paths.floorplanOrderPath, deduped);
+  return deduped;
 }
 
 /** Return ordered list of floor plan filenames; stored order first, then any new files not in list. */
@@ -421,7 +428,26 @@ async function getOrderedFloorplanFilenames(paths) {
   let order = readFloorplanOrder(paths.floorplanOrderPath).filter(f => existingSet.has(f));
   const inOrder = new Set(order);
   const appended = existing.filter(f => !inOrder.has(f));
-  return [...order, ...appended];
+  const result = [...order, ...appended];
+  const orderChanged = order.length !== result.length || appended.length > 0;
+  if (orderChanged && result.length > 0) {
+    writeFloorplanOrder(paths.floorplanOrderPath, result);
+  }
+  return result;
+}
+
+function floorplanOrderAppend(paths, filenames) {
+  const order = readFloorplanOrder(paths.floorplanOrderPath);
+  const set = new Set(order);
+  let changed = false;
+  for (const f of filenames || []) {
+    if (!f || set.has(f)) continue;
+    order.push(f);
+    set.add(f);
+    changed = true;
+  }
+  if (changed) writeFloorplanOrder(paths.floorplanOrderPath, order);
+  return order;
 }
 
 /** Return ordered list of panorama filenames: stored order first, then any new uploads not in list. */
@@ -727,6 +753,17 @@ app.post('/upload-floorplan', floorplanUpload.array('floorplan', 20), async (req
     return res.status(400).json({ success: false, message: 'Project required' });
   }
   const filenames = req.files.map((f) => f.filename);
+  let updatedOrder = null;
+  try {
+    updatedOrder = floorplanOrderAppend(paths, filenames);
+  } catch (e) {
+    console.error('Error updating floor plan order on upload:', e);
+  }
+  try {
+    if (updatedOrder) io.to(`project:${paths.projectId}`).emit('floorplans:order', { order: updatedOrder });
+  } catch (e) {
+    console.error('Socket emit error:', e);
+  }
   res.json({ success: true, uploaded: filenames });
 });
 
