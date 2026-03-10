@@ -14,6 +14,7 @@ const openModalCloseBtn = document.getElementById('open-modal-close');
 const renameProjectModal = document.getElementById('rename-project-modal');
 const renameProjectNumberInput = document.getElementById('rename-project-number');
 const renameProjectNameInput = document.getElementById('rename-project-name');
+const renameProjectStatusSelect = document.getElementById('rename-project-status');
 const renameProjectErrorEl = document.getElementById('rename-project-error');
 const renameModalCancelBtn = document.getElementById('rename-modal-cancel');
 const renameModalSaveBtn = document.getElementById('rename-modal-save');
@@ -28,6 +29,7 @@ import { io } from '/socket.io/socket.io.esm.min.js';
 
 const MAX_PROJECT_NAME_LENGTH = 100;
 const MAX_PROJECT_NUMBER_LENGTH = 20;
+const ALLOWED_PROJECT_STATUSES = new Set(['in-progress', 'completed']);
 let allProjects = [];
 let openProjectProjects = [];
 const SEARCH_FADE_MS = 140;
@@ -85,6 +87,24 @@ function normalizeProjectName(name) {
   return (name || '').trim().toLowerCase();
 }
 
+function normalizeProjectStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ALLOWED_PROJECT_STATUSES.has(normalized) ? normalized : 'in-progress';
+}
+
+function mergeProjectStatuses(prevList, nextList) {
+  if (!Array.isArray(nextList)) return [];
+  const prevById = new Map((prevList || []).map((p) => [p.id, p]));
+  return nextList.map((p) => {
+    if (!p || typeof p !== 'object') return p;
+    const prev = prevById.get(p.id);
+    const status = p.status !== undefined
+      ? normalizeProjectStatus(p.status)
+      : normalizeProjectStatus(prev && prev.status);
+    return { ...p, status };
+  });
+}
+
 function projectNameExists(name, excludeId = null) {
   const n = normalizeProjectName(name);
   if (!n) return false;
@@ -107,10 +127,11 @@ async function fetchProjects() {
 }
 
 async function createProject(name, number) {
+  const status = 'in-progress';
   const res = await fetch('/api/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name.trim(), number: number ? number.trim() : '' }),
+    body: JSON.stringify({ name: name.trim(), number: number ? number.trim() : '', status }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to create project');
@@ -118,12 +139,14 @@ async function createProject(name, number) {
 }
 
 async function renameProject(id, newName, newNumber) {
+  const status = normalizeProjectStatus(renameProjectStatusSelect ? renameProjectStatusSelect.value : 'in-progress');
   const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name: newName.trim(),
       number: newNumber ? newNumber.trim() : '',
+      status,
     }),
   });
   const data = await res.json();
@@ -171,6 +194,9 @@ function showRenameModal(project, nameDisplayEl) {
     renameProjectNumberInput.value = project.number || '';
   }
   renameProjectNameInput.value = project.name;
+  if (renameProjectStatusSelect) {
+    renameProjectStatusSelect.value = normalizeProjectStatus(project.status);
+  }
   renameProjectModal.classList.add('visible');
   renameProjectNameInput.focus();
   renameProjectNameInput.select();
@@ -208,7 +234,9 @@ function showRenameModal(project, nameDisplayEl) {
     }
     // If neither name nor number actually changed, do nothing.
     const currentNumber = String(project.number || '');
-    if (name.trim() === project.name.trim() && number === currentNumber) {
+    const currentStatus = normalizeProjectStatus(project.status);
+    const nextStatus = normalizeProjectStatus(renameProjectStatusSelect ? renameProjectStatusSelect.value : currentStatus);
+    if (name.trim() === project.name.trim() && number === currentNumber && nextStatus === currentStatus) {
       renameProjectErrorEl.textContent = 'No changes made.';
       return;
     }
@@ -219,6 +247,7 @@ function showRenameModal(project, nameDisplayEl) {
         ...updated,
         name: updated.name || name.trim(),
         number: updated.number !== undefined ? updated.number : number,
+        status: updated.status !== undefined ? updated.status : nextStatus,
       };
       // Update in-memory list
       allProjects = allProjects.map((p) => (p.id === project.id ? finalProject : p));
@@ -319,6 +348,14 @@ function renderProjectRow(project) {
   nameCell.className = 'project-name-cell';
   nameCell.appendChild(nameDisplay);
 
+  // cell for status
+  const statusDisplay = document.createElement('div');
+  statusDisplay.className = 'project-status-display';
+  statusDisplay.textContent = normalizeProjectStatus(project.status);
+  const statusCell = document.createElement('div');
+  statusCell.className = 'project-status-cell';
+  statusCell.appendChild(statusDisplay);
+
   const viewBtn = document.createElement('button');
   viewBtn.type = 'button';
   viewBtn.className = 'btn-open';
@@ -410,7 +447,7 @@ function renderProjectRow(project) {
   actionsCell.className = 'project-actions-cell';
   actionsCell.append(viewBtn, editBTN, deleteBtn);
 
-  row.append(numberCell, nameCell, actionsCell);
+  row.append(numberCell, nameCell, statusCell, actionsCell);
   return row;
 }
 
@@ -499,7 +536,8 @@ function applyProjectSearch(options = {}) {
     const q = query.toLowerCase();
     projectsToRender = allProjects.filter((p) => 
       (p.name || '').toLowerCase().includes(q) || 
-      (p.number || '').toLowerCase().includes(q)
+      (p.number || '').toLowerCase().includes(q) ||
+      normalizeProjectStatus(p.status).includes(q)
     );
   }
 
@@ -519,7 +557,8 @@ function applyOpenProjectSearch() {
     const q = query.toLowerCase();
     projectsToRender = openProjectProjects.filter((p) =>
       (p.name || '').toLowerCase().includes(q) ||
-      (p.number || '').toLowerCase().includes(q)
+      (p.number || '').toLowerCase().includes(q) ||
+      normalizeProjectStatus(p.status).includes(q)
     );
   }
   renderOpenProjectList(projectsToRender);
@@ -527,7 +566,8 @@ function applyOpenProjectSearch() {
 
 async function loadProjects() {
   try {
-    allProjects = await fetchProjects();
+    const fetched = await fetchProjects();
+    allProjects = mergeProjectStatuses(allProjects, fetched);
     renderProjectList(allProjects);
   } catch (e) {
     emptyStateEl.textContent = 'Error loading projects: ' + e.message;
@@ -582,7 +622,7 @@ modalCreateBtn.onclick = async () => {
 document.getElementById('btn-open-project').onclick = async () => {
   try {
     const projects = await fetchProjects();
-    openProjectProjects = Array.isArray(projects) ? projects : [];
+    openProjectProjects = mergeProjectStatuses(allProjects, projects);
     if (openProjectSearchInput) {
       openProjectSearchInput.value = '';
     }
@@ -634,8 +674,12 @@ try {
   const socket = io();
   socket.on('projects:changed', (projects) => {
     if (!Array.isArray(projects)) return;
-    allProjects = projects;
+    allProjects = mergeProjectStatuses(allProjects, projects);
     applyProjectSearch();
+    if (openProjectModal && openProjectModal.classList.contains('visible')) {
+      openProjectProjects = mergeProjectStatuses(openProjectProjects, projects);
+      applyOpenProjectSearch();
+    }
   });
 } catch (e) {
   // ignore if sockets unavailable

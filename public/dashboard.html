@@ -36,6 +36,7 @@
             <section id="project-container-header">
                 <p>Project Number</p>
                 <p>Project Name</p>
+                <p>Status</p>
                 <p id="header-action">Action</p>
             </section>
             <section class="project-list" id="project-list"></section>
@@ -71,7 +72,7 @@
     <div class="modal-overlay" id="open-project-modal">
         <div class="modal open-project-modal">
             <div class="open-project-modal-header">
-                <h2>Open Project</h2>
+                <h2 class="open-project-header-element">Open Project</h2>
                 <div class="project-search-wrap">
                     <input type="text" id="open-project-search-input" class="project-search-input" placeholder="Search" autocomplete="off">
                 </div>
@@ -99,6 +100,13 @@
             <div class="form-group">
                 <label for="rename-project-name">Project Name</label>
                 <input type="text" id="rename-project-name" placeholder="Project Name" maxlength="100">
+            </div>
+            <div class="form-group">
+                <label for="rename-project-status">Status</label>
+                <select id="rename-project-status">
+                    <option value="in-progress">In-Progress</option>
+                    <option value="completed">Completed</option>
+                </select>
             </div>
             <p class="modal-error" id="rename-project-error" role="alert"></p>
             <div class="modal-actions">

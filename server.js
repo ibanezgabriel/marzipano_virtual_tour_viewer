@@ -17,6 +17,7 @@ const { Server } = require('socket.io');
 const projectsDir = path.join(__dirname, 'projects');
 const projectsManifestPath = path.join(projectsDir, 'projects.json');
 const MAX_PROJECT_NUMBER_LENGTH = 20;
+const ALLOWED_PROJECT_STATUSES = new Set(['in-progress', 'completed']);
 
 if (!fs.existsSync(projectsDir)) {
   fs.mkdirSync(projectsDir, { recursive: true });
@@ -28,7 +29,18 @@ function getProjectsManifest() {
   try {
     const raw = fs.readFileSync(projectsManifestPath, 'utf8');
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    let changed = false;
+    const normalized = parsed.map((p) => {
+      if (!p || typeof p !== 'object') return p;
+      const status = normalizeProjectStatus(p.status);
+      if (p.status !== status) changed = true;
+      return { ...p, status };
+    });
+    if (changed) {
+      writeProjectsManifest(normalized);
+    }
+    return normalized;
   } catch (e) {
     if (e.code !== 'ENOENT') console.error('Error reading projects manifest:', e);
     return [];
@@ -36,7 +48,22 @@ function getProjectsManifest() {
 }
 
 function writeProjectsManifest(projects) {
-  fs.writeFileSync(projectsManifestPath, JSON.stringify(projects, null, 2), 'utf8');
+  const normalized = Array.isArray(projects)
+    ? projects.map((p) => {
+        if (!p || typeof p !== 'object') return p;
+        return { ...p, status: normalizeProjectStatus(p.status) };
+      })
+    : projects;
+  fs.writeFileSync(projectsManifestPath, JSON.stringify(normalized, null, 2), 'utf8');
+}
+
+function emitProjectsChanged() {
+  try {
+    const projects = getProjectsManifest();
+    io.emit('projects:changed', projects);
+  } catch (e) {
+    console.error('Socket emit error:', e);
+  }
 }
 
 /**
@@ -53,6 +80,11 @@ function findProjectByIdOrNumber(token) {
 
 function sanitizeProjectId(name) {
   return name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '') || 'project';
+}
+
+function normalizeProjectStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ALLOWED_PROJECT_STATUSES.has(normalized) ? normalized : 'in-progress';
 }
 
 /** Get paths for a project. projectId must be validated (no .., no slashes). */
@@ -545,7 +577,7 @@ app.get('/api/projects', (req, res) => {
 });
 
 app.post('/api/projects', (req, res) => {
-  const { name, number } = req.body || {};
+  const { name, number, status } = req.body || {};
   if (number === undefined || number === null || !String(number).trim()) {
     return res.status(400).json({ success: false, message: 'Project number is required' });
   }
@@ -576,11 +608,11 @@ app.post('/api/projects', (req, res) => {
   }
   const finalId = id;
   ensureProjectDirs(finalId);
-  const project = { id: finalId, name: trimmedName, number: trimmedNumber };
+  const project = { id: finalId, name: trimmedName, number: trimmedNumber, status: normalizeProjectStatus(status) };
   projects.push(project);
   writeProjectsManifest(projects);
   // Notify connected clients about project list changes
-  try { io.emit('projects:changed', projects); } catch (e) { console.error('Socket emit error:', e); }
+  emitProjectsChanged();
   res.json(project);
 });
 
@@ -589,7 +621,7 @@ app.put('/api/projects/:id', (req, res) => {
   if (oldId.includes('..') || oldId.includes('/') || oldId.includes('\\')) {
     return res.status(400).json({ success: false, message: 'Invalid project id' });
   }
-  const { name, number } = req.body || {};
+  const { name, number, status } = req.body || {};
   if (number === undefined || number === null || !String(number).trim()) {
     return res.status(400).json({ success: false, message: 'Project number is required' });
   }
@@ -640,8 +672,9 @@ app.put('/api/projects/:id', (req, res) => {
   }
   projects[idx].name = trimmedName;
   projects[idx].number = trimmedNumber;
+  projects[idx].status = normalizeProjectStatus(status || projects[idx].status);
   writeProjectsManifest(projects);
-  try { io.emit('projects:changed', projects); } catch (e) { console.error('Socket emit error:', e); }
+  emitProjectsChanged();
   res.json(projects[idx]);
 });
 
@@ -659,7 +692,7 @@ app.delete('/api/projects/:id', (req, res) => {
   if (p && fs.existsSync(p.base)) {
     fs.rmSync(p.base, { recursive: true, force: true });
   }
-  try { io.emit('projects:changed', projects); } catch (e) { console.error('Socket emit error:', e); }
+  emitProjectsChanged();
   res.json({ success: true });
 });
 
