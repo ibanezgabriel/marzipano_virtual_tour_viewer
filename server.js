@@ -17,7 +17,7 @@ const { Server } = require('socket.io');
 const projectsDir = path.join(__dirname, 'projects');
 const projectsManifestPath = path.join(projectsDir, 'projects.json');
 const MAX_PROJECT_NUMBER_LENGTH = 20;
-const ALLOWED_PROJECT_STATUSES = new Set(['in-progress', 'completed']);
+const ALLOWED_PROJECT_STATUSES = new Set(['on-going', 'completed']);
 
 if (!fs.existsSync(projectsDir)) {
   fs.mkdirSync(projectsDir, { recursive: true });
@@ -84,7 +84,8 @@ function sanitizeProjectId(name) {
 
 function normalizeProjectStatus(value) {
   const normalized = String(value || '').trim().toLowerCase();
-  return ALLOWED_PROJECT_STATUSES.has(normalized) ? normalized : 'in-progress';
+  if (normalized === 'in-progress') return 'on-going';
+  return ALLOWED_PROJECT_STATUSES.has(normalized) ? normalized : 'on-going';
 }
 
 /** Get paths for a project. projectId must be validated (no .., no slashes). */

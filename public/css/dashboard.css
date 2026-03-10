@@ -261,6 +261,43 @@
     font-size: 1rem;
     color: #333;
 }
+.project-status-select {
+    flex: 0 0 140px;
+    max-width: 140px;
+    padding: 10px 12px;
+    background: #e8ecef;
+    font-size: 1rem;
+    color: #333;
+    border: 1px solid #d0d5da;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.project-status-select option {
+    text-align: center;
+}
+
+.project-status-select option.status-option-completed {
+    color: #1b5e20;
+    background: #e7f6ea;
+}
+
+.project-status-select option.status-option-ongoing {
+    color: #7e1c1c;
+    background: #fde8e8;
+}
+
+.project-status-select.status-completed {
+    background: #e7f6ea;
+    color: #1b5e20;
+    border-color: #b9e0c2;
+}
+
+.project-status-select.status-ongoing {
+    background: #fde8e8;
+    color: #7e1c1c;
+    border-color: #f2b9b9;
+}
 .project-name-input::placeholder {
     color: #888;
 }
