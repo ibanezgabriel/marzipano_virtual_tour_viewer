@@ -446,7 +446,7 @@
   background: #ffffff;
   border-radius: 8px;
   max-width: 80vw;
-  max-height: 80vh;
+  max-height: 90vh;
   width: 100%;
   height: 100%;
   display: flex;
@@ -581,6 +581,17 @@ body.floorplan-modal-open #pano-panel {
   pointer-events: auto;
   display: block;
   transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+/* Per-view hotspot sizes */
+.floorplan-hotspot-pin-dot.hotspot-preview {
+  width: 14px;
+  height: 14px;
+}
+
+.floorplan-hotspot-pin-dot.hotspot-modal {
+  width: 20px;
+  height: 20px;
 }
 
 .floorplan-hotspot-pin-dot:hover {

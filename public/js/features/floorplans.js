@@ -559,7 +559,8 @@ export function initFloorplans() {
 
       const dot = document.createElement('button');
       dot.type = 'button';
-      dot.className = 'floorplan-hotspot-pin-dot' + (selectedHotspotId === entry.id ? ' selected' : '');
+      const sizeClass = allowDelete ? ' hotspot-modal' : ' hotspot-preview';
+      dot.className = `floorplan-hotspot-pin-dot${sizeClass}${selectedHotspotId === entry.id ? ' selected' : ''}`;
       if (showTitle) {
         dot.title = entry.linkTo ? `Links to ${entry.linkTo}` : 'Unlinked hotspot';
       }
@@ -904,4 +905,3 @@ export function initFloorplans() {
     loadFloorplans();
   })();
 }
-
