@@ -267,7 +267,7 @@
 }
 
 #open-project-modal .project-list {
-  flex: 1;
+  flex: 1;  
   max-height: none;
   overflow-y: auto;
   display: flex;
