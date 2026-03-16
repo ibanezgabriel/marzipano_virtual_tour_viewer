@@ -425,9 +425,6 @@
     background: #7e1c1c;
     
 }
-#rename-project-name {
-  border: 1px solid black;
-}
 .project-name-display {
     flex: 1;
     min-width: 0;

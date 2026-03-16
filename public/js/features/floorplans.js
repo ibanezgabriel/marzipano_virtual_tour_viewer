@@ -171,8 +171,10 @@ export function initFloorplans() {
       </div>
       <div class="floorplan-modal-body">
         <div class="floorplan-image-wrap">
-          <img id="floorplan-modal-img" alt="Floor plan expanded">
-          <div class="floorplan-hotspot-layer" data-layer="expanded"></div>
+          <div class="floorplan-image-stage">
+            <img id="floorplan-modal-img" alt="Floor plan expanded">
+            <div class="floorplan-hotspot-layer" data-layer="expanded"></div>
+          </div>
         </div>
       </div>
       <div class="floorplan-modal-actions">
@@ -186,6 +188,8 @@ export function initFloorplans() {
   const modalEl = modalOverlay.querySelector('.floorplan-modal');
   const modalTitleEl = modalOverlay.querySelector('#floorplan-modal-title');
   const modalHotspotLayer = modalOverlay.querySelector('.floorplan-hotspot-layer[data-layer="expanded"]');
+  const modalStageEl = modalOverlay.querySelector('.floorplan-image-stage');
+  const modalImageWrapEl = modalOverlay.querySelector('.floorplan-modal-body .floorplan-image-wrap');
   const hotspotBtn = modalOverlay.querySelector('#floorplan-hotspot-btn');
 
   let hotspotPlaceMode = false;
@@ -255,6 +259,41 @@ export function initFloorplans() {
     setPreviewVisible(selectedFloorplan && isFloorTabActive());
   }
 
+  function syncStageContain(imgEl, stageEl, containerEl) {
+    if (!imgEl || !stageEl || !containerEl) return;
+    const nw = Number(imgEl.naturalWidth || 0);
+    const nh = Number(imgEl.naturalHeight || 0);
+    if (!nw || !nh) return;
+    const cw = Math.max(0, containerEl.clientWidth || 0);
+    const ch = Math.max(0, containerEl.clientHeight || 0);
+    if (!cw || !ch) return;
+
+    const scale = Math.min(cw / nw, ch / nh);
+    const w = Math.max(1, Math.floor(nw * scale));
+    const h = Math.max(1, Math.floor(nh * scale));
+
+    stageEl.style.width = `${w}px`;
+    stageEl.style.height = `${h}px`;
+  }
+
+  function syncModalStageSize() {
+    if (!modalOverlay.classList.contains('visible')) return;
+    syncStageContain(modalImg, modalStageEl, modalImageWrapEl);
+  }
+
+  // Keep hotspot overlays aligned after image loads or viewport resizes.
+  function rerenderHotspotsForLayout() {
+    try {
+      if (modalOverlay.classList.contains('visible')) {
+        syncModalStageSize();
+        renderFloorplanHotspots();
+      }
+    } catch (e) {}
+    try {
+      if (previewContainer.classList.contains('visible')) renderRenderedHotspots();
+    } catch (e) {}
+  }
+
   modalOverlay.addEventListener('click', (e) => {
     if (e.target === modalOverlay) {
       closeModal();
@@ -283,6 +322,10 @@ export function initFloorplans() {
     // Re-render hotspots whenever modal opens
     renderFloorplanHotspots();
   }
+
+  if (previewImg) previewImg.addEventListener('load', rerenderHotspotsForLayout);
+  if (modalImg) modalImg.addEventListener('load', rerenderHotspotsForLayout);
+  window.addEventListener('resize', () => requestAnimationFrame(rerenderHotspotsForLayout));
 
   function showPanos() {
     panoTab.classList.add('active-tab');

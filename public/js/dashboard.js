@@ -26,7 +26,7 @@ const deleteModalConfirmBtn = document.getElementById('delete-modal-confirm');
 import { showProgressDialog, hideProgressDialog, updateProgressDialog, setProgressDialogMessage } from './dialog.js';
 import { io } from '/socket.io/socket.io.esm.min.js';
 
-const MAX_PROJECT_NAME_LENGTH = 100;
+const MAX_PROJECT_NAME_LENGTH = 150;
 const MAX_PROJECT_NUMBER_LENGTH = 20;
 const ALLOWED_PROJECT_STATUSES = new Set(['on-going', 'completed']);
 let allProjects = [];
@@ -445,13 +445,12 @@ function renderProjectRow(project) {
   deleteBtn.type = 'button';
   deleteBtn.className = 'btn-delete';
   const deleteIcon = document.createElement('img');
-  // deleteBtn.textContent = 'Delete';
-  deleteIcon.src = "../assets/icons/delete-r.png"
+  deleteIcon.src = "../assets/icons/delete-red.png"
   deleteIcon.style.height = "20px";
   deleteIcon.style.width = "20px";
   deleteBtn.appendChild(deleteIcon)
 
-  const deleteOrigIcon = "../assets/icons/delete-r.png";
+  const deleteOrigIcon = "../assets/icons/delete-red.png";
   const deleteHoverIcon = "../assets/icons/delete2.png";
 
   // Change image on hover
