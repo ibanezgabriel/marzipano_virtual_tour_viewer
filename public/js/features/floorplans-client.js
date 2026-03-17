@@ -16,6 +16,7 @@ let previewHotspotLayer = null;
 let modalOverlay = null;
 let modalEl = null;
 let modalImageWrap = null;
+let modalStageEl = null;
 let modalImg = null;
 let modalTitleEl = null;
 let modalHotspotLayer = null;
@@ -155,6 +156,40 @@ function setPreviewVisible(visible) {
   previewContainer.classList.toggle('visible', Boolean(visible));
 }
 
+function syncStageContain(imgEl, stageEl, containerEl) {
+  if (!imgEl || !stageEl || !containerEl) return;
+  const naturalW = Number(imgEl.naturalWidth || 0);
+  const naturalH = Number(imgEl.naturalHeight || 0);
+  if (!naturalW || !naturalH) return;
+  const containerW = Math.max(0, containerEl.clientWidth || 0);
+  const containerH = Math.max(0, containerEl.clientHeight || 0);
+  if (!containerW || !containerH) return;
+
+  const scale = Math.min(containerW / naturalW, containerH / naturalH);
+  const renderedW = Math.max(1, Math.floor(naturalW * scale));
+  const renderedH = Math.max(1, Math.floor(naturalH * scale));
+
+  stageEl.style.width = `${renderedW}px`;
+  stageEl.style.height = `${renderedH}px`;
+}
+
+function syncModalStageSize() {
+  if (!modalOverlay || !modalOverlay.classList.contains('visible')) return;
+  syncStageContain(modalImg, modalStageEl, modalImageWrap);
+}
+
+function rerenderHotspotsForLayout() {
+  try {
+    if (modalOverlay && modalOverlay.classList.contains('visible')) {
+      syncModalStageSize();
+      renderFloorplanHotspots();
+    }
+  } catch (e) {}
+  try {
+    if (previewContainer && previewContainer.classList.contains('visible')) renderRenderedHotspots();
+  } catch (e) {}
+}
+
 function loadFloorplanHotspotsFromStorage() {
   try {
     const raw = localStorage.getItem(FLOORPLAN_HOTSPOTS_KEY);
@@ -258,8 +293,10 @@ function ensureModalElements() {
       </div>
       <div class="floorplan-modal-body">
         <div class="floorplan-image-wrap">
-          <img id="floorplan-modal-img" alt="Floor plan expanded">
-          <div class="floorplan-hotspot-layer" data-layer="expanded"></div>
+          <div class="floorplan-image-stage">
+            <img id="floorplan-modal-img" alt="Floor plan expanded">
+            <div class="floorplan-hotspot-layer" data-layer="expanded"></div>
+          </div>
           <div class="floorplan-magnifier-lens" aria-hidden="true"></div>
         </div>
       </div>
@@ -278,6 +315,7 @@ function ensureModalElements() {
 
   modalEl = modalOverlay.querySelector('.floorplan-modal');
   modalImageWrap = modalOverlay.querySelector('.floorplan-modal-body .floorplan-image-wrap');
+  modalStageEl = modalOverlay.querySelector('.floorplan-modal-body .floorplan-image-stage');
   modalImg = modalOverlay.querySelector('#floorplan-modal-img');
   modalTitleEl = modalOverlay.querySelector('#floorplan-modal-title');
   modalHotspotLayer = modalOverlay.querySelector('.floorplan-hotspot-layer[data-layer="expanded"]');
@@ -306,6 +344,7 @@ function ensureModalElements() {
     modalImg.addEventListener('load', () => {
       syncMagnifierLensImage();
       hideMagnifierLens();
+      rerenderHotspotsForLayout();
     });
     modalImg.addEventListener('pointerenter', (e) => {
       if (!magnifierEnabled || e.pointerType === 'touch') return;
@@ -375,6 +414,8 @@ function ensureModalElements() {
     });
   }
 
+  window.addEventListener('resize', () => requestAnimationFrame(rerenderHotspotsForLayout));
+
   resetMagnifierState();
 }
 
@@ -407,6 +448,7 @@ function openModalFor(filename) {
   setPreviewVisible(false);
   modalOverlay.classList.add('visible');
   document.body.classList.add('floorplan-modal-open');
+  syncModalStageSize();
   renderFloorplanHotspots();
 }
 
