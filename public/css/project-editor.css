@@ -139,9 +139,6 @@
 }
 
 #pano-upload-btn,
-#pano-delete-selection-btn,
-#pano-delete-confirm-btn,
-#pano-delete-back-btn,
 #pano-hotspot-btn,
 #pano-blur-btn,
 #pano-blur-add-btn,
@@ -161,25 +158,6 @@
 }
 #pano-upload-btn {
     background-color: rgb(0, 0, 193);
-}
-#pano-delete-selection-btn {
-    background-color: rgb(198, 0, 0);
-    color: #fff;
-}
-#pano-delete-selection-btn.active {
-    background-color: rgb(130, 0, 0);
-}
-
-#pano-delete-confirm-btn {
-    background-color: rgb(198, 0, 0);
-    color: #fff;
-    display: none;
-}
-
-#pano-delete-back-btn {
-    background-color: #e0e0e0;
-    color: #115272;
-    display: none;
 }
 #pano-blur-btn {
     background-color: rgb(79, 120, 141);
@@ -364,6 +342,57 @@
 #pano-floorplan-list li.active {
   background-color: #115272;
   color: #fff;
+}
+
+/* Archive panel */
+#pano-archive-panel {
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-radius: 0.2rem;
+  margin: 0.3rem;
+  background-color: white;
+  max-height: 340px;
+  display: none; /* hidden by default; shown when Archive tab is active */
+  padding: 10px;
+}
+
+#pano-archive-target {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #115272;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#pano-archive-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#pano-archive-list li {
+  padding: 8px;
+  border-radius: 4px;
+  background: #d4dfe4;
+  color: #333;
+  font-size: 0.8rem;
+  line-height: 1.15rem;
+}
+
+#pano-archive-list li .archive-entry-ts {
+  display: block;
+  font-size: 0.72rem;
+  color: rgba(0, 0, 0, 0.6);
+  margin-bottom: 2px;
+}
+
+#pano-archive-list li .archive-entry-msg {
+  display: block;
 }
 
 /* Circle "+" button for adding floor plans */

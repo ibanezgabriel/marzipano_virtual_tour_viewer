@@ -1,9 +1,9 @@
 import { initViewer, loadImages, setProjectName, updateInitialViewForRenamedImage } from './marzipano-viewer.js';
 import { getProjectId } from './project-context.js';
 import { initFloorplans, floorplanApi } from './features/floorplans.js';
+import { initArchive, archiveApi } from './features/archive.js';
 import { initRename } from './features/rename.js';
 import { initUpdate } from './features/update.js';
-import { initDelete } from './features/delete.js';
 import { initUpload } from './features/upload.js';
 import { initHotspots, cleanupHotspotsForDeletedImages, updateHotspotsForRenamedImage, reloadHotspots } from './features/hotspots.js';
 import { initBlurMasks, cleanupBlurMasksForDeletedImages, updateBlurMasksForRenamedImage, reloadBlurMasks } from './features/blur-masks.js';
@@ -33,8 +33,8 @@ if (!getProjectId()) {
 } else {
   initRename();
   initUpdate();
-  initDelete();
   initUpload();
+  initArchive();
   initHotspots();
   initBlurMasks();
   initMenuCollapsible();
@@ -76,9 +76,11 @@ if (!getProjectId()) {
 
     socket.on('panos:ready', (payload) => {
       loadImages(cleanupSceneLinkedData);
+      try { archiveApi.refreshIfVisible(); } catch (e) {}
     });
     socket.on('panos:order', (payload) => {
       loadImages(cleanupSceneLinkedData);
+      try { archiveApi.refreshIfVisible(); } catch (e) {}
     });
     socket.on('pano:renamed', (payload) => {
       try { updateInitialViewForRenamedImage(payload.oldFilename, payload.newFilename); } catch (e) {}
@@ -86,24 +88,31 @@ if (!getProjectId()) {
       try { updateBlurMasksForRenamedImage(payload.oldFilename, payload.newFilename); } catch (e) {}
       try { floorplanApi.updateForRenamedPano(payload.oldFilename, payload.newFilename); } catch (e) {}
       loadImages(cleanupSceneLinkedData);
+      try { archiveApi.refreshIfVisible(); } catch (e) {}
     });
     socket.on('pano:updated', (payload) => {
       loadImages(cleanupSceneLinkedData);
+      try { archiveApi.refreshIfVisible(); } catch (e) {}
     });
     socket.on('pano:removed', (payload) => {
       loadImages(cleanupSceneLinkedData);
+      try { archiveApi.refreshIfVisible(); } catch (e) {}
     });
     socket.on('hotspots:changed', (payload) => {
       try { reloadHotspots(); } catch (e) {}
+      try { archiveApi.refreshIfVisible(); } catch (e) {}
     });
     socket.on('blur-masks:changed', () => {
       try { reloadBlurMasks(); } catch (e) {}
+      try { archiveApi.refreshIfVisible(); } catch (e) {}
     });
     socket.on('initial-views:changed', async (payload) => {
       try { await reloadInitialViews(); } catch (e) {}
+      try { archiveApi.refreshIfVisible(); } catch (e) {}
     });
     socket.on('floorplans:order', () => {
       try { floorplanApi.reloadList(); } catch (e) {}
+      try { archiveApi.refreshIfVisible(); } catch (e) {}
     });
   } catch (e) {}
 }

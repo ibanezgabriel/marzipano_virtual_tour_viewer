@@ -25,14 +25,17 @@ export const floorplanApi = {
 export function initFloorplans() {
   const panoTab = selectEl('pano-scenes');
   const floorTab = selectEl('pano-floorplan');
+  const archiveTab = selectEl('pano-archive');
   const panoList = selectEl('pano-image-list');
   const floorList = selectEl('pano-floorplan-list');
+  const archivePanel = selectEl('pano-archive-panel');
   const addPlanBtn = selectEl('add-plan-btn');
   const addFloorInput = selectEl('add-floorplan');
 
   if (!panoTab || !floorTab || !panoList || !floorList) return;
 
   let selectedFloorplan = null;
+  let lastSidebarKind = 'pano'; // 'pano' | 'floorplan'
 
   // In-memory + persisted floor plan hotspots:
   // filename -> Array<{ id, x, y, linkTo }>
@@ -206,7 +209,6 @@ export function initFloorplans() {
     const iconByAction = {
       update: isActive ? 'assets/icons/update-w.png' : 'assets/icons/update.png',
       rename: isActive ? 'assets/icons/rename-w.png' : 'assets/icons/rename.png',
-      delete: isActive ? 'assets/icons/delete-w.png' : 'assets/icons/delete1.png',
     };
     li.querySelectorAll('.floorplan-item-action-btn').forEach((btn) => {
       const action = btn.dataset.floorplanAction;
@@ -328,24 +330,43 @@ export function initFloorplans() {
   window.addEventListener('resize', () => requestAnimationFrame(rerenderHotspotsForLayout));
 
   function showPanos() {
+    lastSidebarKind = 'pano';
     panoTab.classList.add('active-tab');
     floorTab.classList.remove('active-tab');
+    if (archiveTab) archiveTab.classList.remove('active-tab');
     panoList.style.display = 'block';
     floorList.style.display = 'none';
+    if (archivePanel) archivePanel.style.display = 'none';
     // Hide floorplan preview when switching back to panoramic scenes
     setPreviewVisible(false);
   }
 
   function showFloorplans() {
+    lastSidebarKind = 'floorplan';
     panoTab.classList.remove('active-tab');
     floorTab.classList.add('active-tab');
+    if (archiveTab) archiveTab.classList.remove('active-tab');
     panoList.style.display = 'none';
     floorList.style.display = 'block';
+    if (archivePanel) archivePanel.style.display = 'none';
     setPreviewVisible(Boolean(selectedFloorplan));
+  }
+
+  function showArchive() {
+    if (!archiveTab || !archivePanel) return;
+    panoTab.classList.remove('active-tab');
+    floorTab.classList.remove('active-tab');
+    archiveTab.classList.add('active-tab');
+    panoList.style.display = 'none';
+    floorList.style.display = 'none';
+    archivePanel.style.display = 'block';
+    setPreviewVisible(false);
+    document.dispatchEvent(new CustomEvent('archive:shown', { detail: { kind: lastSidebarKind } }));
   }
 
   panoTab.addEventListener('click', showPanos);
   floorTab.addEventListener('click', showFloorplans);
+  if (archiveTab && archivePanel) archiveTab.addEventListener('click', showArchive);
 
   // Default state
   showPanos();
@@ -378,6 +399,7 @@ export function initFloorplans() {
     saveLastFloorplan(filename);
     setActiveFloorplanLi(filename);
     showPreview(filename);
+    document.dispatchEvent(new CustomEvent('floorplan:selected', { detail: { filename } }));
   }
 
   function clearFloorplanItems() {
@@ -414,7 +436,6 @@ export function initFloorplans() {
         const actionConfigs = [
           { action: 'update', icon: 'assets/icons/update.png', label: 'Update floor plan' },
           { action: 'rename', icon: 'assets/icons/rename.png', label: 'Rename floor plan' },
-          { action: 'delete', icon: 'assets/icons/delete1.png', label: 'Delete floor plan' },
         ];
 
         actionConfigs.forEach(({ action, icon, label }) => {
@@ -440,9 +461,6 @@ export function initFloorplans() {
             if (action === 'rename') {
               handleRenameFloorplan();
               return;
-            }
-            if (action === 'delete') {
-              handleDeleteFloorplan();
             }
           });
 
@@ -501,6 +519,7 @@ export function initFloorplans() {
       });
       if (!files || files.length === 0) {
         selectedFloorplan = null;
+        document.dispatchEvent(new CustomEvent('floorplan:selected', { detail: { filename: null } }));
         setPreviewVisible(false);
         const emptyLi = document.createElement('li');
         emptyLi.className = 'active';
@@ -869,41 +888,6 @@ export function initFloorplans() {
       }
     } catch (e) {
       await showAlert('Error renaming floor plan: ' + e, 'Rename floor plan');
-    }
-  }
-
-  async function handleDeleteFloorplan() {
-    if (!selectedFloorplan) {
-      await showAlert('Please select a floor plan to delete.', 'Delete floor plan');
-      return;
-    }
-    const confirmed = await showConfirm(`Are you sure you want to delete "${selectedFloorplan}"?`, 'Delete floor plan');
-    if (!confirmed) return;
-    showProgressDialog('Deleting floor plan image...');
-    updateProgressDialog(20);
-    try {
-      const res = await fetch(appendProjectParams(`/api/floorplans/${encodeURIComponent(selectedFloorplan)}`), {
-        method: 'DELETE',
-      });
-      updateProgressDialog(90);
-      const data = await res.json();
-      updateProgressDialog(100);
-      hideProgressDialog();
-      if (!res.ok || !data.success) {
-        await showAlert('Error deleting floor plan: ' + (data && data.message ? data.message : res.status), 'Delete floor plan');
-      } else {
-        floorplanCacheBustByFile.delete(selectedFloorplan);
-        floorplanHotspotsByFile.delete(selectedFloorplan);
-        saveFloorplanHotspotsToStorage();
-        selectedFloorplan = null;
-        closeModal();
-        await loadFloorplans();
-        setPreviewVisible(false);
-        await showTimedAlert('Floor plan deleted successfully.', 'Delete floor plan', 500);
-      }
-    } catch (e) {
-      hideProgressDialog();
-      await showAlert('Error deleting floor plan: ' + e, 'Delete floor plan');
     }
   }
 

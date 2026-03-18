@@ -24,12 +24,17 @@
                 <div id="pano-sidebar-tabs">
                     <button id="pano-scenes" type="button">Panoramic Scenes</button>
                     <button id="pano-floorplan" type="button">Floor Plan</button>
+                    <button id="pano-archive" type="button">Archive</button>
                 </div>
                 <div id="pano-sidebar-content">
                     <ul id="pano-image-list"></ul>
                     <ul id="pano-floorplan-list">
                     <button id="add-plan-btn" type="button">+</button>
                     </ul>
+                    <div id="pano-archive-panel">
+                        <div id="pano-archive-target"></div>
+                        <ul id="pano-archive-list"></ul>
+                    </div>
                 </div>
             </aside>
             <button id="pano-sidebar-btn">
@@ -45,11 +50,6 @@
             <label for="add-scene" id="pano-upload-btn" class="action-btn">
                 <img src="assets/icons/upload.png" class="icons"> Upload
             </label>
-            <button id="pano-delete-selection-btn" class="action-btn" type="button">
-                <img src="assets/icons/delete.png" class="icons"> Delete selection
-            </button>
-            <button id="pano-delete-confirm-btn" class="action-btn" type="button">Delete</button>
-            <button id="pano-delete-back-btn" class="action-btn" type="button">Back</button>
             <button id="pano-hotspot-btn" class="action-btn" type="button">
                 <img src="assets/hotspot-icon.png" class="icons"> Hotspot
             </button>

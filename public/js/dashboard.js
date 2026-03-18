@@ -17,13 +17,6 @@ const renameProjectNameInput = document.getElementById('rename-project-name');
 const renameProjectErrorEl = document.getElementById('rename-project-error');
 const renameModalCancelBtn = document.getElementById('rename-modal-cancel');
 const renameModalSaveBtn = document.getElementById('rename-modal-save');
-const deleteProjectModal = document.getElementById('delete-project-modal');
-const deleteProjectTextEl = document.getElementById('delete-project-text');
-const deleteModalCancelBtn = document.getElementById('delete-modal-cancel');
-const deleteModalConfirmBtn = document.getElementById('delete-modal-confirm');
-
-// Import dialog functions for delete progress
-import { showProgressDialog, hideProgressDialog, updateProgressDialog, setProgressDialogMessage } from './dialog.js';
 import { io } from '/socket.io/socket.io.esm.min.js';
 
 const MAX_PROJECT_NAME_LENGTH = 150;
@@ -153,15 +146,6 @@ async function renameProject(id, newName, newNumber, status) {
   return data;
 }
 
-async function deleteProject(id) {
-  const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Failed to delete project');
-  return data;
-}
-
 async function updateProjectStatus(project, nextStatus) {
   const status = normalizeProjectStatus(nextStatus);
   const updated = await renameProject(project.id, project.name, project.number || '', status);
@@ -276,61 +260,6 @@ function showRenameModal(project, nameDisplayEl) {
   };
 }
 
-function showDeleteModal(project, rowEl) {
-  deleteProjectTextEl.textContent = `Are you sure you want to delete "${project.name}"? This cannot be undone.`;
-  deleteProjectModal.classList.add('visible');
-  deleteModalConfirmBtn.focus();
-
-  const cleanup = () => {
-    deleteModalCancelBtn.onclick = null;
-    deleteModalConfirmBtn.onclick = null;
-    deleteProjectModal.onclick = null;
-    deleteProjectModal.classList.remove('visible');
-  };
-
-  deleteModalCancelBtn.onclick = cleanup;
-
-  deleteModalConfirmBtn.onclick = async () => {
-    cleanup(); // Close the confirmation modal
-    
-    try {
-      // Show deleting progress dialog
-      showProgressDialog('Deleting project...');
-      setProgressDialogMessage(`Deleting "${project.name}"...`);
-      
-      // Simulate progress since delete is usually fast
-      updateProgressDialog(10);
-      
-      // Add a small delay to show progress
-      await new Promise(resolve => setTimeout(resolve, 300));
-      updateProgressDialog(50);
-      
-      await deleteProject(project.id);
-      
-      updateProgressDialog(90);
-      
-      allProjects = allProjects.filter((p) => p.id !== project.id);
-      applyProjectSearch();
-      
-      updateProgressDialog(100);
-      
-      // Add a small delay to show completion
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      // Hide progress dialog when done
-      hideProgressDialog();
-    } catch (e) {
-      // Hide progress dialog and show error
-      hideProgressDialog();
-      alert(e.message);
-    }
-  };
-
-  deleteProjectModal.onclick = (e) => {
-    if (e.target === deleteProjectModal) cleanup();
-  };
-}
-
 function renderProjectRow(project) {
   const row = document.createElement('div');
   row.className = 'project-row';
@@ -441,27 +370,6 @@ function renderProjectRow(project) {
     renameIcon.src = renameOrigIcon;
   })
 
-  const deleteBtn = document.createElement('button');
-  deleteBtn.type = 'button';
-  deleteBtn.className = 'btn-delete';
-  const deleteIcon = document.createElement('img');
-  deleteIcon.src = "../assets/icons/delete-red.png"
-  deleteIcon.style.height = "20px";
-  deleteIcon.style.width = "20px";
-  deleteBtn.appendChild(deleteIcon)
-
-  const deleteOrigIcon = "../assets/icons/delete-red.png";
-  const deleteHoverIcon = "../assets/icons/delete2.png";
-
-  // Change image on hover
-  deleteBtn.addEventListener("mouseenter", () => {
-    deleteIcon.src = deleteHoverIcon;
-  });
-
-  deleteBtn.addEventListener("mouseleave", () => {
-    deleteIcon.src = deleteOrigIcon;
-  })
-
   // Prefer project number in shared URLs when available.
   const projectToken = (project.number && String(project.number).trim()) || project.id;
 
@@ -480,12 +388,10 @@ function renderProjectRow(project) {
 
   editBTN.onclick = () => showRenameModal(project, nameDisplay);
 
-  deleteBtn.onclick = () => showDeleteModal(project, row);
-
   // group buttons into their own cell
   const actionsCell = document.createElement('div');
   actionsCell.className = 'project-actions-cell';
-  actionsCell.append(viewBtn, editBTN, deleteBtn);
+  actionsCell.append(viewBtn, editBTN);
 
   row.append(numberCell, nameCell, statusCell, actionsCell);
   return row;

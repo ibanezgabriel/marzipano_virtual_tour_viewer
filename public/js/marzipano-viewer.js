@@ -88,8 +88,7 @@ function updateListItemActionIcons(li) {
   const isActive = li.classList.contains('active');
   const iconByAction = {
     update: isActive ? 'assets/icons/update-w.png' : 'assets/icons/update.png',
-    rename: isActive ? 'assets/icons/rename-w.png' : 'assets/icons/rename.png',
-    delete: isActive ? 'assets/icons/delete-w.png' : 'assets/icons/delete1.png'
+    rename: isActive ? 'assets/icons/rename-w.png' : 'assets/icons/rename.png'
   };
   li.querySelectorAll('.pano-item-action-btn').forEach((btn) => {
     const action = btn.dataset.panoAction;
@@ -156,6 +155,9 @@ function saveLastPanorama(imageName) {
 export async function loadPanorama(imageName) {
   const imagePath = `${getUploadBase()}/${imageName}`;
   if (selectedImageName === imageName) {
+    try {
+      document.dispatchEvent(new CustomEvent('pano:selected', { detail: { filename: imageName } }));
+    } catch (e) {}
     // Same image already shown; list may have been rebuilt (e.g. after upload), so re-apply highlight
     document.querySelectorAll('#pano-image-list li').forEach(li => li.classList.remove('active'));
     const sameLi = Array.from(document.querySelectorAll('#pano-image-list li')).find(li => li.dataset.filename === imageName);
@@ -165,6 +167,9 @@ export async function loadPanorama(imageName) {
   }
   currentImagePath = imagePath;
   selectedImageName = imageName;
+  try {
+    document.dispatchEvent(new CustomEvent('pano:selected', { detail: { filename: imageName } }));
+  } catch (e) {}
   saveLastPanorama(imageName);
   updateHeaderText();
 
@@ -285,8 +290,7 @@ export async function loadImages(onImagesLoaded) {
 
         const actionButtons = [
           { action: 'update', icon: 'assets/icons/update.png', alt: 'Update' },
-          { action: 'rename', icon: 'assets/icons/rename.png', alt: 'Rename' },
-          { action: 'delete', icon: 'assets/icons/delete1.png', alt: 'Delete' }
+          { action: 'rename', icon: 'assets/icons/rename.png', alt: 'Rename' }
         ];
 
         actionButtons.forEach(({ action, icon, alt }) => {
@@ -471,6 +475,9 @@ export async function loadImages(onImagesLoaded) {
       lastMultiSelectIndex = null;
       viewer = null;
       updateHeaderText();
+      try {
+        document.dispatchEvent(new CustomEvent('pano:selected', { detail: { filename: null } }));
+      } catch (e) {}
       if (panoViewerEl) {
         panoViewerEl.innerHTML = '<div class="no-pano-msg"><p>No panoramas. Upload one to get started.</p></div>';
         
