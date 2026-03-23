@@ -80,7 +80,10 @@ const headerEl = document.getElementById('pano-header');
 function setListItemFilename(li, filename) {
   li.dataset.filename = filename;
   const nameEl = li.querySelector('.pano-item-name');
-  if (nameEl) nameEl.textContent = filename;
+  if (nameEl) {
+    nameEl.textContent = filename;
+    nameEl.title = filename;
+  }
 }
 
 function updateListItemActionIcons(li) {
