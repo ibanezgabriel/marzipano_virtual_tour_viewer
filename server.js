@@ -141,6 +141,9 @@ function getAuditDirs(paths) {
     base,
     panos: path.join(base, 'panos'),
     floorplans: path.join(base, 'floorplans'),
+    imagesBase: path.join(base, 'images'),
+    panoImages: path.join(base, 'images', 'panos'),
+    floorplanImages: path.join(base, 'images', 'floorplans'),
   };
 }
 
@@ -153,6 +156,74 @@ function auditLogPath(paths, kind, filename) {
   const safe = encodeURIComponent(String(filename || ''));
   const baseDir = kind === 'floorplan' ? dirs.floorplans : dirs.panos;
   return path.join(baseDir, `${safe}.json`);
+}
+
+function auditImagePath(paths, kind, storedFilename) {
+  const dirs = getAuditDirs(paths);
+  const baseDir = kind === 'floorplan' ? dirs.floorplanImages : dirs.panoImages;
+  return path.join(baseDir, storedFilename);
+}
+
+function safeDecodeURIComponent(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch (e) {
+    return value;
+  }
+}
+
+function resolveArchiveImagePath(paths, kind, storedFilename) {
+  const dirs = getAuditDirs(paths);
+  const baseDir = kind === 'floorplan' ? dirs.floorplanImages : dirs.panoImages;
+  const candidates = new Set();
+  const raw = String(storedFilename || '');
+  const dec1 = safeDecodeURIComponent(raw);
+  const dec2 = safeDecodeURIComponent(dec1);
+
+  [raw, dec1, dec2, encodeURIComponent(raw), encodeURIComponent(dec1)]
+    .filter(Boolean)
+    .forEach((name) => {
+      if (name.includes('..') || name.includes('/') || name.includes('\\')) return;
+      candidates.add(name);
+    });
+
+  for (const candidate of candidates) {
+    const candidatePath = path.join(baseDir, candidate);
+    if (fs.existsSync(candidatePath)) return candidatePath;
+  }
+
+  // Legacy fallback: some older logs may store only a suffix of the archived filename.
+  try {
+    const files = fs.readdirSync(baseDir);
+    for (const candidate of candidates) {
+      const match = files.find((name) => name === candidate || name.endsWith(`-${candidate}`));
+      if (match) return path.join(baseDir, match);
+    }
+  } catch (e) {}
+
+  return null;
+}
+
+function createAuditImageStoredFilename(filename) {
+  const encoded = encodeURIComponent(String(filename || 'image'));
+  const nonce = Math.random().toString(36).slice(2, 8);
+  return `${Date.now()}-${nonce}-${encoded}`;
+}
+
+function storeReplacedImageInAudit(paths, kind, originalFilename, sourcePath) {
+  if (!paths || !sourcePath || !fs.existsSync(sourcePath)) return null;
+  const dirs = getAuditDirs(paths);
+  ensureDirSync(dirs.base);
+  ensureDirSync(dirs.imagesBase);
+  ensureDirSync(kind === 'floorplan' ? dirs.floorplanImages : dirs.panoImages);
+  const storedFilename = createAuditImageStoredFilename(originalFilename);
+  const targetPath = auditImagePath(paths, kind, storedFilename);
+  fs.copyFileSync(sourcePath, targetPath);
+  return {
+    kind,
+    originalFilename: String(originalFilename || ''),
+    storedFilename,
+  };
 }
 
 function readJsonFileOrDefault(filePath, defaultValue) {
@@ -226,6 +297,86 @@ function initAuditLogIfMissing(paths, kind, filename) {
   }
 }
 
+function parseReplacedFilenamesFromAuditMessage(message) {
+  const text = String(message || '');
+  const match = text.match(/replaced\s+"([^"]+)"\s+with\s+"([^"]+)"/i);
+  if (!match) return null;
+  const oldFilename = (match[1] || '').trim();
+  const newFilename = (match[2] || '').trim();
+  if (!oldFilename || !newFilename) return null;
+  return { oldFilename, newFilename };
+}
+
+function repairArchiveMetaInEntry(paths, kind, entry) {
+  if (!entry || typeof entry !== 'object') return { entry, changed: false };
+  const replaced = parseReplacedFilenamesFromAuditMessage(entry.message);
+  if (!replaced) return { entry, changed: false };
+
+  const currentMeta = entry.meta && typeof entry.meta === 'object' ? entry.meta : {};
+  const currentArchived = currentMeta.archivedImage && typeof currentMeta.archivedImage === 'object'
+    ? currentMeta.archivedImage
+    : null;
+  const metaKind = currentArchived && currentArchived.kind === 'floorplan' ? 'floorplan' : kind;
+  const originalFilename = currentArchived && currentArchived.originalFilename
+    ? String(currentArchived.originalFilename)
+    : replaced.oldFilename;
+  const currentStored = currentArchived && currentArchived.storedFilename
+    ? String(currentArchived.storedFilename)
+    : '';
+
+  let resolvedPath = null;
+  if (currentStored) {
+    resolvedPath = resolveArchiveImagePath(paths, metaKind, currentStored);
+  }
+  if (!resolvedPath && originalFilename) {
+    resolvedPath = resolveArchiveImagePath(paths, metaKind, originalFilename);
+  }
+  if (!resolvedPath) return { entry, changed: false };
+
+  const resolvedStoredFilename = path.basename(resolvedPath);
+  const nextArchived = {
+    kind: metaKind,
+    originalFilename,
+    storedFilename: resolvedStoredFilename,
+  };
+  const sameAsCurrent =
+    currentArchived &&
+    currentArchived.kind === nextArchived.kind &&
+    String(currentArchived.originalFilename || '') === nextArchived.originalFilename &&
+    String(currentArchived.storedFilename || '') === nextArchived.storedFilename;
+  if (sameAsCurrent) return { entry, changed: false };
+
+  return {
+    entry: {
+      ...entry,
+      meta: {
+        ...currentMeta,
+        archivedImage: nextArchived,
+      },
+    },
+    changed: true,
+  };
+}
+
+function readAndRepairAuditEntries(paths, kind, filename) {
+  const existing = readAuditEntries(paths, kind, filename) || [];
+  if (!Array.isArray(existing) || existing.length === 0) return Array.isArray(existing) ? existing : [];
+  let changed = false;
+  const repaired = existing.map((entry) => {
+    const result = repairArchiveMetaInEntry(paths, kind, entry);
+    if (result.changed) changed = true;
+    return result.entry;
+  });
+  if (changed) {
+    try {
+      writeAuditEntries(paths, kind, filename, repaired);
+    } catch (e) {
+      console.error('Error writing repaired audit entries:', e);
+    }
+  }
+  return repaired;
+}
+
 function renameAuditLog(paths, kind, oldFilename, newFilename) {
   if (!paths || !oldFilename || !newFilename || oldFilename === newFilename) return;
   try {
@@ -282,6 +433,36 @@ function diffChangedTopLevelKeys(beforeObj, afterObj) {
     if (stableStringify(before[k]) !== stableStringify(after[k])) changed.push(k);
   });
   return changed;
+}
+
+function normalizeTopLevelArrayMap(obj) {
+  const source = obj && typeof obj === 'object' ? obj : {};
+  const normalized = {};
+  Object.keys(source).forEach((key) => {
+    const value = source[key];
+    if (!Array.isArray(value) || value.length === 0) return;
+    normalized[key] = value;
+  });
+  return normalized;
+}
+
+function getArrayCountByKey(obj, key) {
+  if (!obj || typeof obj !== 'object') return 0;
+  return Array.isArray(obj[key]) ? obj[key].length : 0;
+}
+
+function buildCollectionChangeMessage(labelSingular, labelPlural, beforeCount, afterCount) {
+  const before = Math.max(0, Number(beforeCount) || 0);
+  const after = Math.max(0, Number(afterCount) || 0);
+  if (after > before) {
+    const delta = after - before;
+    return delta === 1 ? `${labelSingular} added.` : `${delta} ${labelPlural} added.`;
+  }
+  if (after < before) {
+    const delta = before - after;
+    return delta === 1 ? `${labelSingular} removed.` : `${delta} ${labelPlural} removed.`;
+  }
+  return `${labelPlural.charAt(0).toUpperCase()}${labelPlural.slice(1)} updated (${after}).`;
 }
 
 // Middleware to parse JSON bodies
@@ -873,7 +1054,7 @@ app.get('/api/archive/panos/:filename', (req, res) => {
   const imagePath = path.join(paths.uploadsDir, filename);
   if (!fs.existsSync(imagePath)) return res.status(404).json({ error: 'Not found' });
   initAuditLogIfMissing(paths, 'pano', filename);
-  const entries = readAuditEntries(paths, 'pano', filename) || [];
+  const entries = readAndRepairAuditEntries(paths, 'pano', filename);
   res.json(entries);
 });
 
@@ -888,8 +1069,30 @@ app.get('/api/archive/floorplans/:filename', (req, res) => {
   const imagePath = path.join(paths.floorplansDir, filename);
   if (!fs.existsSync(imagePath)) return res.status(404).json({ error: 'Not found' });
   initAuditLogIfMissing(paths, 'floorplan', filename);
-  const entries = readAuditEntries(paths, 'floorplan', filename) || [];
+  const entries = readAndRepairAuditEntries(paths, 'floorplan', filename);
   res.json(entries);
+});
+
+app.get('/api/archive/images/:kind/:storedFilename', (req, res) => {
+  const kindToken = req.params.kind;
+  const storedFilename = req.params.storedFilename;
+  const kind =
+    kindToken === 'floorplan' || kindToken === 'floorplans'
+      ? 'floorplan'
+      : kindToken === 'pano' || kindToken === 'panos'
+        ? 'pano'
+        : null;
+  if (!kind) return res.status(400).json({ error: 'Invalid archive image kind' });
+  if (!storedFilename) return res.status(400).json({ error: 'storedFilename required' });
+  if (storedFilename.includes('..') || storedFilename.includes('/') || storedFilename.includes('\\')) {
+    return res.status(400).json({ error: 'Invalid storedFilename' });
+  }
+  const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
+  const filePath = resolveArchiveImagePath(paths, kind, storedFilename);
+  if (!filePath || !fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.resolve(filePath));
 });
 
 // ---- Panorama APIs (project-scoped via ?project=id) ----
@@ -1039,6 +1242,13 @@ app.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), async (
       });
     }
 
+    let archivedImage = null;
+    try {
+      archivedImage = storeReplacedImageInAudit(paths, 'floorplan', oldFilename, oldFilePath);
+    } catch (archiveErr) {
+      throw new Error(`Could not archive replaced floor plan: ${archiveErr.message || archiveErr}`);
+    }
+
     await fs.promises.unlink(oldFilePath);
 
     try {
@@ -1046,6 +1256,17 @@ app.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), async (
       appendAuditEntry(paths, 'floorplan', newFilename, {
         action: 'update',
         message: `Floor plan updated (replaced "${oldFilename}" with "${newFilename}").`,
+        ...(archivedImage
+          ? {
+              meta: {
+                archivedImage: {
+                  kind: 'floorplan',
+                  originalFilename: archivedImage.originalFilename,
+                  storedFilename: archivedImage.storedFilename,
+                },
+              },
+            }
+          : {}),
       });
     } catch (e) {}
 
@@ -1350,6 +1571,12 @@ app.put('/upload/update', upload.single('panorama'), (req, res) => {
   (async () => {
     try {
       job.message = `Replacing ${oldFilename}…`;
+      let archivedImage = null;
+      try {
+        archivedImage = storeReplacedImageInAudit(paths, 'pano', oldFilename, oldFilePath);
+      } catch (archiveErr) {
+        throw new Error(`Could not archive replaced panorama: ${archiveErr.message || archiveErr}`);
+      }
       await fs.promises.unlink(oldFilePath).catch((err) => {
         console.error('Error deleting old file:', err);
       });
@@ -1372,6 +1599,17 @@ app.put('/upload/update', upload.single('panorama'), (req, res) => {
         appendAuditEntry(paths, 'pano', newFilename, {
           action: 'update',
           message: `Panorama updated (replaced "${oldFilename}" with "${newFilename}").`,
+          ...(archivedImage
+            ? {
+                meta: {
+                  archivedImage: {
+                    kind: 'pano',
+                    originalFilename: archivedImage.originalFilename,
+                    storedFilename: archivedImage.storedFilename,
+                  },
+                },
+              }
+            : {}),
         });
       } catch (e) {}
       job.percent = 100;
@@ -1447,26 +1685,31 @@ app.post('/api/floorplan-hotspots', (req, res) => {
   }
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  const before = readJsonFileOrDefault(paths.floorplanHotspotsPath, {});
-  const changed = diffChangedTopLevelKeys(before, body);
-  const json = JSON.stringify(body, null, 2);
+  const beforeRaw = readJsonFileOrDefault(paths.floorplanHotspotsPath, {});
+  const before = normalizeTopLevelArrayMap(beforeRaw);
+  const normalizedBody = normalizeTopLevelArrayMap(body);
+  const changed = diffChangedTopLevelKeys(before, normalizedBody);
+  const json = JSON.stringify(normalizedBody, null, 2);
   const dir = path.dirname(paths.floorplanHotspotsPath);
   fs.mkdir(dir, { recursive: true }, (mkErr) => {
     if (mkErr) return res.status(500).json({ error: 'Unable to prepare storage for floor plan hotspots' });
     fs.writeFile(paths.floorplanHotspotsPath, json, 'utf8', (err) => {
       if (err) return res.status(500).json({ error: 'Unable to save floor plan hotspots' });
-      res.json({ success: true });
-      try { io.to(`project:${paths.projectId}`).emit('floorplan-hotspots:changed', body); } catch (e) { console.error('Socket emit error:', e); }
+      res.json({ success: true, unchanged: changed.length === 0 });
+      if (changed.length === 0) return;
+      try { io.to(`project:${paths.projectId}`).emit('floorplan-hotspots:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
       try {
         changed.forEach((filename) => {
           const fp = path.join(paths.floorplansDir, filename);
           if (!fs.existsSync(fp)) return;
-          const count = Array.isArray(body[filename]) ? body[filename].length : 0;
+          const beforeCount = getArrayCountByKey(before, filename);
+          const afterCount = getArrayCountByKey(normalizedBody, filename);
+          const message = buildCollectionChangeMessage('Floor plan hotspot', 'floor plan hotspots', beforeCount, afterCount);
           appendAuditEntry(
             paths,
             'floorplan',
             filename,
-            { action: 'hotspots', message: `Floor plan hotspots updated (${count}).` },
+            { action: 'hotspots', message },
             { dedupeWindowMs: 5000 }
           );
         });
@@ -1482,26 +1725,31 @@ app.post('/api/blur-masks', (req, res) => {
   }
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  const before = readJsonFileOrDefault(paths.blurMasksPath, {});
-  const changed = diffChangedTopLevelKeys(before, body);
-  const json = JSON.stringify(body, null, 2);
+  const beforeRaw = readJsonFileOrDefault(paths.blurMasksPath, {});
+  const before = normalizeTopLevelArrayMap(beforeRaw);
+  const normalizedBody = normalizeTopLevelArrayMap(body);
+  const changed = diffChangedTopLevelKeys(before, normalizedBody);
+  const json = JSON.stringify(normalizedBody, null, 2);
   const dir = path.dirname(paths.blurMasksPath);
   fs.mkdir(dir, { recursive: true }, (mkErr) => {
     if (mkErr) return res.status(500).json({ error: 'Unable to prepare storage for blur masks' });
     fs.writeFile(paths.blurMasksPath, json, 'utf8', (err) => {
       if (err) return res.status(500).json({ error: 'Unable to save blur masks' });
-      res.json({ success: true });
-      try { io.to(`project:${paths.projectId}`).emit('blur-masks:changed', body); } catch (e) { console.error('Socket emit error:', e); }
+      res.json({ success: true, unchanged: changed.length === 0 });
+      if (changed.length === 0) return;
+      try { io.to(`project:${paths.projectId}`).emit('blur-masks:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
       try {
         changed.forEach((filename) => {
           const img = path.join(paths.uploadsDir, filename);
           if (!fs.existsSync(img)) return;
-          const count = Array.isArray(body[filename]) ? body[filename].length : 0;
+          const beforeCount = getArrayCountByKey(before, filename);
+          const afterCount = getArrayCountByKey(normalizedBody, filename);
+          const message = buildCollectionChangeMessage('Blur mask', 'blur masks', beforeCount, afterCount);
           appendAuditEntry(
             paths,
             'pano',
             filename,
-            { action: 'blur', message: `Blur masks updated (${count}).` },
+            { action: 'blur', message },
             { dedupeWindowMs: 15000 }
           );
         });
@@ -1517,23 +1765,28 @@ app.post('/api/hotspots', (req, res) => {
   }
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  const before = readJsonFileOrDefault(paths.hotspotsPath, {});
-  const changed = diffChangedTopLevelKeys(before, body);
-  const json = JSON.stringify(body, null, 2);
+  const beforeRaw = readJsonFileOrDefault(paths.hotspotsPath, {});
+  const before = normalizeTopLevelArrayMap(beforeRaw);
+  const normalizedBody = normalizeTopLevelArrayMap(body);
+  const changed = diffChangedTopLevelKeys(before, normalizedBody);
+  const json = JSON.stringify(normalizedBody, null, 2);
   fs.writeFile(paths.hotspotsPath, json, 'utf8', (err) => {
     if (err) return res.status(500).json({ error: 'Unable to save hotspots' });
-    res.json({ success: true });
-    try { io.to(`project:${paths.projectId}`).emit('hotspots:changed', body); } catch (e) { console.error('Socket emit error:', e); }
+    res.json({ success: true, unchanged: changed.length === 0 });
+    if (changed.length === 0) return;
+    try { io.to(`project:${paths.projectId}`).emit('hotspots:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
     try {
       changed.forEach((filename) => {
         const img = path.join(paths.uploadsDir, filename);
         if (!fs.existsSync(img)) return;
-        const count = Array.isArray(body[filename]) ? body[filename].length : 0;
+        const beforeCount = getArrayCountByKey(before, filename);
+        const afterCount = getArrayCountByKey(normalizedBody, filename);
+        const message = buildCollectionChangeMessage('Hotspot', 'hotspots', beforeCount, afterCount);
         appendAuditEntry(
           paths,
           'pano',
           filename,
-          { action: 'hotspots', message: `Hotspots updated (${count}).` },
+          { action: 'hotspots', message },
           { dedupeWindowMs: 5000 }
         );
       });

@@ -429,6 +429,7 @@ export function initFloorplans() {
         const nameEl = document.createElement('span');
         nameEl.className = 'floorplan-item-name';
         nameEl.textContent = filename;
+        nameEl.title = filename;
 
         const actionsEl = document.createElement('div');
         actionsEl.className = 'floorplan-item-actions';
