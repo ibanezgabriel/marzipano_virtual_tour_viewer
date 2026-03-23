@@ -395,6 +395,161 @@
   display: block;
 }
 
+#pano-archive-list li .archive-entry-image-link {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  color: #0b4f6c;
+  text-decoration: underline;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+#pano-archive-list li .archive-entry-image-link:hover {
+  color: #083c52;
+}
+
+#pano-archive-list li .archive-entry-image-link:disabled {
+  cursor: wait;
+  opacity: 0.62;
+  text-decoration: none;
+}
+
+.archive-source-loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 20, 30, 0.72);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 16px;
+}
+
+.archive-source-loading-overlay.visible {
+  display: flex;
+}
+
+.archive-source-loading-box {
+  min-width: 220px;
+  max-width: min(90vw, 380px);
+  background: #173746;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  color: #eaf4f8;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+}
+
+.archive-source-loading-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.28);
+  border-top-color: #ffffff;
+  flex-shrink: 0;
+  animation: archive-source-spin 0.8s linear infinite;
+}
+
+.archive-source-loading-text {
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+@keyframes archive-source-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.archive-viewer-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 20, 30, 0.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.archive-viewer-modal-overlay.visible {
+  display: flex;
+}
+
+.archive-viewer-modal {
+  width: min(1100px, 96vw);
+  height: min(720px, 90vh);
+  background: #0f1f27;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.archive-viewer-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #173746;
+  color: #eaf4f8;
+  padding: 10px 12px;
+}
+
+.archive-viewer-modal-title {
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.archive-viewer-close {
+  border: none;
+  border-radius: 4px;
+  padding: 6px 10px;
+  background: #1f607d;
+  color: #fff;
+  cursor: pointer;
+}
+
+.archive-viewer-close:hover {
+  background: #2f799a;
+}
+
+.archive-viewer-modal-body {
+  flex: 1;
+  min-height: 0;
+  background: #0d1720;
+  position: relative;
+}
+
+.archive-viewer-pano,
+.archive-viewer-image {
+  width: 100%;
+  height: 100%;
+  display: none;
+}
+
+.archive-viewer-pano.visible,
+.archive-viewer-image.visible {
+  display: block;
+}
+
+.archive-viewer-image {
+  object-fit: contain;
+  background: #0d1720;
+}
+
 /* Circle "+" button for adding floor plans */
 #add-plan-btn {
   width: 32px;

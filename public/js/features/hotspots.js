@@ -300,6 +300,9 @@ function removeHotspot(entry, imageName) {
   const list = hotspotsByImage.get(imageName) || [];
   const idx = list.indexOf(entry);
   if (idx !== -1) list.splice(idx, 1);
+  if (list.length === 0) {
+    hotspotsByImage.delete(imageName);
+  }
   saveHotspotsToStorage();
 }
 

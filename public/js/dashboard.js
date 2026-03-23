@@ -329,6 +329,7 @@ function renderProjectRow(project) {
   const viewBtn = document.createElement('button');
   viewBtn.type = 'button';
   viewBtn.className = 'btn-open';
+  viewBtn.title = "View"
   const viewIcon = document.createElement('img')
   viewIcon.src = "../assets/icons/view1.png";
   viewIcon.style.height = '20px';
@@ -351,6 +352,7 @@ function renderProjectRow(project) {
   const editBTN = document.createElement('button');
   editBTN.type = 'button';
   editBTN.className = 'btn-edit';
+  editBTN.title = "Edit"
   // editBTN.textContent = 'Rename';
   const renameIcon = document.createElement('img');
   renameIcon.src = "../assets/icons/edit1.png"
