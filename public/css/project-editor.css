@@ -258,7 +258,7 @@
   opacity: 0.5;
 }
 
-/* Floor plan list: separate content from pano-image-list */
+/* Layout list: separate content from pano-image-list */
 #pano-floorplan-list {
   overflow-y: auto;
   overflow-x: hidden;
@@ -550,7 +550,7 @@
   background: #0d1720;
 }
 
-/* Circle "+" button for adding floor plans */
+/* Circle "+" button for adding layouts */
 #add-plan-btn {
   width: 32px;
   height: 32px;
@@ -577,7 +577,7 @@
   background: #000;
 }
 
-/* Bottom-left floor plan preview (image only, no title) */
+/* Bottom-left layout preview (image only, no title) */
 .floorplan-preview {
   position: absolute;
   left: .5rem;
@@ -620,7 +620,7 @@
   width: 100%;
 }
 
-/* Expanded floor plan modal */
+/* Expanded layout modal */
 .floorplan-modal-overlay {
   position: fixed;
   inset: 0;
@@ -766,7 +766,7 @@ body.floorplan-modal-open #pano-panel {
   filter: blur(2px);
 }
 
-/* Hotspots inside expanded floor plan */
+/* Hotspots inside expanded layout */
 .floorplan-hotspot-layer {
   position: absolute;
   inset: 0;
@@ -808,7 +808,7 @@ body.floorplan-modal-open #pano-panel {
   background: #5a8ac8;
 }
 
-/* Selected floor plan hotspot: highlight in light green */
+/* Selected layout hotspot: highlight in light green */
 .floorplan-hotspot-pin-dot.selected {
   background: rgb(222, 222, 21);
   border-color: #c8e6c9;

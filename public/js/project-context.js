@@ -29,10 +29,11 @@ function getUploadBase() {
   return id ? `/projects/${encodeURIComponent(id)}/upload` : '/upload';
 }
 
-/** Base path for floor plan image assets (project-scoped or legacy). */
-function getFloorplanBase() {
+/** Base path for layout image assets (project-scoped or legacy). */
+function getLayoutBase() {
   const id = getProjectId();
-  return id ? `/projects/${encodeURIComponent(id)}/floorplans` : '/floorplans';
+  // Legacy (non-project-scoped) fallback still uses /floorplans.
+  return id ? `/projects/${encodeURIComponent(id)}/layouts` : '/floorplans';
 }
 
 /** Base path for tile assets (project-scoped or legacy). */
@@ -41,4 +42,9 @@ function getTilesBase() {
   return id ? `/projects/${encodeURIComponent(id)}/tiles` : '/tiles';
 }
 
-export { getProjectId, appendProjectParams, getUploadBase, getFloorplanBase, getTilesBase };
+// Backward-compatible alias (older modules still import this).
+function getFloorplanBase() {
+  return getLayoutBase();
+}
+
+export { getProjectId, appendProjectParams, getUploadBase, getLayoutBase, getFloorplanBase, getTilesBase };

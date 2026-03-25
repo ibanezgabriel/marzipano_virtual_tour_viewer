@@ -2,12 +2,16 @@ const express = require('express');
 const multer = require('multer'); 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const {
   buildTilesForImage,
   readTilesMeta,
   tileIdFromFilename,
   removeDirIfExists
 } = require('./public/js/tiler');
+const session = require('express-session');
+const bcrypt = require('bcrypt');
+const db = require('./db');
 
 const app = express();
 const PORT = 3000;
@@ -15,7 +19,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 
 const projectsDir = path.join(__dirname, 'projects');
-const projectsManifestPath = path.join(projectsDir, 'projects.json');
 const MAX_PROJECT_NUMBER_LENGTH = 20;
 const ALLOWED_PROJECT_STATUSES = new Set(['on-going', 'completed']);
 
@@ -23,44 +26,40 @@ if (!fs.existsSync(projectsDir)) {
   fs.mkdirSync(projectsDir, { recursive: true });
 }
 
-
-
-function getProjectsManifest() {
+let auditLogsDbDisabled = false;
+async function insertAuditLog({ projectId, userId, action, message, metadata, createdAt } = {}) {
+  if (auditLogsDbDisabled) return;
+  if (!action) return;
   try {
-    const raw = fs.readFileSync(projectsManifestPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    let changed = false;
-    const normalized = parsed.map((p) => {
-      if (!p || typeof p !== 'object') return p;
-      const status = normalizeProjectStatus(p.status);
-      if (p.status !== status) changed = true;
-      return { ...p, status };
-    });
-    if (changed) {
-      writeProjectsManifest(normalized);
-    }
-    return normalized;
+    const created = createdAt ? new Date(createdAt) : new Date();
+    const projectIdValue = projectId === undefined || projectId === null ? null : String(projectId);
+    await db.query(
+      `INSERT INTO audit_logs (project_id, user_id, action, message, metadata, created_at)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
+      [
+        projectIdValue,
+        userId ? Number(userId) : null,
+        String(action),
+        message ? String(message) : null,
+        JSON.stringify(metadata && typeof metadata === 'object' ? metadata : {}),
+        created,
+      ]
+    );
   } catch (e) {
-    if (e.code !== 'ENOENT') console.error('Error reading projects manifest:', e);
-    return [];
+    // If schema migration hasn't been applied yet, avoid spamming errors on every request.
+    if (e && (e.code === '42P01' || /audit_logs/i.test(String(e.message || '')))) {
+      auditLogsDbDisabled = true;
+      console.warn('[audit_logs] table not available; DB audit logging disabled until migrated.');
+      return;
+    }
+    console.warn('[audit_logs] insert failed:', e.message || e);
   }
 }
 
-function writeProjectsManifest(projects) {
-  const normalized = Array.isArray(projects)
-    ? projects.map((p) => {
-        if (!p || typeof p !== 'object') return p;
-        return { ...p, status: normalizeProjectStatus(p.status) };
-      })
-    : projects;
-  fs.writeFileSync(projectsManifestPath, JSON.stringify(normalized, null, 2), 'utf8');
-}
-
-function emitProjectsChanged() {
+async function emitProjectsChanged() {
   try {
-    const projects = getProjectsManifest();
-    io.emit('projects:changed', projects);
+    const res = await db.query('SELECT * FROM projects ORDER BY created_at ASC');
+    io.emit('projects:changed', res.rows);
   } catch (e) {
     console.error('Socket emit error:', e);
   }
@@ -70,12 +69,28 @@ function emitProjectsChanged() {
  * Look up a project by either its internal id or its human-facing number.
  * Returns the full project object or null if not found.
  */
-function findProjectByIdOrNumber(token) {
+async function findProjectByIdOrNumber(token) {
   if (!token) return null;
   const value = String(token).trim();
   if (!value) return null;
-  const projects = getProjectsManifest();
-  return projects.find((p) => p.id === value || (p.number && String(p.number).trim() === value)) || null;
+  try {
+    // Single bind variable is intentional: we compare the same token against both columns.
+    const res = await db.query('SELECT * FROM projects WHERE id = $1 OR number = $1', [value]);
+    return res.rows[0] || null;
+  } catch (err) {
+    console.error('Error finding project:', err);
+    return null;
+  }
+}
+
+function createStoredUploadFilename(originalName) {
+  const base = path.basename(String(originalName || 'image'));
+  const safe = base
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const nonce = crypto.randomBytes(4).toString('hex');
+  return `${Date.now()}-${nonce}-${safe || 'image'}`;
 }
 
 function sanitizeProjectId(name) {
@@ -95,6 +110,7 @@ function getProjectPaths(projectId) {
   return {
     base,
     upload: path.join(base, 'upload'),
+    layouts: path.join(base, 'layouts'),
     floorplans: path.join(base, 'floorplans'),
     tiles: path.join(base, 'tiles'),
     data: path.join(base, 'data'),
@@ -104,28 +120,31 @@ function getProjectPaths(projectId) {
 function ensureProjectDirs(projectId) {
   const p = getProjectPaths(projectId);
   if (!p) return null;
-  [p.upload, p.floorplans, p.tiles, p.data].forEach(dir => {
+  [p.upload, p.layouts, p.floorplans, p.tiles, p.data].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   });
   return p;
 }
 
 /** Resolve paths: require project id */
-function resolvePaths(req) {
+async function resolvePaths(req) {
   const projectToken = req.query.project || (req.body && req.body.project);
-  const project = findProjectByIdOrNumber(projectToken);
+  const project = await findProjectByIdOrNumber(projectToken);
   const projectId = project ? project.id : projectToken;
   const p = getProjectPaths(projectId);
   if (!p) return null;
   return {
     uploadsDir: p.upload,
-    floorplansDir: p.floorplans,
+    // New name: layouts. Keep legacy floorplans directory as a fallback for older projects.
+    layoutsDir: p.layouts,
+    floorplansDir: p.layouts,
+    floorplansLegacyDir: p.floorplans,
     tilesDir: p.tiles,
     hotspotsPath: path.join(p.data, 'hotspots.json'),
-    blurMasksPath: path.join(p.data, 'blur-masks.json'),
+    // New names: layout-*.json, but keep legacy floorplan-*.json as fallback.
+    layoutHotspotsPath: path.join(p.data, 'layout-hotspots.json'),
     floorplanHotspotsPath: path.join(p.data, 'floorplan-hotspots.json'),
-    initialViewsPath: path.join(p.data, 'initial-views.json'),
-    panoramaOrderPath: path.join(p.data, 'panorama-order.json'),
+    layoutOrderPath: path.join(p.data, 'layout-order.json'),
     floorplanOrderPath: path.join(p.data, 'floorplan-order.json'),
     projectId,
   };
@@ -252,7 +271,13 @@ function writeAuditEntries(paths, kind, filename, entries) {
   fs.writeFileSync(filePath, JSON.stringify(entries, null, 2), 'utf8');
 }
 
-function appendAuditEntry(paths, kind, filename, { action, message, meta } = {}, { dedupeWindowMs = 0 } = {}) {
+function appendAuditEntry(
+  paths,
+  kind,
+  filename,
+  { action, message, meta } = {},
+  { dedupeWindowMs = 0, userId = null } = {}
+) {
   if (!paths || !filename) return;
   try {
     const existing = readAuditEntries(paths, kind, filename) || [];
@@ -274,6 +299,22 @@ function appendAuditEntry(paths, kind, filename, { action, message, meta } = {},
     }
     const updated = [...existing, entry].slice(-AUDIT_LOG_MAX_ENTRIES);
     writeAuditEntries(paths, kind, filename, updated);
+
+    // Best-effort mirror into Postgres audit_logs for project-level activity tracking.
+    const dbAction = `archive:${kind}:${entry.action}`;
+    const metadata = {
+      kind,
+      filename,
+      ...(entry.meta && typeof entry.meta === 'object' ? { meta: entry.meta } : {}),
+    };
+    insertAuditLog({
+      projectId: paths.projectId,
+      userId,
+      action: dbAction,
+      message: entry.message,
+      metadata,
+      createdAt: entry.ts,
+    }).catch(() => {});
   } catch (e) {
     console.error('Error appending audit entry:', e);
   }
@@ -468,14 +509,176 @@ function buildCollectionChangeMessage(labelSingular, labelPlural, beforeCount, a
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-// Serve static files
-/**
- * Block access to admin.html and client.html when a project is requested
- * but the project does not exist or has no uploaded panoramas. This
- * runs before the static file middleware so we can conditionally deny
- * serving those pages.
- */
-function getProjectIdFromQuery(req) {
+// ---- Authentication & Session ----
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'dev_secret_key_change_in_prod',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: true,
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000
+  }
+}));
+
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ success: false, message: 'Username and password required' });
+  }
+
+  try {
+    const result = await db.query('SELECT * FROM users WHERE username = $1', [username]);
+    const user = result.rows[0];
+
+    if (user && await bcrypt.compare(password, user.password_hash)) {
+      req.session.userId = user.id;
+      req.session.username = user.username;
+      req.session.role = user.role;
+      return res.json({ success: true, user: { username: user.username, role: user.role } });
+    } else {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+app.post('/api/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) return res.status(500).json({ success: false });
+    res.clearCookie('connect.sid');
+    res.json({ success: true });
+  });
+});
+
+app.get('/api/me', (req, res) => {
+  if (req.session.userId) {
+    res.json({ loggedIn: true, username: req.session.username, role: req.session.role });
+  } else {
+    res.json({ loggedIn: false });
+  }
+});
+
+// Middleware to protect admin pages
+function isAdminRole(role) {
+  return role === 'admin' || role === 'super_admin';
+}
+
+function isSuperAdminRole(role) {
+  return role === 'super_admin';
+}
+
+const protectAdmin = (req, res, next) => {
+  const ppath = req.path;
+  if (ppath === '/dashboard.html' || ppath === '/project-editor.html') {
+    if (!req.session.userId) {
+      return res.redirect('/');
+    }
+    if (!isAdminRole(req.session.role)) {
+      return res.status(403).send('Forbidden');
+    }
+  }
+  next();
+};
+app.use(protectAdmin);
+
+// Middleware to protect Write APIs (Admin + Super Admin)
+const requireApiAuth = (req, res, next) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!isAdminRole(req.session.role)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  next();
+};
+
+// Middleware to protect Super Admin-only APIs
+const requireSuperAdminApiAuth = (req, res, next) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!isSuperAdminRole(req.session.role)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  next();
+};
+
+// ---- User management (Super Admin only) ----
+function isValidUsername(username) {
+  const value = String(username || '').trim();
+  if (!value) return false;
+  if (value.length > 50) return false;
+  return /^[A-Za-z0-9_.-]+$/.test(value);
+}
+
+function isValidPassword(password) {
+  const value = String(password || '');
+  return value.length >= 8;
+}
+
+function normalizeUserRole(role) {
+  const value = String(role || '').trim().toLowerCase();
+  if (value === 'super_admin') return 'super_admin';
+  return 'admin';
+}
+
+app.get('/api/users', requireSuperAdminApiAuth, async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT id, username, role, created_at FROM users ORDER BY created_at ASC'
+    );
+    res.json(result.rows);
+  } catch (e) {
+    console.error('Error listing users:', e);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.post('/api/users', requireSuperAdminApiAuth, async (req, res) => {
+  const { username, password, role } = req.body || {};
+  if (!isValidUsername(username)) {
+    return res.status(400).json({ success: false, message: 'Invalid username' });
+  }
+  if (!isValidPassword(password)) {
+    return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
+  }
+  const nextRole = normalizeUserRole(role);
+  try {
+    const exists = await db.query('SELECT 1 FROM users WHERE username = $1', [String(username).trim()]);
+    if (exists.rows.length > 0) {
+      return res.status(409).json({ success: false, message: 'Username already exists' });
+    }
+
+    const saltRounds = 10;
+    const hash = await bcrypt.hash(String(password), saltRounds);
+    const insertRes = await db.query(
+      `INSERT INTO users (username, password_hash, role)
+       VALUES ($1, $2, $3)
+       RETURNING id, username, role, created_at`,
+      [String(username).trim(), hash, nextRole]
+    );
+
+    try {
+      await insertAuditLog({
+        projectId: null,
+        userId: req.session.userId,
+        action: 'user:create',
+        message: `User created: ${insertRes.rows[0].username} (${insertRes.rows[0].role}).`,
+        metadata: { user: { id: insertRes.rows[0].id, username: insertRes.rows[0].username, role: insertRes.rows[0].role } },
+      });
+    } catch (e) {}
+
+    res.json({ success: true, user: insertRes.rows[0] });
+  } catch (e) {
+    console.error('Error creating user:', e);
+    res.status(500).json({ success: false, message: 'Database error' });
+  }
+});
+
+async function getProjectIdFromQuery(req) {
   if (req.query && typeof req.query === 'object') {
     let token = null;
     if (typeof req.query.project === 'string' && req.query.project.length > 0) {
@@ -485,20 +688,18 @@ function getProjectIdFromQuery(req) {
       if (keys.length === 1 && req.query[keys[0]] === '') token = keys[0];
     }
     if (token) {
-      const project = findProjectByIdOrNumber(token);
+      const project = await findProjectByIdOrNumber(token);
       return project ? project.id : token;
     }
   }
   return null;
 }
 
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   const ppath = req.path || '';
-  // Only guard admin.html and client.html; allow other static assets
   if (ppath !== '/dashboard.html' && ppath !== '/project-viewer.html') return next();
   try {
-    const projectId = getProjectIdFromQuery(req);
-    // If no project specified, let the page load (admin shows list, client may show generic view)
+    const projectId = await getProjectIdFromQuery(req);
     if (!projectId) return next();
 
     const p = getProjectPaths(projectId);
@@ -531,10 +732,8 @@ app.use((req, res, next) => {
 </html>`);
     }
 
-    // Admin may access an empty project (to upload/manage)
     if (ppath === '/dashboard.html') return next();
 
-    // Client requires at least one generated tileset (meta.json under tiles)
     const tilesDir = p.tiles;
     const hasReadyTiles = (tilesRoot) => {
       try {
@@ -565,13 +764,11 @@ app.use((req, res, next) => {
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-
-
 // Project-scoped static: /projects/:id/upload and /projects/:id/tiles
 const projectRouter = express.Router({ mergeParams: true });
-projectRouter.use('/upload', (req, res, next) => {
+projectRouter.use('/upload', async (req, res, next) => {
   const token = req.params.projectId;
-  const project = findProjectByIdOrNumber(token);
+  const project = await findProjectByIdOrNumber(token);
   const id = project ? project.id : token;
   if (id.includes('..') || id.includes('/') || id.includes('\\')) return res.status(400).send('Invalid project');
   const p = getProjectPaths(id);
@@ -579,19 +776,31 @@ projectRouter.use('/upload', (req, res, next) => {
   if (!fs.existsSync(p.upload)) return next();
   express.static(p.upload)(req, res, next);
 });
-projectRouter.use('/floorplans', (req, res, next) => {
+projectRouter.use(['/layouts', '/floorplans'], async (req, res, next) => {
   const token = req.params.projectId;
-  const project = findProjectByIdOrNumber(token);
+  const project = await findProjectByIdOrNumber(token);
   const id = project ? project.id : token;
   if (id.includes('..') || id.includes('/') || id.includes('\\')) return res.status(400).send('Invalid project');
   const p = getProjectPaths(id);
   if (!p) return res.status(400).send('Invalid project');
-  if (!fs.existsSync(p.floorplans)) return next();
-  express.static(p.floorplans)(req, res, next);
+
+  const middleware = [];
+  if (fs.existsSync(p.layouts)) middleware.push(express.static(p.layouts));
+  if (fs.existsSync(p.floorplans)) middleware.push(express.static(p.floorplans));
+  if (middleware.length === 0) return next();
+
+  let idx = 0;
+  const run = (err) => {
+    if (err) return next(err);
+    const mw = middleware[idx++];
+    if (!mw) return next();
+    mw(req, res, run);
+  };
+  run();
 });
-projectRouter.use('/tiles', (req, res, next) => {
+projectRouter.use('/tiles', async (req, res, next) => {
   const token = req.params.projectId;
-  const project = findProjectByIdOrNumber(token);
+  const project = await findProjectByIdOrNumber(token);
   const id = project ? project.id : token;
   if (id.includes('..') || id.includes('/') || id.includes('\\')) return res.status(400).send('Invalid project');
   const p = getProjectPaths(id);
@@ -613,7 +822,6 @@ const server = https.createServer(sslOptions, app);
 const io = new Server(server);
 
 io.on('connection', (socket) => {
-  // Allow clients to join project-specific rooms so they only receive relevant pano events
   socket.on('joinProject', (projectId) => {
     try {
       if (typeof projectId === 'string' && projectId.length > 0) socket.join(`project:${projectId}`);
@@ -629,9 +837,9 @@ io.on('connection', (socket) => {
 // Multer: dynamic destination based on project (set by route)
 const upload = multer({
   storage: multer.diskStorage({
-    destination: (req, file, cb) => {
+    destination: async (req, file, cb) => {
       const projectToken = req.query.project || (req.body && req.body.project);
-      const project = findProjectByIdOrNumber(projectToken);
+      const project = await findProjectByIdOrNumber(projectToken);
       const projectId = project ? project.id : projectToken;
       const p = getProjectPaths(projectId);
       if (!p) return cb(new Error('Project required'), null);
@@ -640,26 +848,26 @@ const upload = multer({
       cb(null, dir);
     },
     filename: (req, file, cb) => {
-      cb(null, Date.now() + '-' + file.originalname);
+      cb(null, createStoredUploadFilename(file.originalname));
     },
   }),
 });
 
-// Separate storage for floor plan images (project-scoped "floorplans" directory)
+// Separate storage for layout images (project-scoped "layouts" directory; legacy fallback: "floorplans")
 const floorplanUpload = multer({
   storage: multer.diskStorage({
-    destination: (req, file, cb) => {
+    destination: async (req, file, cb) => {
       const projectToken = req.query.project || (req.body && req.body.project);
-      const project = findProjectByIdOrNumber(projectToken);
+      const project = await findProjectByIdOrNumber(projectToken);
       const projectId = project ? project.id : projectToken;
       const p = getProjectPaths(projectId);
       if (!p) return cb(new Error('Project required'), null);
-      const dir = p.floorplans;
+      const dir = p.layouts;
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       cb(null, dir);
     },
     filename: (req, file, cb) => {
-      cb(null, Date.now() + '-' + file.originalname);
+      cb(null, createStoredUploadFilename(file.originalname));
     },
   }),
 });
@@ -669,98 +877,89 @@ async function listUploadedImages(uploadsDir) {
   return files.filter(file => /\.(jpg|jpeg|png|gif|webp|jfif)$/i.test(file));
 }
 
-async function listFloorplanImages(floorplansDir) {
-  try {
-    const files = await fs.promises.readdir(floorplansDir);
-    return files.filter(file => /\.(jpg|jpeg|png|gif|webp|jfif)$/i.test(file));
-  } catch (e) {
-    if (e.code !== 'ENOENT') console.error('Error reading floorplans dir:', e);
-    return [];
+async function listFloorplanImages(primaryDir, legacyDir = null) {
+  const dirs = [primaryDir, legacyDir].filter(Boolean);
+  const uniqueDirs = Array.from(new Set(dirs));
+  const files = new Set();
+
+  for (const dir of uniqueDirs) {
+    try {
+      const names = await fs.promises.readdir(dir);
+      names
+        .filter((file) => /\.(jpg|jpeg|png|gif|webp|jfif)$/i.test(file))
+        .forEach((file) => files.add(file));
+    } catch (e) {
+      if (e.code !== 'ENOENT') console.error('Error reading layouts dir:', e);
+    }
   }
+
+  return Array.from(files);
 }
 
-function readFloorplanOrder(floorplanOrderPath) {
+function resolveFloorplanImagePath(paths, filename) {
+  const candidates = [];
+  if (paths && paths.layoutsDir) candidates.push(path.join(paths.layoutsDir, filename));
+  if (paths && paths.floorplansLegacyDir) candidates.push(path.join(paths.floorplansLegacyDir, filename));
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(candidate)) return candidate;
+  }
+  return candidates[0] || null;
+}
+
+function readFloorplanOrder(primaryPath, legacyPath) {
   try {
-    const raw = fs.readFileSync(floorplanOrderPath, 'utf8');
+    const raw = fs.readFileSync(primaryPath, 'utf8');
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    if (e.code !== 'ENOENT') console.error('Error reading floorplan order:', e);
-    return [];
+    if (e.code !== 'ENOENT') console.error('Error reading layout order:', e);
   }
-}
-
-function writeFloorplanOrder(floorplanOrderPath, order) {
-  const dir = path.dirname(floorplanOrderPath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(floorplanOrderPath, JSON.stringify(order, null, 2), 'utf8');
-}
-
-function readFloorplanHotspots(floorplanHotspotsPath) {
   try {
-    const raw = fs.readFileSync(floorplanHotspotsPath, 'utf8');
+    if (!legacyPath) return [];
+    const raw = fs.readFileSync(legacyPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    if (e.code !== 'ENOENT') console.error('Error reading legacy floorplan order:', e);
+  }
+  return [];
+}
+
+function writeFloorplanOrder(primaryPath, order) {
+  const dir = path.dirname(primaryPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(primaryPath, JSON.stringify(order, null, 2), 'utf8');
+}
+
+function readFloorplanHotspots(primaryPath, legacyPath) {
+  try {
+    const raw = fs.readFileSync(primaryPath, 'utf8');
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : {};
   } catch (e) {
-    if (e.code !== 'ENOENT') console.error('Error reading floor plan hotspots:', e);
-    return {};
+    if (e.code !== 'ENOENT') console.error('Error reading layout hotspots:', e);
   }
-}
-
-function writeFloorplanHotspots(floorplanHotspotsPath, hotspots) {
-  const dir = path.dirname(floorplanHotspotsPath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(floorplanHotspotsPath, JSON.stringify(hotspots, null, 2), 'utf8');
-}
-
-function readBlurMasks(blurMasksPath) {
   try {
-    const raw = fs.readFileSync(blurMasksPath, 'utf8');
+    if (!legacyPath) return {};
+    const raw = fs.readFileSync(legacyPath, 'utf8');
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : {};
   } catch (e) {
-    if (e.code !== 'ENOENT') console.error('Error reading blur masks:', e);
-    return {};
+    if (e.code !== 'ENOENT') console.error('Error reading legacy floor plan hotspots:', e);
   }
+  return {};
 }
 
-function writeBlurMasks(blurMasksPath, blurMasks) {
-  const dir = path.dirname(blurMasksPath);
+function writeFloorplanHotspots(primaryPath, hotspots) {
+  const dir = path.dirname(primaryPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(blurMasksPath, JSON.stringify(blurMasks, null, 2), 'utf8');
-}
-
-function renameBlurMasksForPano(paths, oldFilename, newFilename) {
-  if (!oldFilename || !newFilename || oldFilename === newFilename) {
-    return { changed: false, blurMasks: null };
-  }
-  const blurMasks = readBlurMasks(paths.blurMasksPath);
-  if (!Object.prototype.hasOwnProperty.call(blurMasks, oldFilename)) {
-    return { changed: false, blurMasks: null };
-  }
-  const oldList = Array.isArray(blurMasks[oldFilename]) ? blurMasks[oldFilename] : [];
-  const newList = Array.isArray(blurMasks[newFilename]) ? blurMasks[newFilename] : [];
-  blurMasks[newFilename] = [...newList, ...oldList];
-  delete blurMasks[oldFilename];
-  writeBlurMasks(paths.blurMasksPath, blurMasks);
-  return { changed: true, blurMasks };
-}
-
-function clearBlurMasksForPano(paths, filename) {
-  if (!filename) return { changed: false, blurMasks: null };
-  const blurMasks = readBlurMasks(paths.blurMasksPath);
-  if (!Object.prototype.hasOwnProperty.call(blurMasks, filename)) {
-    return { changed: false, blurMasks: null };
-  }
-  delete blurMasks[filename];
-  writeBlurMasks(paths.blurMasksPath, blurMasks);
-  return { changed: true, blurMasks };
+  fs.writeFileSync(primaryPath, JSON.stringify(hotspots, null, 2), 'utf8');
 }
 
 function clearFloorplanHotspotsForFilenames(paths, filenames) {
   const names = Array.from(new Set((filenames || []).filter(Boolean)));
   if (names.length === 0) return { changed: false, hotspots: null };
-  const hotspots = readFloorplanHotspots(paths.floorplanHotspotsPath);
+  const hotspots = readFloorplanHotspots(paths.layoutHotspotsPath, paths.floorplanHotspotsPath);
   let changed = false;
   names.forEach((name) => {
     if (Object.prototype.hasOwnProperty.call(hotspots, name)) {
@@ -768,12 +967,12 @@ function clearFloorplanHotspotsForFilenames(paths, filenames) {
       changed = true;
     }
   });
-  if (changed) writeFloorplanHotspots(paths.floorplanHotspotsPath, hotspots);
+  if (changed) writeFloorplanHotspots(paths.layoutHotspotsPath, hotspots);
   return { changed, hotspots };
 }
 
 function floorplanOrderReplace(paths, oldFilename, newFilename) {
-  const order = readFloorplanOrder(paths.floorplanOrderPath);
+  const order = readFloorplanOrder(paths.layoutOrderPath, paths.floorplanOrderPath);
   const i = order.indexOf(oldFilename);
   if (i !== -1) order[i] = newFilename;
   else order.push(newFilename);
@@ -784,27 +983,27 @@ function floorplanOrderReplace(paths, oldFilename, newFilename) {
     seen.add(f);
     deduped.push(f);
   }
-  writeFloorplanOrder(paths.floorplanOrderPath, deduped);
+  writeFloorplanOrder(paths.layoutOrderPath, deduped);
   return deduped;
 }
 
 /** Return ordered list of floor plan filenames; stored order first, then any new files not in list. */
 async function getOrderedFloorplanFilenames(paths) {
-  const existing = await listFloorplanImages(paths.floorplansDir);
+  const existing = await listFloorplanImages(paths.layoutsDir, paths.floorplansLegacyDir);
   const existingSet = new Set(existing);
-  let order = readFloorplanOrder(paths.floorplanOrderPath).filter(f => existingSet.has(f));
+  let order = readFloorplanOrder(paths.layoutOrderPath, paths.floorplanOrderPath).filter(f => existingSet.has(f));
   const inOrder = new Set(order);
   const appended = existing.filter(f => !inOrder.has(f));
   const result = [...order, ...appended];
   const orderChanged = order.length !== result.length || appended.length > 0;
   if (orderChanged && result.length > 0) {
-    writeFloorplanOrder(paths.floorplanOrderPath, result);
+    writeFloorplanOrder(paths.layoutOrderPath, result);
   }
   return result;
 }
 
 function floorplanOrderAppend(paths, filenames) {
-  const order = readFloorplanOrder(paths.floorplanOrderPath);
+  const order = readFloorplanOrder(paths.layoutOrderPath, paths.floorplanOrderPath);
   const set = new Set(order);
   let changed = false;
   for (const f of filenames || []) {
@@ -813,77 +1012,8 @@ function floorplanOrderAppend(paths, filenames) {
     set.add(f);
     changed = true;
   }
-  if (changed) writeFloorplanOrder(paths.floorplanOrderPath, order);
+  if (changed) writeFloorplanOrder(paths.layoutOrderPath, order);
   return order;
-}
-
-/** Return ordered list of panorama filenames: stored order first, then any new uploads not in list. */
-async function getOrderedFilenames(paths) {
-  const existing = await listUploadedImages(paths.uploadsDir);
-  const existingSet = new Set(existing);
-  let parsedOrder = [];
-  try {
-    const raw = fs.readFileSync(paths.panoramaOrderPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) parsedOrder = parsed;
-  } catch (e) {
-    if (e.code !== 'ENOENT') console.error('Error reading panorama order:', e);
-  }
-  const seen = new Set();
-  const order = parsedOrder.filter((f) => {
-    if (!existingSet.has(f) || seen.has(f)) return false;
-    seen.add(f);
-    return true;
-  });
-  const inOrder = new Set(order);
-  const appended = existing.filter(f => !inOrder.has(f));
-  const result = [...order, ...appended];
-  const orderChanged = parsedOrder.length !== order.length || parsedOrder.some((v, i) => v !== order[i]);
-  if ((orderChanged || appended.length > 0) && result.length > 0) {
-    writePanoramaOrder(paths.panoramaOrderPath, result);
-  }
-  return result;
-}
-
-function readPanoramaOrder(panoramaOrderPath) {
-  try {
-    const raw = fs.readFileSync(panoramaOrderPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    if (e.code !== 'ENOENT') console.error('Error reading panorama order:', e);
-    return [];
-  }
-}
-
-function writePanoramaOrder(panoramaOrderPath, order) {
-  fs.writeFileSync(panoramaOrderPath, JSON.stringify(order, null, 2), 'utf8');
-}
-
-function panoramaOrderReplace(paths, oldFilename, newFilename) {
-  const order = readPanoramaOrder(paths.panoramaOrderPath);
-  const replaced = order.map((f) => (f === oldFilename ? newFilename : f));
-  const deduped = [];
-  const seen = new Set();
-  for (const f of replaced) {
-    if (seen.has(f)) continue;
-    seen.add(f);
-    deduped.push(f);
-  }
-  if (!seen.has(newFilename)) deduped.push(newFilename);
-  writePanoramaOrder(paths.panoramaOrderPath, deduped);
-}
-
-function panoramaOrderRemove(paths, filename) {
-  const order = readPanoramaOrder(paths.panoramaOrderPath).filter(f => f !== filename);
-  writePanoramaOrder(paths.panoramaOrderPath, order);
-}
-
-function panoramaOrderAppend(paths, filenames) {
-  const order = readPanoramaOrder(paths.panoramaOrderPath);
-  const set = new Set(order);
-  for (const f of filenames) if (!set.has(f)) { order.push(f); set.add(f); }
-  writePanoramaOrder(paths.panoramaOrderPath, order);
 }
 
 async function ensureTilesForFilename(paths, filename) {
@@ -906,12 +1036,16 @@ async function ensureTilesForFilename(paths, filename) {
 }
 
 // ---- Project APIs ----
-app.get('/api/projects', (req, res) => {
-  const projects = getProjectsManifest();
-  res.json(projects);
+app.get('/api/projects', async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM projects ORDER BY created_at ASC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
-app.post('/api/projects', (req, res) => {
+app.post('/api/projects', requireApiAuth, async (req, res) => {
   const { name, number, status } = req.body || {};
   if (number === undefined || number === null || !String(number).trim()) {
     return res.status(400).json({ success: false, message: 'Project number is required' });
@@ -928,30 +1062,53 @@ app.post('/api/projects', (req, res) => {
     return res.status(400).json({ success: false, message: `Project number must be ${MAX_PROJECT_NUMBER_LENGTH} characters or less` });
   }
   let id = sanitizeProjectId(name);
-  const projects = getProjectsManifest();
   const normalized = trimmedName.toLowerCase();
-  if (projects.some((p) => (p.name || '').trim().toLowerCase() === normalized)) {
-    return res.status(409).json({ success: false, message: 'A project with this name already exists' });
+
+  try {
+    const existing = await db.query('SELECT id FROM projects WHERE LOWER(name) = $1 OR number = $2', [normalized, trimmedNumber]);
+    if (existing.rows.length > 0) {
+      const isName = existing.rows.some(r => r.name && r.name.toLowerCase() === normalized);
+      return res.status(409).json({ success: false, message: `A project with this ${isName ? 'name' : 'number'} already exists` });
+    }
+    
+    let suffix = 0;
+    let finalId = id;
+    while (true) {
+      const check = await db.query('SELECT 1 FROM projects WHERE id = $1', [finalId]);
+      if (check.rows.length === 0) break;
+      suffix++;
+      finalId = `${id}-${suffix}`;
+    }
+    
+    ensureProjectDirs(finalId);
+  
+    const insertRes = await db.query(
+      'INSERT INTO projects (id, name, number, status) VALUES ($1, $2, $3, $4) RETURNING *',
+      [finalId, trimmedName, trimmedNumber, normalizeProjectStatus(status)]
+    );
+  
+    await emitProjectsChanged();
+    await insertAuditLog({
+      projectId: finalId,
+      userId: req.session.userId,
+      action: 'project:create',
+      message: `Project created: ${trimmedName} (${trimmedNumber}).`,
+      metadata: {
+        id: finalId,
+        name: trimmedName,
+        number: trimmedNumber,
+        status: normalizeProjectStatus(status),
+      },
+    });
+    res.json(insertRes.rows[0]);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Database error' });
   }
-  if (projects.some((p) => String(p.number || '').trim() === trimmedNumber)) {
-    return res.status(409).json({ success: false, message: 'A project with this number already exists' });
-  }
-  if (projects.some(p => p.id === id)) {
-    let suffix = 1;
-    while (projects.some(p => p.id === `${id}-${suffix}`)) suffix++;
-    id = `${id}-${suffix}`;
-  }
-  const finalId = id;
-  ensureProjectDirs(finalId);
-  const project = { id: finalId, name: trimmedName, number: trimmedNumber, status: normalizeProjectStatus(status) };
-  projects.push(project);
-  writeProjectsManifest(projects);
-  // Notify connected clients about project list changes
-  emitProjectsChanged();
-  res.json(project);
 });
 
-app.put('/api/projects/:id', (req, res) => {
+app.put('/api/projects/:id', requireApiAuth, async (req, res) => {
   const oldId = req.params.id;
   if (oldId.includes('..') || oldId.includes('/') || oldId.includes('\\')) {
     return res.status(400).json({ success: false, message: 'Invalid project id' });
@@ -963,57 +1120,93 @@ app.put('/api/projects/:id', (req, res) => {
   if (!name || typeof name !== 'string' || !name.trim()) {
     return res.status(400).json({ success: false, message: 'Project name is required' });
   }
-  const projects = getProjectsManifest();
-  const idx = projects.findIndex(p => p.id === oldId);
-  if (idx === -1) return res.status(404).json({ success: false, message: 'Project not found' });
-  const trimmedName = name.trim();
-  const trimmedNumber = String(number).trim();
-  if (!/^[A-Za-z0-9-]+$/.test(trimmedNumber)) {
-    return res.status(400).json({ success: false, message: 'Project number can only contain letters, numbers, and "-"' });
-  }
-  if (trimmedNumber.length > MAX_PROJECT_NUMBER_LENGTH) {
-    return res.status(400).json({ success: false, message: `Project number must be ${MAX_PROJECT_NUMBER_LENGTH} characters or less` });
-  }
-  const normalized = trimmedName.toLowerCase();
-  if (projects.some((p, i) => i !== idx && (p.name || '').trim().toLowerCase() === normalized)) {
-    return res.status(409).json({ success: false, message: 'A project with this name already exists' });
-  }
-  if (projects.some((p, i) => i !== idx && String(p.number || '').trim() === trimmedNumber)) {
-    return res.status(409).json({ success: false, message: 'A project with this number already exists' });
-  }
+  
+  try {
+    const currentRes = await db.query('SELECT * FROM projects WHERE id = $1', [oldId]);
+    if (currentRes.rows.length === 0) return res.status(404).json({ success: false, message: 'Project not found' });
+    const currentProject = currentRes.rows[0];
 
-  let newId = sanitizeProjectId(trimmedName);
-  if (projects.some((p, i) => i !== idx && p.id === newId)) {
-    let suffix = 1;
-    while (projects.some((p, i) => i !== idx && p.id === `${newId}-${suffix}`)) suffix++;
-    newId = `${newId}-${suffix}`;
-  }
+    const trimmedName = name.trim();
+    const trimmedNumber = String(number).trim();
+    if (!/^[A-Za-z0-9-]+$/.test(trimmedNumber)) {
+      return res.status(400).json({ success: false, message: 'Project number can only contain letters, numbers, and "-"' });
+    }
+    if (trimmedNumber.length > MAX_PROJECT_NUMBER_LENGTH) {
+      return res.status(400).json({ success: false, message: `Project number must be ${MAX_PROJECT_NUMBER_LENGTH} characters or less` });
+    }
+    const normalized = trimmedName.toLowerCase();
 
-  if (newId !== oldId) {
-    const oldPaths = getProjectPaths(oldId);
-    const newPaths = getProjectPaths(newId);
-    if (oldPaths && newPaths && fs.existsSync(oldPaths.base)) {
-      if (fs.existsSync(newPaths.base)) {
-        return res.status(409).json({ success: false, message: `A project folder "${newId}" already exists` });
-      }
-      try {
-        fs.renameSync(oldPaths.base, newPaths.base);
-      } catch (e) {
-        console.error('Error renaming project folder:', e);
-        return res.status(500).json({ success: false, message: `Failed to rename folder: ${e.message || e}` });
+    const conflictRes = await db.query('SELECT * FROM projects WHERE (LOWER(name) = $1 OR number = $2) AND id != $3', [normalized, trimmedNumber, oldId]);
+    if (conflictRes.rows.length > 0) {
+      return res.status(409).json({ success: false, message: 'A project with this name already exists' });
+    }
+
+    let newId = sanitizeProjectId(trimmedName);
+    if (newId !== oldId) {
+      let suffix = 0;
+      let baseId = newId;
+      while (true) {
+        const check = await db.query('SELECT 1 FROM projects WHERE id = $1 AND id != $2', [newId, oldId]);
+        if (check.rows.length === 0) break;
+        suffix++;
+        newId = `${baseId}-${suffix}`;
       }
     }
-    projects[idx].id = newId;
+
+    if (newId !== oldId) {
+      const oldPaths = getProjectPaths(oldId);
+      const newPaths = getProjectPaths(newId);
+      if (oldPaths && newPaths && fs.existsSync(oldPaths.base)) {
+        if (fs.existsSync(newPaths.base)) {
+          return res.status(409).json({ success: false, message: `A project folder "${newId}" already exists` });
+        }
+        try {
+          fs.renameSync(oldPaths.base, newPaths.base);
+        } catch (e) {
+          console.error('Error renaming project folder:', e);
+          return res.status(500).json({ success: false, message: `Failed to rename folder: ${e.message || e}` });
+        }
+      }
+    }
+  
+    const updateRes = await db.query(
+      'UPDATE projects SET id = $1, name = $2, number = $3, status = $4, updated_at = NOW() WHERE id = $5 RETURNING *',
+      [newId, trimmedName, trimmedNumber, normalizeProjectStatus(status || currentProject.status), oldId]
+    );
+
+    await emitProjectsChanged();
+    await insertAuditLog({
+      projectId: newId,
+      userId: req.session.userId,
+      action: newId !== oldId ? 'project:rename' : 'project:update',
+      message:
+        newId !== oldId
+          ? `Project renamed: ${oldId} -> ${newId}.`
+          : `Project updated: ${newId}.`,
+      metadata: {
+        oldId,
+        newId,
+        old: {
+          name: currentProject.name,
+          number: currentProject.number,
+          status: currentProject.status,
+        },
+        new: {
+          name: trimmedName,
+          number: trimmedNumber,
+          status: normalizeProjectStatus(status || currentProject.status),
+        },
+      },
+    });
+    res.json(updateRes.rows[0]);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Database error' });
   }
-  projects[idx].name = trimmedName;
-  projects[idx].number = trimmedNumber;
-  projects[idx].status = normalizeProjectStatus(status || projects[idx].status);
-  writeProjectsManifest(projects);
-  emitProjectsChanged();
-  res.json(projects[idx]);
 });
 
-app.delete('/api/projects/:id', (req, res) => {
+app.delete('/api/projects/:id', requireApiAuth, (req, res) => {
   res.status(403).json({ success: false, message: 'Project deletion is disabled.' });
 });
 
@@ -1025,12 +1218,12 @@ function createJob(filenames, projectId) {
     id,
     projectId,
     filenames,
-    status: 'processing', // 'processing' | 'done' | 'error'
+    status: 'processing',
     percent: 0,
     message: '',
     error: null
   };
-  jobs.set(id, job);
+  jobs.set(id, job); 
   return job;
 }
 function getJob(id) {
@@ -1042,14 +1235,14 @@ app.get('/api/jobs/:id', (req, res) => {
   res.json({ id: job.id, status: job.status, percent: job.percent, message: job.message, error: job.error });
 });
 
-// ---- Archive APIs (audit log per pano / floor plan) ----
-app.get('/api/archive/panos/:filename', (req, res) => {
+// ---- Archive APIs (audit log per pano / layout) ----
+app.get('/api/archive/panos/:filename', async (req, res) => {
   const filename = req.params.filename;
   if (!filename) return res.status(400).json({ error: 'filename required' });
   if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
     return res.status(400).json({ error: 'Invalid filename' });
   }
-  const paths = resolvePaths(req);
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
   const imagePath = path.join(paths.uploadsDir, filename);
   if (!fs.existsSync(imagePath)) return res.status(404).json({ error: 'Not found' });
@@ -1058,26 +1251,29 @@ app.get('/api/archive/panos/:filename', (req, res) => {
   res.json(entries);
 });
 
-app.get('/api/archive/floorplans/:filename', (req, res) => {
+async function handleArchiveLayouts(req, res) {
   const filename = req.params.filename;
   if (!filename) return res.status(400).json({ error: 'filename required' });
   if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
     return res.status(400).json({ error: 'Invalid filename' });
   }
-  const paths = resolvePaths(req);
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  const imagePath = path.join(paths.floorplansDir, filename);
+  const imagePath = resolveFloorplanImagePath(paths, filename);
   if (!fs.existsSync(imagePath)) return res.status(404).json({ error: 'Not found' });
   initAuditLogIfMissing(paths, 'floorplan', filename);
   const entries = readAndRepairAuditEntries(paths, 'floorplan', filename);
   res.json(entries);
-});
+}
 
-app.get('/api/archive/images/:kind/:storedFilename', (req, res) => {
+app.get('/api/archive/floorplans/:filename', handleArchiveLayouts);
+app.get('/api/archive/layouts/:filename', handleArchiveLayouts);
+
+app.get('/api/archive/images/:kind/:storedFilename', async (req, res) => {
   const kindToken = req.params.kind;
   const storedFilename = req.params.storedFilename;
   const kind =
-    kindToken === 'floorplan' || kindToken === 'floorplans'
+    kindToken === 'floorplan' || kindToken === 'floorplans' || kindToken === 'layout' || kindToken === 'layouts'
       ? 'floorplan'
       : kindToken === 'pano' || kindToken === 'panos'
         ? 'pano'
@@ -1087,7 +1283,7 @@ app.get('/api/archive/images/:kind/:storedFilename', (req, res) => {
   if (storedFilename.includes('..') || storedFilename.includes('/') || storedFilename.includes('\\')) {
     return res.status(400).json({ error: 'Invalid storedFilename' });
   }
-  const paths = resolvePaths(req);
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
   const filePath = resolveArchiveImagePath(paths, kind, storedFilename);
   if (!filePath || !fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
@@ -1096,30 +1292,79 @@ app.get('/api/archive/images/:kind/:storedFilename', (req, res) => {
 });
 
 // ---- Panorama APIs (project-scoped via ?project=id) ----
-app.post('/upload', upload.array("panorama", 20), (req, res)=>{
+app.post('/upload', requireApiAuth, upload.array("panorama", 20), async (req, res)=>{
   if(!req.files || req.files.length === 0) {
     return res.status(400).json({
       success: false,
       message: "no file uploaded"
     });
   }
-  const paths = resolvePaths(req);
+  const paths = await resolvePaths(req);
   if (!paths) {
     return res.status(400).json({ success: false, message: 'Project required' });
   }
   const filenames = req.files.map(f => f.filename);
+  
+  const client = await db.getClient();
   try {
-    filenames.forEach((name) => {
-      appendAuditEntry(paths, 'pano', name, { action: 'upload', message: 'Panorama uploaded.' });
+    await client.query('BEGIN');
+    const rankRes = await client.query(
+      'SELECT COALESCE(MAX(rank), -1)::int as maxr FROM panoramas WHERE project_id = $1',
+      [paths.projectId]
+    );
+    let currentRank = Number(rankRes.rows[0]?.maxr ?? -1) + 1;
+
+    for (const filename of filenames) {
+      const upsertRes = await client.query(
+        `INSERT INTO panoramas (project_id, filename, rank, is_active)
+         VALUES ($1, $2, $3, true)
+         ON CONFLICT (project_id, filename)
+         DO UPDATE SET is_active = true
+         RETURNING id, (xmax = 0) AS inserted`,
+        [paths.projectId, filename, currentRank]
+      );
+      if (upsertRes.rows[0]?.inserted) currentRank += 1;
+    }
+
+    await client.query('COMMIT');
+
+    try {
+      filenames.forEach((name) => {
+        appendAuditEntry(
+          paths,
+          'pano',
+          name,
+          { action: 'upload', message: 'Panorama uploaded.' },
+          { userId: req.session.userId }
+        );
+      });
+    } catch (e) {}
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (rollbackErr) {}
+    // Best-effort cleanup of the just-uploaded files if we couldn't persist to the DB.
+    try {
+      filenames.forEach((name) => {
+        const img = path.join(paths.uploadsDir, name);
+        if (fs.existsSync(img)) fs.unlinkSync(img);
+      });
+    } catch (cleanupErr) {}
+    console.error('Error saving uploaded panoramas to DB:', e);
+    return res.status(500).json({
+      success: false,
+      message: 'Upload saved to disk but failed to persist to database',
+      error: String(e.message || e),
     });
-  } catch (e) {}
+  } finally {
+    try { client.release(); } catch (e) {}
+  }
+
   const job = createJob(filenames, paths.projectId);
   res.json({
     success: true,
     jobId: job.id,
     uploaded: filenames
   });
-  // Do not notify immediately; wait until tiles are built and emit 'panos:ready'
+
   (async () => {
     try {
       let overall = 0;
@@ -1132,15 +1377,12 @@ app.post('/upload', upload.array("panorama", 20), (req, res)=>{
           filename: name,
           tilesRootDir: paths.tilesDir,
           onProgress: (frac) => {
-            // Map per-file progress to overall percent
             const combined = ((i + frac) / totalFiles) * 100;
             if (combined > overall) overall = combined;
             job.percent = Math.min(100, Math.max(0, Math.round(overall)));
           }
         });
       }
-      panoramaOrderAppend(paths, filenames);
-      // Notify clients that tiles are ready for these panos
       try { io.to(`project:${paths.projectId}`).emit('panos:ready', { filenames }); } catch (e) { console.error('Socket emit error:', e); }
       job.percent = 100;
       job.status = 'done';
@@ -1155,40 +1397,90 @@ app.post('/upload', upload.array("panorama", 20), (req, res)=>{
   })();
 });
 
-// ---- Floor plan APIs (project-scoped via ?project=id) ----
-app.post('/upload-floorplan', floorplanUpload.array('floorplan', 20), async (req, res) => {
+// ---- Layout APIs (project-scoped via ?project=id) ----
+async function handleLayoutUpload(req, res) {
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ success: false, message: 'no file uploaded' });
   }
-  const paths = resolvePaths(req);
+  const paths = await resolvePaths(req);
   if (!paths) {
     return res.status(400).json({ success: false, message: 'Project required' });
   }
   const filenames = req.files.map((f) => f.filename);
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+
+    // Backward compatibility: older DBs may still have `floorplans` instead of `layouts`.
+    const regRes = await client.query("SELECT to_regclass('public.layouts') AS reg");
+    const layoutsTable = regRes.rows[0] && regRes.rows[0].reg ? 'layouts' : 'floorplans';
+
+    const rankRes = await client.query(
+      `SELECT COALESCE(MAX(rank), -1)::int as maxr FROM ${layoutsTable} WHERE project_id = $1`,
+      [paths.projectId]
+    );
+    let currentRank = Number(rankRes.rows[0]?.maxr ?? -1) + 1;
+    for (const filename of filenames) {
+      const upsertRes = await client.query(
+        `INSERT INTO ${layoutsTable} (project_id, filename, rank)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (project_id, filename)
+         DO UPDATE SET rank = ${layoutsTable}.rank
+         RETURNING id, (xmax = 0) AS inserted`,
+        [paths.projectId, filename, currentRank]
+      );
+      if (upsertRes.rows[0]?.inserted) currentRank += 1;
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (rollbackErr) {}
+    try {
+      filenames.forEach((name) => {
+        const img = path.join(paths.floorplansDir, name);
+        if (fs.existsSync(img)) fs.unlinkSync(img);
+      });
+    } catch (cleanupErr) {}
+    console.error('Error saving uploaded layouts to DB:', e);
+    return res.status(500).json({
+      success: false,
+      message: 'Upload saved to disk but failed to persist to database',
+      error: String(e.message || e),
+    });
+  } finally {
+    try { client.release(); } catch (e) {}
+  }
   try {
     filenames.forEach((name) => {
-      appendAuditEntry(paths, 'floorplan', name, { action: 'upload', message: 'Floor plan uploaded.' });
+      appendAuditEntry(
+        paths,
+        'floorplan',
+        name,
+        { action: 'upload', message: 'Layout uploaded.' },
+        { userId: req.session.userId }
+      );
     });
   } catch (e) {}
   let updatedOrder = null;
   try {
     updatedOrder = floorplanOrderAppend(paths, filenames);
   } catch (e) {
-    console.error('Error updating floor plan order on upload:', e);
+    console.error('Error updating layout order on upload:', e);
   }
   try {
-    if (updatedOrder) io.to(`project:${paths.projectId}`).emit('floorplans:order', { order: updatedOrder });
+    if (updatedOrder) {
+      io.to(`project:${paths.projectId}`).emit('floorplans:order', { order: updatedOrder });
+      io.to(`project:${paths.projectId}`).emit('layouts:order', { order: updatedOrder });
+    }
   } catch (e) {
     console.error('Socket emit error:', e);
   }
   res.json({ success: true, uploaded: filenames });
-});
+}
 
-// Update/replace a single floor plan image and adopt the uploaded filename.
-// Body fields (multipart/form-data):
-// - floorplan: new image file
-// - oldFilename: existing floorplan filename to replace
-app.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), async (req, res) => {
+app.post('/upload-floorplan', requireApiAuth, floorplanUpload.array('floorplan', 20), handleLayoutUpload);
+app.post('/upload-layout', requireApiAuth, floorplanUpload.array('layout', 20), handleLayoutUpload);
+
+async function handleLayoutUpdate(req, res) {
   const cleanupUploadedFile = async () => {
     if (!req.file || !req.file.path) return;
     try {
@@ -1208,15 +1500,15 @@ app.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), async (
     await cleanupUploadedFile();
     return res.status(400).json({ success: false, message: 'Invalid filename' });
   }
-  const paths = resolvePaths(req);
+  const paths = await resolvePaths(req);
   if (!paths) {
     await cleanupUploadedFile();
     return res.status(400).json({ success: false, message: 'Project required' });
   }
-  const oldFilePath = path.join(paths.floorplansDir, oldFilename);
+  const oldFilePath = resolveFloorplanImagePath(paths, oldFilename);
   if (!fs.existsSync(oldFilePath)) {
     await cleanupUploadedFile();
-    return res.status(404).json({ success: false, message: 'Old floor plan not found' });
+    return res.status(404).json({ success: false, message: 'Old layout not found' });
   }
   const newFilename = req.file.filename;
   try {
@@ -1224,6 +1516,7 @@ app.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), async (
     if (hotspotCleanup.changed) {
       try {
         io.to(`project:${paths.projectId}`).emit('floorplan-hotspots:changed', hotspotCleanup.hotspots);
+        io.to(`project:${paths.projectId}`).emit('layout-hotspots:changed', hotspotCleanup.hotspots);
       } catch (e) {
         console.error('Socket emit error:', e);
       }
@@ -1231,11 +1524,17 @@ app.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), async (
 
     if (oldFilename === newFilename) {
       try {
-        appendAuditEntry(paths, 'floorplan', newFilename, { action: 'update', message: 'Floor plan updated.' });
+        appendAuditEntry(
+          paths,
+          'floorplan',
+          newFilename,
+          { action: 'update', message: 'Layout updated.' },
+          { userId: req.session.userId }
+        );
       } catch (e) {}
       return res.json({
         success: true,
-        message: 'Floor plan updated successfully',
+        message: 'Layout updated successfully',
         oldFilename,
         newFilename,
         filename: newFilename
@@ -1246,59 +1545,68 @@ app.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), async (
     try {
       archivedImage = storeReplacedImageInAudit(paths, 'floorplan', oldFilename, oldFilePath);
     } catch (archiveErr) {
-      throw new Error(`Could not archive replaced floor plan: ${archiveErr.message || archiveErr}`);
+      throw new Error(`Could not archive replaced layout: ${archiveErr.message || archiveErr}`);
     }
 
     await fs.promises.unlink(oldFilePath);
 
     try {
       renameAuditLog(paths, 'floorplan', oldFilename, newFilename);
-      appendAuditEntry(paths, 'floorplan', newFilename, {
-        action: 'update',
-        message: `Floor plan updated (replaced "${oldFilename}" with "${newFilename}").`,
-        ...(archivedImage
-          ? {
-              meta: {
-                archivedImage: {
-                  kind: 'floorplan',
-                  originalFilename: archivedImage.originalFilename,
-                  storedFilename: archivedImage.storedFilename,
+      appendAuditEntry(
+        paths,
+        'floorplan',
+        newFilename,
+        {
+          action: 'update',
+          message: `Layout updated (replaced "${oldFilename}" with "${newFilename}").`,
+          ...(archivedImage
+            ? {
+                meta: {
+                  archivedImage: {
+                    kind: 'floorplan',
+                    originalFilename: archivedImage.originalFilename,
+                    storedFilename: archivedImage.storedFilename,
+                  },
                 },
-              },
-            }
-          : {}),
-      });
+              }
+            : {}),
+        },
+        { userId: req.session.userId }
+      );
     } catch (e) {}
 
     let updatedOrder = null;
     try {
       updatedOrder = floorplanOrderReplace(paths, oldFilename, newFilename);
     } catch (e) {
-      console.error('Error updating floor plan order:', e);
+      console.error('Error updating layout order:', e);
     }
 
     try {
       io.to(`project:${paths.projectId}`).emit('floorplans:order', { order: updatedOrder });
+      io.to(`project:${paths.projectId}`).emit('layouts:order', { order: updatedOrder });
     } catch (e) {
       console.error('Socket emit error:', e);
     }
 
     return res.json({
       success: true,
-      message: 'Floor plan updated successfully',
+      message: 'Layout updated successfully',
       oldFilename,
       newFilename,
       filename: newFilename
     });
   } catch (e) {
-    console.error('Error updating floor plan:', e);
+    console.error('Error updating layout:', e);
     await cleanupUploadedFile();
-    return res.status(500).json({ success: false, message: 'Error updating floor plan' });
+    return res.status(500).json({ success: false, message: 'Error updating layout' });
   }
-});
+}
 
-// Rename a floor plan file.
-app.put('/api/floorplans/rename', (req, res) => {
+app.put('/upload-floorplan/update', requireApiAuth, floorplanUpload.single('floorplan'), handleLayoutUpdate);
+app.put('/upload-layout/update', requireApiAuth, floorplanUpload.single('layout'), handleLayoutUpdate);
+
+async function handleLayoutRename(req, res) {
   const { oldFilename, newFilename } = req.body || {};
   if (!oldFilename || !newFilename) {
     return res.status(400).json({ success: false, message: 'Both old and new filenames are required' });
@@ -1309,46 +1617,62 @@ app.put('/api/floorplans/rename', (req, res) => {
   ) {
     return res.status(400).json({ success: false, message: 'Invalid filename' });
   }
-  const paths = resolvePaths(req);
+  const paths = await resolvePaths(req);
   if (!paths) {
     return res.status(400).json({ success: false, message: 'Project required' });
   }
-  const oldPath = path.join(paths.floorplansDir, oldFilename);
-  const newPath = path.join(paths.floorplansDir, newFilename);
+
+  const oldPath = resolveFloorplanImagePath(paths, oldFilename);
   if (!fs.existsSync(oldPath)) {
     return res.status(404).json({ success: false, message: 'File not found' });
   }
-  if (fs.existsSync(newPath)) {
+  const newExists =
+    (paths.layoutsDir && fs.existsSync(path.join(paths.layoutsDir, newFilename))) ||
+    (paths.floorplansLegacyDir && fs.existsSync(path.join(paths.floorplansLegacyDir, newFilename)));
+  if (newExists) {
     return res.status(409).json({ success: false, message: 'An image with this name already exists' });
   }
+  const newPath = path.join(path.dirname(oldPath), newFilename);
   fs.rename(oldPath, newPath, (err) => {
     if (err) {
-      console.error('Error renaming floor plan:', err);
+      console.error('Error renaming layout:', err);
       return res.status(500).json({ success: false, message: 'Error renaming file' });
     }
     try {
-      const order = readFloorplanOrder(paths.floorplanOrderPath);
+      const order = readFloorplanOrder(paths.layoutOrderPath, paths.floorplanOrderPath);
       const newOrder = order.map(f => f === oldFilename ? newFilename : f);
-      writeFloorplanOrder(paths.floorplanOrderPath, newOrder);
+      writeFloorplanOrder(paths.layoutOrderPath, newOrder);
     } catch (e) {}
     try {
       renameAuditLog(paths, 'floorplan', oldFilename, newFilename);
-      appendAuditEntry(paths, 'floorplan', newFilename, {
-        action: 'rename',
-        message: `Floor plan renamed from "${oldFilename}" to "${newFilename}".`,
-      });
+      appendAuditEntry(
+        paths,
+        'floorplan',
+        newFilename,
+        {
+          action: 'rename',
+          message: `Layout renamed from "${oldFilename}" to "${newFilename}".`,
+        },
+        { userId: req.session.userId }
+      );
     } catch (e) {}
-    return res.json({ success: true, message: 'Floor plan renamed successfully', oldFilename, newFilename });
+    return res.json({ success: true, message: 'Layout renamed successfully', oldFilename, newFilename });
   });
-});
+}
 
-// Delete a floor plan image.
-app.delete('/api/floorplans/:filename', (req, res) => {
+app.put('/api/floorplans/rename', requireApiAuth, handleLayoutRename);
+app.put('/api/layouts/rename', requireApiAuth, handleLayoutRename);
+
+app.delete('/api/floorplans/:filename', requireApiAuth, (req, res) => {
   res.status(403).json({ success: false, message: 'Floor plan deletion is disabled.' });
 });
 
-app.get('/api/floorplans', async (req, res) => {
-  const paths = resolvePaths(req);
+app.delete('/api/layouts/:filename', requireApiAuth, (req, res) => {
+  res.status(403).json({ success: false, message: 'Layout deletion is disabled.' });
+});
+
+async function handleLayoutsList(req, res) {
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
   try {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -1357,31 +1681,40 @@ app.get('/api/floorplans', async (req, res) => {
     const files = await getOrderedFloorplanFilenames(paths);
     res.json(files);
   } catch (e) {
-    res.status(500).json({ error: 'Unable to list floor plans' });
+    res.status(500).json({ error: 'Unable to list layouts' });
   }
-});
+}
 
-app.put('/api/floorplans/order', (req, res) => {
-  const paths = resolvePaths(req);
+app.get('/api/floorplans', handleLayoutsList);
+app.get('/api/layouts', handleLayoutsList);
+
+async function handleLayoutsOrder(req, res) {
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
   const body = req.body;
   if (!body || !Array.isArray(body.order)) return res.status(400).json({ error: 'Invalid payload' });
   const ok = body.order.every(f => typeof f === 'string' && f.length > 0 && !f.includes('..') && !/[\\\/]/.test(f));
   if (!ok) return res.status(400).json({ error: 'Invalid filenames in order' });
   try {
-    const dir = path.dirname(paths.floorplanOrderPath);
+    const dir = path.dirname(paths.layoutOrderPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    writeFloorplanOrder(paths.floorplanOrderPath, body.order);
+    writeFloorplanOrder(paths.layoutOrderPath, body.order);
     res.json({ success: true });
-    try { io.to(`project:${paths.projectId}`).emit('floorplans:order', { order: body.order }); } catch (e) { console.error('Socket emit error:', e); }
+    try {
+      io.to(`project:${paths.projectId}`).emit('floorplans:order', { order: body.order });
+      io.to(`project:${paths.projectId}`).emit('layouts:order', { order: body.order });
+    } catch (e) { console.error('Socket emit error:', e); }
   } catch (e) {
     console.error('Error writing floorplan order:', e);
     res.status(500).json({ error: 'Unable to save order' });
   }
-});
+}
 
-app.get('/upload', (req, res) => {
-  const paths = resolvePaths(req);
+app.put('/api/floorplans/order', requireApiAuth, handleLayoutsOrder);
+app.put('/api/layouts/order', requireApiAuth, handleLayoutsOrder);
+
+app.get('/upload', async (req, res) => {
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
   fs.readdir(paths.uploadsDir, (err, files) => {
     if (err) return res.status(500).json({ error: 'Unable to read directory' });
@@ -1391,10 +1724,17 @@ app.get('/upload', (req, res) => {
 });
 
 app.get('/api/panos', async (req, res) => {
-  const paths = resolvePaths(req);
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
+  console.log(`[DEBUG] /api/panos: Fetching panoramas for project_id: '${paths.projectId}'`);
   try {
-    const files = await getOrderedFilenames(paths);
+    const resultRes = await db.query(
+      'SELECT filename FROM panoramas WHERE project_id = $1 AND is_active = true ORDER BY rank ASC', 
+      [paths.projectId]
+    );
+    console.log(`[DEBUG] /api/panos: DB query returned ${resultRes.rows.length} rows.`);
+    const files = resultRes.rows.map(r => r.filename);
+
     const result = [];
     for (const filename of files) {
       let meta = await readTilesMeta({ tilesRootDir: paths.tilesDir, filename });
@@ -1413,20 +1753,18 @@ app.get('/api/panos', async (req, res) => {
   }
 });
 
-// Persist panorama order. Body: { order: [filenames...] }
-app.put('/api/panos/order', (req, res) => {
-  const paths = resolvePaths(req);
+app.put('/api/panos/order', requireApiAuth, async (req, res) => {
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
   const body = req.body;
   if (!body || !Array.isArray(body.order)) return res.status(400).json({ error: 'Invalid payload' });
-  // Validate filenames are strings
   const ok = body.order.every(f => typeof f === 'string' && f.length > 0 && !f.includes('..') && !/[\\\/]/.test(f));
   if (!ok) return res.status(400).json({ error: 'Invalid filenames in order' });
   try {
-    
-    const dir = path.dirname(paths.panoramaOrderPath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    writePanoramaOrder(paths.panoramaOrderPath, body.order);
+    for (let i = 0; i < body.order.length; i++) {
+      const filename = body.order[i];
+      await db.query('UPDATE panoramas SET rank = $1 WHERE project_id = $2 AND filename = $3', [i, paths.projectId, filename]);
+    }
     res.json({ success: true });
     try { io.to(`project:${paths.projectId}`).emit('panos:order', { order: body.order }); } catch (e) { console.error('Socket emit error:', e); }
   } catch (e) {
@@ -1441,7 +1779,7 @@ app.get('/api/panos/:filename', async (req, res) => {
   if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
     return res.status(400).json({ error: 'Invalid filename' });
   }
-  const paths = resolvePaths(req);
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
   try {
     const meta = await ensureTilesForFilename(paths, filename);
@@ -1451,7 +1789,7 @@ app.get('/api/panos/:filename', async (req, res) => {
   }
 });
 
-app.put('/upload/rename', (req, res) => {
+app.put('/upload/rename', requireApiAuth, async (req, res) => {
   const { oldFilename, newFilename } = req.body;
 
   if (!oldFilename || !newFilename) {
@@ -1469,13 +1807,17 @@ app.put('/upload/rename', (req, res) => {
     });
   }
 
-  const paths = resolvePaths(req);
+  const paths = await resolvePaths(req);
   if (!paths) {
     return res.status(400).json({
       success: false,
       message: 'Project required'
     });
   }
+
+  const checkRes = await db.query('SELECT id FROM panoramas WHERE project_id = $1 AND filename = $2', [paths.projectId, oldFilename]);
+  if (checkRes.rows.length === 0) return res.status(404).json({ success: false, message: 'Panorama not found in database' });
+
   const oldFilePath = path.join(paths.uploadsDir, oldFilename);
   const newFilePath = path.join(paths.uploadsDir, newFilename);
 
@@ -1493,13 +1835,16 @@ app.put('/upload/rename', (req, res) => {
     });
   }
 
-  fs.rename(oldFilePath, newFilePath, (err) => {
+  fs.rename(oldFilePath, newFilePath, async (err) => {
     if (err) {
       return res.status(500).json({
         success: false,
         message: 'Error renaming file'
       });
     }
+
+    await db.query('UPDATE panoramas SET filename = $1 WHERE project_id = $2 AND filename = $3', [newFilename, paths.projectId, oldFilename]);
+
     const oldTileId = tileIdFromFilename(oldFilename);
     const newTileId = tileIdFromFilename(newFilename);
     const oldTilesPath = path.join(paths.tilesDir, oldTileId);
@@ -1519,17 +1864,18 @@ app.put('/upload/rename', (req, res) => {
       }
     }
 
-    panoramaOrderReplace(paths, oldFilename, newFilename);
-    const blurRename = renameBlurMasksForPano(paths, oldFilename, newFilename);
-    if (blurRename.changed) {
-      try { io.to(`project:${paths.projectId}`).emit('blur-masks:changed', blurRename.blurMasks); } catch (e) { console.error('Socket emit error:', e); }
-    }
     try {
       renameAuditLog(paths, 'pano', oldFilename, newFilename);
-      appendAuditEntry(paths, 'pano', newFilename, {
-        action: 'rename',
-        message: `Panorama renamed from "${oldFilename}" to "${newFilename}".`,
-      });
+      appendAuditEntry(
+        paths,
+        'pano',
+        newFilename,
+        {
+          action: 'rename',
+          message: `Panorama renamed from "${oldFilename}" to "${newFilename}".`,
+        },
+        { userId: req.session.userId }
+      );
     } catch (e) {}
     try { io.to(`project:${paths.projectId}`).emit('pano:renamed', { oldFilename, newFilename }); } catch (e) { console.error('Socket emit error:', e); }
     res.json({
@@ -1541,7 +1887,7 @@ app.put('/upload/rename', (req, res) => {
   });
 });
 
-app.put('/upload/update', upload.single('panorama'), (req, res) => {
+app.put('/upload/update', requireApiAuth, upload.single('panorama'), async (req, res) => {
   const oldFilename = req.body.oldFilename;
   if (!oldFilename) {
     return res.status(400).json({ success: false, message: 'Old filename is required' });
@@ -1552,10 +1898,14 @@ app.put('/upload/update', upload.single('panorama'), (req, res) => {
   if (oldFilename.includes('..') || oldFilename.includes('/') || oldFilename.includes('\\')) {
     return res.status(400).json({ success: false, message: 'Invalid filename' });
   }
-  const paths = resolvePaths(req);
+  const paths = await resolvePaths(req);
   if (!paths) {
     return res.status(400).json({ success: false, message: 'Project required' });
   }
+
+  const checkRes = await db.query('SELECT id FROM panoramas WHERE project_id = $1 AND filename = $2', [paths.projectId, oldFilename]);
+  if (checkRes.rows.length === 0) return res.status(404).json({ success: false, message: 'Panorama not found in database' });
+
   const oldFilePath = path.join(paths.uploadsDir, oldFilename);
   if (!fs.existsSync(oldFilePath)) {
     return res.status(404).json({ success: false, message: 'Old file not found' });
@@ -1589,28 +1939,32 @@ app.put('/upload/update', upload.single('panorama'), (req, res) => {
           job.percent = Math.min(100, Math.max(0, Math.round(frac * 100)));
         }
       });
-      panoramaOrderReplace(paths, oldFilename, newFilename);
-      const blurRename = renameBlurMasksForPano(paths, oldFilename, newFilename);
-      if (blurRename.changed) {
-        try { io.to(`project:${paths.projectId}`).emit('blur-masks:changed', blurRename.blurMasks); } catch (e) { console.error('Socket emit error:', e); }
-      }
+
+      await db.query('UPDATE panoramas SET filename = $1 WHERE project_id = $2 AND filename = $3', [newFilename, paths.projectId, oldFilename]);
+
       try {
         renameAuditLog(paths, 'pano', oldFilename, newFilename);
-        appendAuditEntry(paths, 'pano', newFilename, {
-          action: 'update',
-          message: `Panorama updated (replaced "${oldFilename}" with "${newFilename}").`,
-          ...(archivedImage
-            ? {
-                meta: {
-                  archivedImage: {
-                    kind: 'pano',
-                    originalFilename: archivedImage.originalFilename,
-                    storedFilename: archivedImage.storedFilename,
+        appendAuditEntry(
+          paths,
+          'pano',
+          newFilename,
+          {
+            action: 'update',
+            message: `Panorama updated (replaced "${oldFilename}" with "${newFilename}").`,
+            ...(archivedImage
+              ? {
+                  meta: {
+                    archivedImage: {
+                      kind: 'pano',
+                      originalFilename: archivedImage.originalFilename,
+                      storedFilename: archivedImage.storedFilename,
+                    },
                   },
-                },
-              }
-            : {}),
-        });
+                }
+              : {}),
+          },
+          { userId: req.session.userId }
+        );
       } catch (e) {}
       job.percent = 100;
       job.status = 'done';
@@ -1626,229 +1980,484 @@ app.put('/upload/update', upload.single('panorama'), (req, res) => {
   })();
 });
 
-app.get('/api/hotspots', (req, res) => {
-  const paths = resolvePaths(req);
+app.get('/api/hotspots', async (req, res) => {
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  fs.readFile(paths.hotspotsPath, 'utf8', (err, data) => {
-    if (err) {
-      if (err.code === 'ENOENT') return res.json({});
-      return res.status(500).json({ error: 'Unable to read hotspots' });
-    }
-    try {
-      const obj = JSON.parse(data);
-      res.json(typeof obj === 'object' && obj !== null ? obj : {});
-    } catch (e) {
-      res.json({});
-    }
-  });
-});
-
-app.get('/api/blur-masks', (req, res) => {
-  const paths = resolvePaths(req);
-  if (!paths) return res.status(400).json({ error: 'Project required' });
-  fs.readFile(paths.blurMasksPath, 'utf8', (err, data) => {
-    if (err) {
-      if (err.code === 'ENOENT') return res.json({});
-      return res.status(500).json({ error: 'Unable to read blur masks' });
-    }
-    try {
-      const obj = JSON.parse(data);
-      res.json(typeof obj === 'object' && obj !== null ? obj : {});
-    } catch (e) {
-      res.json({});
-    }
-  });
-});
-
-// Floor plan hotspots: same shape as pano hotspots but keyed by floor plan filename.
-app.get('/api/floorplan-hotspots', (req, res) => {
-  const paths = resolvePaths(req);
-  if (!paths) return res.status(400).json({ error: 'Project required' });
-  fs.readFile(paths.floorplanHotspotsPath, 'utf8', (err, data) => {
-    if (err) {
-      if (err.code === 'ENOENT') return res.json({});
-      return res.status(500).json({ error: 'Unable to read floor plan hotspots' });
-    }
-    try {
-      const obj = JSON.parse(data);
-      res.json(typeof obj === 'object' && obj !== null ? obj : {});
-    } catch (e) {
-      res.json({});
-    }
-  });
-});
-
-app.post('/api/floorplan-hotspots', (req, res) => {
-  const body = req.body;
-  if (typeof body !== 'object' || body === null) {
-    return res.status(400).json({ error: 'Invalid payload' });
-  }
-  const paths = resolvePaths(req);
-  if (!paths) return res.status(400).json({ error: 'Project required' });
-  const beforeRaw = readJsonFileOrDefault(paths.floorplanHotspotsPath, {});
-  const before = normalizeTopLevelArrayMap(beforeRaw);
-  const normalizedBody = normalizeTopLevelArrayMap(body);
-  const changed = diffChangedTopLevelKeys(before, normalizedBody);
-  const json = JSON.stringify(normalizedBody, null, 2);
-  const dir = path.dirname(paths.floorplanHotspotsPath);
-  fs.mkdir(dir, { recursive: true }, (mkErr) => {
-    if (mkErr) return res.status(500).json({ error: 'Unable to prepare storage for floor plan hotspots' });
-    fs.writeFile(paths.floorplanHotspotsPath, json, 'utf8', (err) => {
-      if (err) return res.status(500).json({ error: 'Unable to save floor plan hotspots' });
-      res.json({ success: true, unchanged: changed.length === 0 });
-      if (changed.length === 0) return;
-      try { io.to(`project:${paths.projectId}`).emit('floorplan-hotspots:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
-      try {
-        changed.forEach((filename) => {
-          const fp = path.join(paths.floorplansDir, filename);
-          if (!fs.existsSync(fp)) return;
-          const beforeCount = getArrayCountByKey(before, filename);
-          const afterCount = getArrayCountByKey(normalizedBody, filename);
-          const message = buildCollectionChangeMessage('Floor plan hotspot', 'floor plan hotspots', beforeCount, afterCount);
-          appendAuditEntry(
-            paths,
-            'floorplan',
-            filename,
-            { action: 'hotspots', message },
-            { dedupeWindowMs: 5000 }
-          );
-        });
-      } catch (e) {}
+  try {
+    const result = await db.query(
+      `SELECT
+         hs.id,
+         src.filename AS source_filename,
+         hs.yaw,
+         hs.pitch,
+         hs.rotation,
+         tgt.filename AS target_filename
+       FROM hotspots hs
+       JOIN panoramas src ON src.id = hs.source_pano_id
+       LEFT JOIN panoramas tgt ON tgt.id = hs.target_pano_id
+       WHERE src.project_id = $1
+       ORDER BY src.filename ASC, hs.id ASC`,
+      [paths.projectId]
+    );
+    const out = {};
+    result.rows.forEach((row) => {
+      const source = row.source_filename;
+      if (!source) return;
+      if (!out[source]) out[source] = [];
+      out[source].push({
+        id: row.id,
+        yaw: row.yaw,
+        pitch: row.pitch,
+        linkTo: row.target_filename || undefined,
+      });
     });
-  });
+    res.json(out);
+  } catch (err) {
+    console.error('Error getting hotspots:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
-app.post('/api/blur-masks', (req, res) => {
-  const body = req.body;
-  if (typeof body !== 'object' || body === null) {
-    return res.status(400).json({ error: 'Invalid payload' });
-  }
-  const paths = resolvePaths(req);
+app.get('/api/blur-masks', async (req, res) => {
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  const beforeRaw = readJsonFileOrDefault(paths.blurMasksPath, {});
-  const before = normalizeTopLevelArrayMap(beforeRaw);
-  const normalizedBody = normalizeTopLevelArrayMap(body);
-  const changed = diffChangedTopLevelKeys(before, normalizedBody);
-  const json = JSON.stringify(normalizedBody, null, 2);
-  const dir = path.dirname(paths.blurMasksPath);
-  fs.mkdir(dir, { recursive: true }, (mkErr) => {
-    if (mkErr) return res.status(500).json({ error: 'Unable to prepare storage for blur masks' });
-    fs.writeFile(paths.blurMasksPath, json, 'utf8', (err) => {
-      if (err) return res.status(500).json({ error: 'Unable to save blur masks' });
-      res.json({ success: true, unchanged: changed.length === 0 });
-      if (changed.length === 0) return;
-      try { io.to(`project:${paths.projectId}`).emit('blur-masks:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
-      try {
-        changed.forEach((filename) => {
-          const img = path.join(paths.uploadsDir, filename);
-          if (!fs.existsSync(img)) return;
-          const beforeCount = getArrayCountByKey(before, filename);
-          const afterCount = getArrayCountByKey(normalizedBody, filename);
-          const message = buildCollectionChangeMessage('Blur mask', 'blur masks', beforeCount, afterCount);
-          appendAuditEntry(
-            paths,
-            'pano',
-            filename,
-            { action: 'blur', message },
-            { dedupeWindowMs: 15000 }
-          );
-        });
-      } catch (e) {}
+  try {
+    const result = await db.query('SELECT filename, blur_mask FROM panoramas WHERE project_id = $1', [paths.projectId]);
+    const out = {};
+    result.rows.forEach(r => {
+      out[r.filename] = r.blur_mask || [];
     });
-  });
+    res.json(out);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
-app.post('/api/hotspots', (req, res) => {
+async function handleLayoutHotspotsGet(req, res) {
+  const paths = await resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
+  try {
+    const result = await db.query(
+      `SELECT
+         lh.id,
+         l.filename AS layout_filename,
+         lh.x_coord,
+         lh.y_coord,
+         p.filename AS target_filename
+       FROM layout_hotspots lh
+       JOIN layouts l ON l.id = lh.layout_id
+       LEFT JOIN panoramas p ON p.id = lh.target_pano_id
+       WHERE l.project_id = $1
+       ORDER BY l.filename ASC, lh.id ASC`,
+      [paths.projectId]
+    );
+    const out = {};
+    result.rows.forEach((row) => {
+      const layoutFilename = row.layout_filename;
+      if (!layoutFilename) return;
+      if (!out[layoutFilename]) out[layoutFilename] = [];
+      out[layoutFilename].push({
+        id: row.id,
+        x: row.x_coord,
+        y: row.y_coord,
+        linkTo: row.target_filename || undefined,
+      });
+    });
+    res.json(out);
+  } catch (e) {
+    console.error('Error getting layout hotspots:', e);
+    res.status(500).json({ error: 'Database error' });
+  }
+}
+
+async function handleLayoutHotspotsPost(req, res) {
   const body = req.body;
   if (typeof body !== 'object' || body === null) {
     return res.status(400).json({ error: 'Invalid payload' });
   }
-  const paths = resolvePaths(req);
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  const beforeRaw = readJsonFileOrDefault(paths.hotspotsPath, {});
-  const before = normalizeTopLevelArrayMap(beforeRaw);
   const normalizedBody = normalizeTopLevelArrayMap(body);
-  const changed = diffChangedTopLevelKeys(before, normalizedBody);
-  const json = JSON.stringify(normalizedBody, null, 2);
-  fs.writeFile(paths.hotspotsPath, json, 'utf8', (err) => {
-    if (err) return res.status(500).json({ error: 'Unable to save hotspots' });
+
+  const stripIds = (obj) => {
+    const out = {};
+    Object.entries(obj || {}).forEach(([key, list]) => {
+      if (!Array.isArray(list)) return;
+      out[key] = list.map((h) => ({
+        x: Number(h.x),
+        y: Number(h.y),
+        linkTo: h.linkTo || undefined,
+      }));
+    });
+    return out;
+  };
+
+  // Current DB state for audit comparison (ignore ids)
+  const beforeStripped = {};
+  try {
+    const resDb = await db.query(
+      `SELECT
+         l.filename AS layout_filename,
+         lh.x_coord,
+         lh.y_coord,
+         p.filename AS target_filename
+       FROM layout_hotspots lh
+       JOIN layouts l ON l.id = lh.layout_id
+       LEFT JOIN panoramas p ON p.id = lh.target_pano_id
+       WHERE l.project_id = $1
+       ORDER BY l.filename ASC, lh.id ASC`,
+      [paths.projectId]
+    );
+    resDb.rows.forEach((row) => {
+      const layoutFilename = row.layout_filename;
+      if (!layoutFilename) return;
+      if (!beforeStripped[layoutFilename]) beforeStripped[layoutFilename] = [];
+      beforeStripped[layoutFilename].push({
+        x: row.x_coord,
+        y: row.y_coord,
+        linkTo: row.target_filename || undefined,
+      });
+    });
+  } catch (e) {}
+
+  const strippedBody = stripIds(normalizedBody);
+  const changed = diffChangedTopLevelKeys(beforeStripped, strippedBody);
+
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+
+    const panoRes = await client.query(
+      'SELECT id, filename FROM panoramas WHERE project_id = $1',
+      [paths.projectId]
+    );
+    const panoIdByFilename = new Map(panoRes.rows.map((r) => [r.filename, r.id]));
+
+    const layoutRes = await client.query(
+      'SELECT id, filename, rank FROM layouts WHERE project_id = $1',
+      [paths.projectId]
+    );
+    const layoutIdByFilename = new Map(layoutRes.rows.map((r) => [r.filename, r.id]));
+
+    const missingLayouts = Object.keys(strippedBody).filter((name) => name && !layoutIdByFilename.has(name));
+    if (missingLayouts.length > 0) {
+      const rankRes = await client.query(
+        'SELECT COALESCE(MAX(rank), -1)::int as maxr FROM layouts WHERE project_id = $1',
+        [paths.projectId]
+      );
+      let rank = Number(rankRes.rows[0]?.maxr ?? -1) + 1;
+      for (const filename of missingLayouts) {
+        await client.query(
+          `INSERT INTO layouts (project_id, filename, rank)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (project_id, filename) DO NOTHING`,
+          [paths.projectId, filename, rank++]
+        );
+      }
+      const refreshed = await client.query('SELECT id, filename FROM layouts WHERE project_id = $1', [paths.projectId]);
+      refreshed.rows.forEach((r) => layoutIdByFilename.set(r.filename, r.id));
+    }
+
+    await client.query(
+      `DELETE FROM layout_hotspots
+       WHERE layout_id IN (SELECT id FROM layouts WHERE project_id = $1)`,
+      [paths.projectId]
+    );
+
+    for (const [layoutFilename, list] of Object.entries(strippedBody)) {
+      const layoutId = layoutIdByFilename.get(layoutFilename);
+      if (!layoutId || !Array.isArray(list)) continue;
+      for (const h of list) {
+        const targetId = h.linkTo ? panoIdByFilename.get(h.linkTo) : null;
+        await client.query(
+          'INSERT INTO layout_hotspots (layout_id, target_pano_id, x_coord, y_coord) VALUES ($1, $2, $3, $4)',
+          [layoutId, targetId || null, Number(h.x), Number(h.y)]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    try {
+      const json = JSON.stringify(normalizedBody, null, 2);
+      const dir = path.dirname(paths.layoutHotspotsPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      await fs.promises.writeFile(paths.layoutHotspotsPath, json, 'utf8');
+    } catch (e) {}
+
     res.json({ success: true, unchanged: changed.length === 0 });
     if (changed.length === 0) return;
-    try { io.to(`project:${paths.projectId}`).emit('hotspots:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
+
+    try {
+      io.to(`project:${paths.projectId}`).emit('floorplan-hotspots:changed', normalizedBody);
+      io.to(`project:${paths.projectId}`).emit('layout-hotspots:changed', normalizedBody);
+    } catch (e) { console.error('Socket emit error:', e); }
+
+    try {
+      changed.forEach((filename) => {
+        const fp = resolveFloorplanImagePath(paths, filename);
+        if (!fp || !fs.existsSync(fp)) return;
+        const beforeCount = getArrayCountByKey(beforeStripped, filename);
+        const afterCount = getArrayCountByKey(strippedBody, filename);
+        const message = buildCollectionChangeMessage('Layout hotspot', 'layout hotspots', beforeCount, afterCount);
+        appendAuditEntry(
+          paths,
+          'floorplan',
+          filename,
+          { action: 'hotspots', message },
+          { dedupeWindowMs: 5000, userId: req.session.userId }
+        );
+      });
+    } catch (e) {}
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (e) {}
+    console.error('Error saving layout hotspots:', err);
+    res.status(500).json({ error: 'Database error' });
+  } finally {
+    try { client.release(); } catch (e) {}
+  }
+}
+
+app.get('/api/floorplan-hotspots', handleLayoutHotspotsGet);
+app.get('/api/layout-hotspots', handleLayoutHotspotsGet);
+app.post('/api/floorplan-hotspots', requireApiAuth, handleLayoutHotspotsPost);
+app.post('/api/layout-hotspots', requireApiAuth, handleLayoutHotspotsPost);
+
+app.post('/api/blur-masks', requireApiAuth, async (req, res) => {
+  const body = req.body;
+  if (typeof body !== 'object' || body === null) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+  const paths = await resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
+  
+  let before = {};
+  try {
+    const currentRes = await db.query('SELECT filename, blur_mask FROM panoramas WHERE project_id = $1', [paths.projectId]);
+    currentRes.rows.forEach(r => before[r.filename] = r.blur_mask || []);
+  } catch(e) {}
+
+  const normalizedBody = normalizeTopLevelArrayMap(body);
+  const changed = diffChangedTopLevelKeys(before, normalizedBody);
+
+  try {
+    for (const filename of Object.keys(normalizedBody)) {
+      const maskData = JSON.stringify(normalizedBody[filename]);
+      await db.query('UPDATE panoramas SET blur_mask = $1 WHERE project_id = $2 AND filename = $3', 
+        [maskData, paths.projectId, filename]);
+    }
+
+    res.json({ success: true, unchanged: changed.length === 0 });
+
+    if (changed.length === 0) return;
+    try { io.to(`project:${paths.projectId}`).emit('blur-masks:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
     try {
       changed.forEach((filename) => {
         const img = path.join(paths.uploadsDir, filename);
         if (!fs.existsSync(img)) return;
         const beforeCount = getArrayCountByKey(before, filename);
         const afterCount = getArrayCountByKey(normalizedBody, filename);
+        const message = buildCollectionChangeMessage('Blur mask', 'blur masks', beforeCount, afterCount);
+        appendAuditEntry(
+          paths,
+          'pano',
+          filename,
+          { action: 'blur', message },
+          { dedupeWindowMs: 15000, userId: req.session.userId }
+        );
+      });
+    } catch (e) {}
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.post('/api/hotspots', requireApiAuth, async (req, res) => {
+  const body = req.body;
+  if (typeof body !== 'object' || body === null) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+  const paths = await resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
+
+  const normalizedBody = normalizeTopLevelArrayMap(body);
+
+  const stripIds = (obj) => {
+    const out = {};
+    Object.entries(obj || {}).forEach(([key, list]) => {
+      if (!Array.isArray(list)) return;
+      out[key] = list.map((h) => ({
+        yaw: Number(h.yaw),
+        pitch: Number(h.pitch),
+        linkTo: h.linkTo || undefined,
+      }));
+    });
+    return out;
+  };
+
+  // Current DB state for audit comparison (ignore ids)
+  const beforeStripped = {};
+  try {
+    const resDb = await db.query(
+      `SELECT
+         src.filename AS source_filename,
+         hs.yaw,
+         hs.pitch,
+         tgt.filename AS target_filename
+       FROM hotspots hs
+       JOIN panoramas src ON src.id = hs.source_pano_id
+       LEFT JOIN panoramas tgt ON tgt.id = hs.target_pano_id
+       WHERE src.project_id = $1
+       ORDER BY src.filename ASC, hs.id ASC`,
+      [paths.projectId]
+    );
+    resDb.rows.forEach((row) => {
+      const source = row.source_filename;
+      if (!source) return;
+      if (!beforeStripped[source]) beforeStripped[source] = [];
+      beforeStripped[source].push({
+        yaw: row.yaw,
+        pitch: row.pitch,
+        linkTo: row.target_filename || undefined,
+      });
+    });
+  } catch (e) {}
+
+  const strippedBody = stripIds(normalizedBody);
+  const changed = diffChangedTopLevelKeys(beforeStripped, strippedBody);
+
+  // Persist (DB is canonical; file is legacy/backup)
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+
+    const panoRes = await client.query(
+      'SELECT id, filename FROM panoramas WHERE project_id = $1',
+      [paths.projectId]
+    );
+    const panoIdByFilename = new Map(panoRes.rows.map((r) => [r.filename, r.id]));
+
+    await client.query(
+      `DELETE FROM hotspots
+       WHERE source_pano_id IN (SELECT id FROM panoramas WHERE project_id = $1)`,
+      [paths.projectId]
+    );
+
+    for (const [sourceFilename, list] of Object.entries(strippedBody)) {
+      const sourceId = panoIdByFilename.get(sourceFilename);
+      if (!sourceId || !Array.isArray(list)) continue;
+      for (const h of list) {
+        const targetId = h.linkTo ? panoIdByFilename.get(h.linkTo) : null;
+        await client.query(
+          'INSERT INTO hotspots (source_pano_id, target_pano_id, yaw, pitch, rotation) VALUES ($1, $2, $3, $4, $5)',
+          [sourceId, targetId || null, Number(h.yaw), Number(h.pitch), 0]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    try {
+      const json = JSON.stringify(normalizedBody, null, 2);
+      await fs.promises.writeFile(paths.hotspotsPath, json, 'utf8');
+    } catch (e) {}
+
+    res.json({ success: true, unchanged: changed.length === 0 });
+    if (changed.length === 0) return;
+
+    try { io.to(`project:${paths.projectId}`).emit('hotspots:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
+
+    try {
+      changed.forEach((filename) => {
+        const img = path.join(paths.uploadsDir, filename);
+        if (!fs.existsSync(img)) return;
+        const beforeCount = getArrayCountByKey(beforeStripped, filename);
+        const afterCount = getArrayCountByKey(strippedBody, filename);
         const message = buildCollectionChangeMessage('Hotspot', 'hotspots', beforeCount, afterCount);
         appendAuditEntry(
           paths,
           'pano',
           filename,
           { action: 'hotspots', message },
-          { dedupeWindowMs: 5000 }
+          { dedupeWindowMs: 5000, userId: req.session.userId }
         );
       });
     } catch (e) {}
-  });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (rollbackErr) {}
+    console.error('Error saving hotspots:', err);
+    res.status(500).json({ error: 'Database error' });
+  } finally {
+    try { client.release(); } catch (e) {}
+  }
 });
 
-// Per-image initial view parameters (yaw, pitch, fov) for each panorama
-app.get('/api/initial-views', (req, res) => {
-  const paths = resolvePaths(req);
+app.get('/api/initial-views', async (req, res) => {
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  fs.readFile(paths.initialViewsPath, 'utf8', (err, data) => {
-    if (err) {
-      if (err.code === 'ENOENT') return res.json({});
-      return res.status(500).json({ error: 'Unable to read initial views' });
-    }
-    try {
-      const obj = JSON.parse(data);
-      res.json(typeof obj === 'object' && obj !== null ? obj : {});
-    } catch (e) {
-      res.json({});
-    }
-  });
+  try {
+    const result = await db.query('SELECT filename, initial_view FROM panoramas WHERE project_id = $1', [paths.projectId]);
+    const out = {};
+    result.rows.forEach(r => {
+      out[r.filename] = r.initial_view || {};
+    });
+    res.json(out);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
-app.post('/api/initial-views', (req, res) => {
+app.post('/api/initial-views', requireApiAuth, async (req, res) => {
   const body = req.body;
   if (typeof body !== 'object' || body === null) {
     return res.status(400).json({ error: 'Invalid payload' });
   }
-  const paths = resolvePaths(req);
+  const paths = await resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  const before = readJsonFileOrDefault(paths.initialViewsPath, {});
+  
+  let before = {};
+  try {
+    const currentRes = await db.query('SELECT filename, initial_view FROM panoramas WHERE project_id = $1', [paths.projectId]);
+    currentRes.rows.forEach(r => before[r.filename] = r.initial_view || {});
+  } catch(e) {}
+
   const changed = diffChangedTopLevelKeys(before, body);
-  const json = JSON.stringify(body, null, 2);
-  const dir = path.dirname(paths.initialViewsPath);
-  fs.mkdir(dir, { recursive: true }, (mkErr) => {
-    if (mkErr) return res.status(500).json({ error: 'Unable to prepare storage for initial views' });
-    fs.writeFile(paths.initialViewsPath, json, 'utf8', (err) => {
-      if (err) return res.status(500).json({ error: 'Unable to save initial views' });
-      res.json({ success: true });
-      try { io.to(`project:${paths.projectId}`).emit('initial-views:changed', body); } catch (e) { console.error('Socket emit error:', e); }
-      try {
-        changed.forEach((filename) => {
-          const img = path.join(paths.uploadsDir, filename);
-          if (!fs.existsSync(img)) return;
-          appendAuditEntry(
-            paths,
-            'pano',
-            filename,
-            { action: 'initial-view', message: 'Initial view saved.' },
-            { dedupeWindowMs: 3000 }
-          );
-        });
-      } catch (e) {}
-    });
-  });
+
+  try {
+    for (const filename of Object.keys(body)) {
+      const viewData = JSON.stringify(body[filename]);
+      await db.query('UPDATE panoramas SET initial_view = $1 WHERE project_id = $2 AND filename = $3', 
+        [viewData, paths.projectId, filename]);
+    }
+
+    res.json({ success: true });
+    try { io.to(`project:${paths.projectId}`).emit('initial-views:changed', body); } catch (e) { console.error('Socket emit error:', e); }
+    try {
+      changed.forEach((filename) => {
+        const img = path.join(paths.uploadsDir, filename);
+        if (!fs.existsSync(img)) return;
+        appendAuditEntry(
+          paths,
+          'pano',
+          filename,
+          { action: 'initial-view', message: 'Initial view saved.' },
+          { dedupeWindowMs: 3000, userId: req.session.userId }
+        );
+      });
+    } catch (e) {}
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
-app.delete('/upload/:filename', (req, res) => {
+app.delete('/upload/:filename', requireApiAuth, (req, res) => {
   res.status(403).json({ success: false, message: 'Panorama deletion is disabled.' });
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-console.log(`Server running at https://localhost:${PORT}`);});
+  console.log(`Server running at https://localhost:${PORT}`);
+});

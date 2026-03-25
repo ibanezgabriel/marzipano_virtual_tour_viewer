@@ -1,8 +1,9 @@
-import { appendProjectParams, getFloorplanBase, getProjectId } from '../project-context.js';
+import { appendProjectParams, getLayoutBase, getProjectId } from '../project-context.js';
 import { loadPanorama, registerOnSceneLoad, getSelectedImageName } from '../marzipano-viewer.js';
 
-const FLOORPLAN_HOTSPOTS_KEY = 'floorplan-hotspots';
-const LAST_FLOORPLAN_KEY_PREFIX = 'marzipano-last-floorplan-';
+const LAYOUT_HOTSPOTS_KEY = 'layout-hotspots';
+const LEGACY_FLOORPLAN_HOTSPOTS_KEY = 'floorplan-hotspots';
+const LAST_LAYOUT_KEY_PREFIX = 'marzipano-last-layout-';
 
 // filename -> Array<{ id, x, y, linkTo }>
 const floorplanHotspotsByFile = new Map();
@@ -192,7 +193,9 @@ function rerenderHotspotsForLayout() {
 
 function loadFloorplanHotspotsFromStorage() {
   try {
-    const raw = localStorage.getItem(FLOORPLAN_HOTSPOTS_KEY);
+    const raw =
+      localStorage.getItem(LAYOUT_HOTSPOTS_KEY) ||
+      localStorage.getItem(LEGACY_FLOORPLAN_HOTSPOTS_KEY);
     if (!raw) return;
     const obj = JSON.parse(raw);
     if (typeof obj !== 'object' || obj === null) return;
@@ -213,7 +216,7 @@ function loadFloorplanHotspotsFromStorage() {
     });
     if (maxId >= 0) nextFloorplanHotspotId = maxId + 1;
   } catch (e) {
-    console.warn('Could not load floorplan hotspots from localStorage', e);
+    console.warn('Could not load layout hotspots from localStorage', e);
   }
 }
 
@@ -240,12 +243,12 @@ function applyServerFloorplanHotspots(data) {
 
 async function loadFloorplanHotspotsFromServer() {
   try {
-    const res = await fetch(appendProjectParams('/api/floorplan-hotspots'), { cache: 'no-store' });
+    const res = await fetch(appendProjectParams('/api/layout-hotspots'), { cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
     applyServerFloorplanHotspots(data);
   } catch (e) {
-    console.warn('Could not load floorplan hotspots from server', e);
+    console.warn('Could not load layout hotspots from server', e);
   }
 }
 
@@ -256,7 +259,7 @@ function ensurePreviewElements() {
   previewContainer.className = 'floorplan-preview';
   previewContainer.innerHTML = `
     <div class="floorplan-image-wrap">
-      <img id="floorplan-preview-img" alt="Floor plan">
+      <img id="floorplan-preview-img" alt="Layout">
       <div class="floorplan-hotspot-layer" data-layer="rendered"></div>
     </div>
   `;
@@ -294,19 +297,19 @@ function ensureModalElements() {
       <div class="floorplan-modal-body">
         <div class="floorplan-image-wrap">
           <div class="floorplan-image-stage">
-            <img id="floorplan-modal-img" alt="Floor plan expanded">
+            <img id="floorplan-modal-img" alt="Layout expanded">
             <div class="floorplan-hotspot-layer" data-layer="expanded"></div>
           </div>
           <div class="floorplan-magnifier-lens" aria-hidden="true"></div>
         </div>
       </div>
       <div class="floorplan-modal-actions">
-        <div class="floorplan-magnifier-controls" aria-label="Floor plan magnifier controls">
+        <div class="floorplan-magnifier-controls" aria-label="Layout magnifier controls">
           <div id="floorplan-magnifier-levels" class="floorplan-magnifier-levels" role="group" aria-label="Magnification level">
             <button type="button" data-magnifier-level="2">2x</button>
             <button type="button" data-magnifier-level="2.5">2.5x</button>
           </div>
-          <button type="button" id="floorplan-magnifier-toggle" class="floorplan-magnifier-toggle" aria-label="Toggle floor plan magnifier" aria-pressed="false">
+          <button type="button" id="floorplan-magnifier-toggle" class="floorplan-magnifier-toggle" aria-label="Toggle layout magnifier" aria-pressed="false">
             <img src="assets/search.png" alt="" aria-hidden="true">
           </button>
         </div>
@@ -340,7 +343,7 @@ function ensureModalElements() {
         e.stopPropagation();
         return;
       }
-      // Clicking on empty floor plan area in client just ignores; hotspots handle their own clicks.
+      // Clicking on empty layout area in client just ignores; hotspots handle their own clicks.
       e.stopPropagation();
     });
     modalImg.addEventListener('load', () => {
@@ -433,7 +436,7 @@ function openModalFor(filename) {
   if (!filename) return;
   ensurePreviewElements();
   ensureModalElements();
-  const base = getFloorplanBase();
+  const base = getLayoutBase();
   const src = `${base}/${encodeURIComponent(filename)}`;
   if (modalImg) {
     modalImg.src = src;
@@ -458,7 +461,7 @@ function openModalFor(filename) {
 function showPreview(filename) {
   ensurePreviewElements();
   if (!previewImg) return;
-  const base = getFloorplanBase();
+  const base = getLayoutBase();
   previewImg.src = `${base}/${encodeURIComponent(filename)}`;
   setPreviewVisible(true);
   renderRenderedHotspots();
@@ -522,7 +525,7 @@ function saveLastFloorplan(filename) {
   const pid = getProjectId();
   if (pid) {
     try {
-      localStorage.setItem(LAST_FLOORPLAN_KEY_PREFIX + pid, filename);
+      localStorage.setItem(LAST_LAYOUT_KEY_PREFIX + pid, filename);
     } catch (e) {}
   }
 }
@@ -530,7 +533,7 @@ function saveLastFloorplan(filename) {
 async function loadFloorplans() {
   if (!floorList) return;
   try {
-    const res = await fetch(appendProjectParams('/api/floorplans'));
+    const res = await fetch(appendProjectParams('/api/layouts'));
     if (!res.ok) return;
     const files = await res.json();
     floorList.innerHTML = '';
@@ -555,7 +558,7 @@ async function loadFloorplans() {
     if (!files || files.length === 0) {
       selectedFloorplan = null;
       setPreviewVisible(false);
-      floorList.innerHTML = "<li class='active' style='text-align: center'>No floor plan uploaded</li>";
+      floorList.innerHTML = "<li class='active' style='text-align: center'>No layout uploaded</li>";
     }
   } catch (e) {
     console.error('Error loading client floorplans', e);
@@ -606,4 +609,17 @@ export function initFloorplansClient() {
     await loadFloorplanHotspotsFromServer();
     await loadFloorplans();
   })();
+}
+
+// Backward-compatible aliases for the "layouts" rename.
+export function initLayoutsClient() {
+  return initFloorplansClient();
+}
+
+export async function reloadLayoutHotspotsClient() {
+  return reloadFloorplanHotspotsClient();
+}
+
+export async function reloadLayoutsListClient() {
+  return reloadFloorplansListClient();
 }

@@ -81,8 +81,7 @@ async function handleDeleteMarked({ deleteSelectionBtnEl, actionPanelEl }) {
     return;
   }
 
-  const msg =
-    selectedNames.length === 1
+  const msg = selectedNames.length === 1
       ? `Are you sure you want to delete "${selectedNames[0]}"?`
       : `Are you sure you want to delete ${selectedNames.length} selected images?`;
   const confirmDelete = await showConfirm(msg, 'Delete');

@@ -427,17 +427,17 @@ export function initArchive() {
 
   function updateTargetLabel() {
     if (!currentFilename) {
-      targetEl.textContent = 'Select a panorama or floor plan to view its archive.';
+      targetEl.textContent = 'Select a panorama or layout to view its archive.';
       return;
     }
-    const label = currentKind === 'floorplan' ? 'Floor plan' : 'Panorama';
+    const label = currentKind === 'floorplan' ? 'Layout' : 'Panorama';
     targetEl.textContent = `${label}: ${currentFilename}`;
   }
 
   async function fetchArchive(kind, filename) {
     const endpoint =
       kind === 'floorplan'
-        ? `/api/archive/floorplans/${encodeURIComponent(filename)}`
+        ? `/api/archive/layouts/${encodeURIComponent(filename)}`
         : `/api/archive/panos/${encodeURIComponent(filename)}`;
     const res = await fetch(appendProjectParams(endpoint), { cache: 'no-store' });
     if (!res.ok) {
@@ -471,7 +471,7 @@ export function initArchive() {
         archiveLoadingScreen.hide();
         archiveViewerModal.open({
           kind,
-          title: `${kind === 'floorplan' ? 'Floor plan' : 'Panorama'}: ${openTitleName}`,
+          title: `${kind === 'floorplan' ? 'Layout' : 'Panorama'}: ${openTitleName}`,
           imageUrl: readyImageUrl,
         });
       } catch (error) {
@@ -601,7 +601,7 @@ export function initArchive() {
 
     updateTargetLabel();
     if (!currentFilename) {
-      renderEmpty('Select a panorama or floor plan to view its archive.');
+      renderEmpty('Select a panorama or layout to view its archive.');
       return;
     }
 

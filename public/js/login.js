@@ -1,33 +1,33 @@
 // Authentication and session management
-const AUTH_KEY = 'ipvt_auth_token';
 const REDIRECT_KEY = 'ipvt_redirect_url';
 
-// Simple authentication check (in production, this would validate against a server)
-function isAuthenticated() {
-    return localStorage.getItem(AUTH_KEY) === 'true';
-}
-
-function setAuthenticated(status) {
-    if (status) {
-        localStorage.setItem(AUTH_KEY, 'true');
-    } else {
-        localStorage.removeItem(AUTH_KEY);
-    }
-}
-
-// Check authentication on page load for all pages except login
-function checkAuthentication() {
+// Check authentication status from server
+async function checkAuthentication() {
     const currentPage = window.location.pathname.split('/').pop();
     
-  // Don't check authentication for login page itself or public client view
-  if (currentPage === 'login.html' || currentPage === 'project-viewer.html') {
+    // Public viewer is allowed without login
+    if (currentPage === 'project-viewer.html') {
         return;
     }
-    
-    if (!isAuthenticated()) {
-        // Store the intended destination before redirecting to login
-        localStorage.setItem(REDIRECT_KEY, window.location.href);
-        window.location.href = 'login.html';
+
+    // Check if we are on the login page (or root)
+    const isLoginPage = currentPage === 'login.html' || currentPage === 'index.html' || currentPage === '';
+
+    try {
+        const res = await fetch('/api/me');
+        const data = await res.json();
+        
+        if (data.loggedIn) {
+            if (isLoginPage) redirectToStoredPage();
+        } else {
+            if (!isLoginPage) {
+                localStorage.setItem(REDIRECT_KEY, window.location.href);
+                window.location.href = '/';
+            }
+        }
+    } catch (e) {
+        console.error('Auth check failed:', e);
+        if (!isLoginPage) window.location.href = '/';
     }
 }
 
@@ -37,37 +37,37 @@ document.addEventListener('DOMContentLoaded', function() {
     const errorElement = document.getElementById('login-error');
     
     if (loginForm) {
-        loginForm.addEventListener('submit', function(e) {
+        loginForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value.trim();
             
-            // Simple validation (in production, this would call an API)
             if (!username || !password) {
                 showError('Please enter both username and password');
                 return;
             }
             
-            // Simple demo authentication (replace with actual authentication)
-            if (username === 'admin' && password === 'password') {
-                handleSuccessfulLogin();
-            } else {
-                showError('Invalid credentials. please try again');
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    redirectToStoredPage();
+                } else {
+                    showError(data.message || 'Invalid credentials');
+                }
+            } catch (err) {
+                console.error(err);
+                showError('Server connection error');
             }
         });
     }
-    
-    // Check if user is already logged in and redirect if necessary
-    if (window.location.pathname.includes('login.html') && isAuthenticated()) {
-        redirectToStoredPage();
-    }
 });
-
-function handleSuccessfulLogin() {
-    setAuthenticated(true);
-    redirectToStoredPage();
-}
 
 function redirectToStoredPage() {
     const redirectUrl = localStorage.getItem(REDIRECT_KEY) || 'dashboard.html';
@@ -84,9 +84,13 @@ function showError(message) {
 }
 
 // Logout function (can be called from other pages)
-function logout() {
-    setAuthenticated(false);
-    window.location.href = 'login.html';
+async function logout() {
+    try {
+        await fetch('/api/logout', { method: 'POST' });
+    } catch (e) {
+        console.error(e);
+    }
+    window.location.href = '/';
 }
 
 // Simple modal confirm (reuses dialog.css styles)
@@ -212,8 +216,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Export functions for use in other scripts
 window.auth = {
-    isAuthenticated,
-    setAuthenticated,
     checkAuthentication,
     logout
 };

@@ -1,7 +1,7 @@
 import { initViewer, loadImages, setProjectName } from './marzipano-viewer.js';
 import { initHotspotsClient, reloadHotspots as reloadHotspotsClient } from './features/hotspots-client.js';
 import { initBlurMasksClient, reloadBlurMasksClient } from './features/blur-masks-client.js';
-import { initFloorplansClient, reloadFloorplanHotspotsClient, reloadFloorplansListClient } from './features/floorplans-client.js';
+import { initLayoutsClient, reloadLayoutHotspotsClient, reloadLayoutsListClient } from './features/floorplans-client.js';
 import { getProjectId } from './project-context.js';
 import { initMenuCollapsible } from './menu-collapsible.js';
 import { io } from '/socket.io/socket.io.esm.min.js';
@@ -34,7 +34,7 @@ if (!getProjectId()) {
       if (project && project.name) setProjectName(project.name);
     } catch {}
     loadImages();
-    initFloorplansClient();
+    initLayoutsClient();
   });
 
   // Realtime project name updates for client viewers
@@ -62,8 +62,10 @@ if (!getProjectId()) {
     socket.on('panos:order', () => loadImages());
     socket.on('hotspots:changed', () => { try { reloadHotspotsClient(); } catch (e) {} });
     socket.on('blur-masks:changed', () => { try { reloadBlurMasksClient(); } catch (e) {} });
-    socket.on('floorplan-hotspots:changed', () => { try { reloadFloorplanHotspotsClient(); } catch (e) {} });
-    socket.on('floorplans:order', () => { try { reloadFloorplansListClient(); } catch (e) {} });
+    socket.on('floorplan-hotspots:changed', () => { try { reloadLayoutHotspotsClient(); } catch (e) {} });
+    socket.on('layout-hotspots:changed', () => { try { reloadLayoutHotspotsClient(); } catch (e) {} });
+    socket.on('floorplans:order', () => { try { reloadLayoutsListClient(); } catch (e) {} });
+    socket.on('layouts:order', () => { try { reloadLayoutsListClient(); } catch (e) {} });
     socket.on('initial-views:changed', async () => {
       try {
         const { reloadInitialViews, getSelectedImageName, loadPanorama } = await import('./marzipano-viewer.js');

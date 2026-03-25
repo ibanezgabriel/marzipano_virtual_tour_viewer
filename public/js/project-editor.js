@@ -1,6 +1,6 @@
 import { initViewer, loadImages, setProjectName, updateInitialViewForRenamedImage } from './marzipano-viewer.js';
 import { getProjectId } from './project-context.js';
-import { initFloorplans, floorplanApi } from './features/floorplans.js';
+import { initLayouts, layoutApi } from './features/floorplans.js';
 import { initArchive, archiveApi } from './features/archive.js';
 import { initRename } from './features/rename.js';
 import { initUpdate } from './features/update.js';
@@ -52,7 +52,7 @@ if (!getProjectId()) {
     })();
     initViewer();
     loadImages(cleanupSceneLinkedData);
-    initFloorplans();
+    initLayouts();
   });
 
   // Realtime project name updates
@@ -86,7 +86,7 @@ if (!getProjectId()) {
       try { updateInitialViewForRenamedImage(payload.oldFilename, payload.newFilename); } catch (e) {}
       try { updateHotspotsForRenamedImage(payload.oldFilename, payload.newFilename); } catch (e) {}
       try { updateBlurMasksForRenamedImage(payload.oldFilename, payload.newFilename); } catch (e) {}
-      try { floorplanApi.updateForRenamedPano(payload.oldFilename, payload.newFilename); } catch (e) {}
+      try { layoutApi.updateForRenamedPano(payload.oldFilename, payload.newFilename); } catch (e) {}
       loadImages(cleanupSceneLinkedData);
       try { archiveApi.refreshIfVisible(); } catch (e) {}
     });
@@ -111,7 +111,11 @@ if (!getProjectId()) {
       try { archiveApi.refreshIfVisible(); } catch (e) {}
     });
     socket.on('floorplans:order', () => {
-      try { floorplanApi.reloadList(); } catch (e) {}
+      try { layoutApi.reloadList(); } catch (e) {}
+      try { archiveApi.refreshIfVisible(); } catch (e) {}
+    });
+    socket.on('layouts:order', () => {
+      try { layoutApi.reloadList(); } catch (e) {}
       try { archiveApi.refreshIfVisible(); } catch (e) {}
     });
   } catch (e) {}
