@@ -1,7 +1,28 @@
-// Authentication and session management
+/**
+ * Client-side authentication helpers.
+ *
+ * This file is included on both the login page and protected admin pages.
+ * It:
+ * - Checks whether the current browser session is authenticated (`/api/me`)
+ * - Remembers the originally requested page so we can redirect after login
+ * - Implements a shared logout flow (`/api/logout`) with a confirmation modal
+ */
+
+/** localStorage key used to store the page to return to after login */
 const REDIRECT_KEY = 'ipvt_redirect_url';
 
-// Check authentication status from server
+/**
+ * Checks the current authentication status from the server.
+ *
+ * Behavior:
+ * - `project-viewer.html` is public and does not require login.
+ * - If not logged in and we are on a protected page, remember the current URL
+ *   and redirect to `login.html`.
+ * - If logged in and we are on the login page, redirect to the stored URL
+ *   (or the role-based landing page).
+ *
+ * @returns {Promise<void>}
+ */
 async function checkAuthentication() {
     const currentPage = window.location.pathname.split('/').pop();
     
@@ -11,30 +32,29 @@ async function checkAuthentication() {
     }
 
     // Check if we are on the login page (or root)
-    const isLoginPage = currentPage === 'login.html' || currentPage === 'index.html' || currentPage === '';
+    const isLoginPage = currentPage === 'login.html' || currentPage === '';
 
     try {
         const res = await fetch('/api/me');
         const data = await res.json();
         
         if (data.loggedIn) {
-            if (isLoginPage) redirectToStoredPage();
+            if (isLoginPage) redirectToStoredPage(data.role);
         } else {
             if (!isLoginPage) {
                 localStorage.setItem(REDIRECT_KEY, window.location.href);
-                window.location.href = '/';
+                window.location.href = '/login.html';
             }
         }
     } catch (e) {
         console.error('Auth check failed:', e);
-        if (!isLoginPage) window.location.href = '/';
+        if (!isLoginPage) window.location.href = '/login.html';
     }
 }
 
 // Handle login form submission
 document.addEventListener('DOMContentLoaded', function() {
     const loginForm = document.getElementById('login-form');
-    const errorElement = document.getElementById('login-error');
     
     if (loginForm) {
         loginForm.addEventListener('submit', async function(e) {
@@ -42,11 +62,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value.trim();
-            
-            if (!username || !password) {
-                showError('Please enter both username and password');
-                return;
-            }
             
             try {
                 const res = await fetch('/api/login', {
@@ -57,24 +72,74 @@ document.addEventListener('DOMContentLoaded', function() {
                 const data = await res.json();
 
                 if (data.success) {
-                    redirectToStoredPage();
+                    redirectToStoredPage(data.user && data.user.role);
                 } else {
                     showError(data.message || 'Invalid credentials');
                 }
             } catch (err) {
-                console.error(err);
-                showError('Server connection error');
+                // console.error(err);
+                showError('Server connection error', err);
             }
         });
     }
 });
 
-function redirectToStoredPage() {
-    const redirectUrl = localStorage.getItem(REDIRECT_KEY) || 'dashboard.html';
+/**
+ * Returns the default landing page for a role.
+ *
+ * @param {string} role
+ * @returns {string} relative URL
+ */
+function getDefaultLandingPage(role) {
+    return role === 'super_admin' ? 'superadmindb.html' : 'dashboard.html';
+}
+
+function normalizeRedirectUrl(value) {
+    if (!value) return null;
+    try {
+        const url = new URL(String(value), window.location.origin);
+        if (url.origin !== window.location.origin) return null;
+        return `${url.pathname}${url.search}${url.hash}`;
+    } catch (e) {
+        return null;
+    }
+}
+
+function isRedirectAllowedForRole(redirectUrl, role) {
+    const url = String(redirectUrl || '');
+    if (role === 'super_admin') {
+        // Super Admins should land on the Super Admin dashboard by default, even if they were
+        // redirected from the normal admin dashboard.
+        if (url.includes('dashboard.html')) return false;
+        return true;
+    }
+    // Non-super-admin users must never be redirected to the Super Admin dashboard.
+    if (url.includes('superadmindb.html')) return false;
+    return true;
+}
+
+/**
+ * Redirects the user after a successful login.
+ * Uses the URL we stored before redirecting them to the login page; otherwise
+ * routes them to a role-appropriate landing page.
+ *
+ * @param {string} [role]
+ * @returns {void}
+ */
+function redirectToStoredPage(role) {
+    const stored = normalizeRedirectUrl(localStorage.getItem(REDIRECT_KEY));
+    const fallback = getDefaultLandingPage(role);
+    const redirectUrl = stored && isRedirectAllowedForRole(stored, role) ? stored : fallback;
     localStorage.removeItem(REDIRECT_KEY);
     window.location.href = redirectUrl;
 }
 
+/**
+ * Shows an error message in the login form.
+ *
+ * @param {string} message
+ * @returns {void}
+ */
 function showError(message) {
     const errorElement = document.getElementById('login-error');
     if (errorElement) {
@@ -83,23 +148,35 @@ function showError(message) {
     }
 }
 
-// Logout function (can be called from other pages)
+/**
+ * Logs out the current user by destroying the server session and returning to login.
+ * Safe to call from any page; even if the request fails, we still return to login.
+ *
+ * @returns {Promise<void>}
+ */
 async function logout() {
     try {
         await fetch('/api/logout', { method: 'POST' });
     } catch (e) {
         console.error(e);
     }
-    window.location.href = '/';
+    localStorage.removeItem(REDIRECT_KEY);
+    window.location.replace('/login.html');
 }
 
-// Simple modal confirm (reuses dialog.css styles)
+// ---- Simple modal confirm (reuses dialog.css styles) ----
 const DIALOG_OVERLAY_ID = 'app-dialog-overlay';
 const DIALOG_BOX_ID = 'app-dialog-box';
 const DIALOG_TITLE_ID = 'app-dialog-title';
 const DIALOG_MESSAGE_ID = 'app-dialog-message';
 const DIALOG_ACTIONS_ID = 'app-dialog-actions';
 
+/**
+ * Lazily creates the shared dialog DOM nodes (once) and reuses them.
+ * This keeps the markup out of every HTML file and ensures a consistent style.
+ *
+ * @returns {HTMLDivElement} overlay element that contains the dialog
+ */
 function getOrCreateDialog() {
     let overlay = document.getElementById(DIALOG_OVERLAY_ID);
     if (overlay) return overlay;
@@ -148,6 +225,13 @@ function getOrCreateDialog() {
     return overlay;
 }
 
+/**
+ * Shows a confirm dialog and resolves to `true` only when the user clicks Logout.
+ *
+ * @param {string} message - Text shown to the user
+ * @param {string} [title='Logout'] - Dialog title
+ * @returns {Promise<boolean>}
+ */
 function showLogoutConfirm(message, title = 'Logout') {
     return new Promise((resolve) => {
         const overlay = getOrCreateDialog();
@@ -198,7 +282,7 @@ function showLogoutConfirm(message, title = 'Logout') {
     });
 }
 
-// Add event listeners to logout buttons
+// Add event listeners to logout buttons (used on dashboard/project-editor pages)
 document.addEventListener('DOMContentLoaded', function() {
     const logoutButtons = document.querySelectorAll('#logout-btn');
     logoutButtons.forEach(button => {
@@ -214,7 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Export functions for use in other scripts
+// Export functions for use in other scripts / pages
 window.auth = {
     checkAuthentication,
     logout

@@ -24,7 +24,7 @@
         <div class="sidebar-footer">
             <div class="user-card">
                 <span class="user-name">Super Admin</span>
-                <button class="logout-btn">Logout</button>
+                <button id="logout-btn" class="logout-btn" data-logout-message="Are you sure you want to log out?">Logout</button>
             </div>
         </div>
     </div>
@@ -67,11 +67,11 @@
                         </td>
                     </tr>
                     <tr>
-                        <td>2026-03-28 14:10</td>
-                        <td>PRJ-2042</td>
-                        <td>QCDE HQ Lobby</td>
-                        <td>Title update</td>
-                        <td>M. Reyes</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
                         <td>
                             <button type="button" class="approval-action approval-approve">Approve</button>
                             <button type="button" class="approval-action approval-reject">Reject</button>
@@ -96,8 +96,8 @@
             <div class="audit-header">
                 <h2>AUDIT LOGS</h2>
                 <div class="audit-search">
-                    <input type="text" placeholder="Search" aria-label="Search audit logs">
-                    <button type="button">Search</button>
+                    <input id="audit-search-input" type="text" placeholder="Search" aria-label="Search audit logs">
+                    <button id="audit-search-btn" type="button">Search</button>
                 </div>
             </div>
 
@@ -112,32 +112,7 @@
                         <th>MESSAGE</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td>2026-03-28 11:20</td>
-                        <td>PRJ-2036</td>
-                        <td>City Hall Tour</td>
-                        <td>R. Dela Cruz</td>
-                        <td>Approved</td>
-                        <td>Initial publish</td>
-                    </tr>
-                    <tr>
-                        <td>2026-03-28 16:05</td>
-                        <td>PRJ-2039</td>
-                        <td>QCDE Annex</td>
-                        <td>L. Tan</td>
-                        <td>Edited</td>
-                        <td>Updated floor labels</td>
-                    </tr>
-                    <tr>
-                        <td>2026-03-29 09:10</td>
-                        <td>PRJ-2040</td>
-                        <td>National Library</td>
-                        <td>S. Ong</td>
-                        <td>Rejected</td>
-                        <td>Missing metadata</td>
-                    </tr>
-                </tbody>
+                <tbody id="audit-logs-tbody"></tbody>
             </table>
         </section>
 
@@ -146,10 +121,10 @@
                 <h2>USER MANAGEMENT</h2>
                 <div class="user-controls">
                     <div class="user-search">
-                        <input type="text" placeholder="Search" aria-label="Search users">
-                        <button type="button">Search</button>
+                        <input id="user-search-input" type="text" placeholder="Search" aria-label="Search users">
+                        <button id="user-search-btn" type="button">Search</button>
                     </div>
-                    <button type="button" class="add-account-btn">+ ADD ACCOUNT</button>
+                    <button id="add-account-btn" type="button" class="add-account-btn">+ ADD ACCOUNT</button>
                 </div>
             </div>
 
@@ -164,36 +139,86 @@
                         <th>ACTION</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td>1</td>
-                        <td>asantiago</td>
-                        <td>Super Admin</td>
-                        <td>2025-12-04</td>
-                        <td>Active</td>
-                        <td>Manage</td>
-                    </tr>
-                    <tr>
-                        <td>2</td>
-                        <td>mreyes</td>
-                        <td>Reviewer</td>
-                        <td>2026-01-18</td>
-                        <td>Active</td>
-                        <td>Manage</td>
-                    </tr>
-                    <tr>
-                        <td>3</td>
-                        <td>jlim</td>
-                        <td>Editor</td>
-                        <td>2026-02-09</td>
-                        <td>Suspended</td>
-                        <td>Manage</td>
-                    </tr>
-                </tbody>
+                <tbody id="users-tbody"></tbody>
             </table>
+
+            <p class="user-error" id="user-error" role="alert"></p>
         </section>
     </div>
 
+    <!-- Add Account modal (Super Admin only) -->
+    <div class="sa-modal-overlay" id="add-user-modal" aria-hidden="true">
+        <div class="sa-modal" role="dialog" aria-modal="true" aria-labelledby="add-user-title">
+            <h3 id="add-user-title">ADD ACCOUNT</h3>
+            <form id="add-user-form">
+                <div class="sa-form-group">
+                    <label for="add-username">Username</label>
+                    <input id="add-username" type="text" autocomplete="off" maxlength="50" required>
+                </div>
+                <div class="sa-form-group">
+                    <label for="add-password">Password</label>
+                    <input id="add-password" type="password" autocomplete="new-password" minlength="8" required>
+                    <small class="sa-hint">Minimum 8 characters.</small>
+                </div>
+                <div class="sa-form-group">
+                    <label for="add-role">Role</label>
+                    <select id="add-role">
+                        <option value="admin">Admin</option>
+                        <option value="super_admin">Super Admin</option>
+                    </select>
+                </div>
+                <p class="sa-modal-error" id="add-user-error" role="alert"></p>
+                <div class="sa-modal-actions">
+                    <button type="button" class="sa-btn sa-btn-secondary" id="add-user-cancel">Cancel</button>
+                    <button type="submit" class="sa-btn sa-btn-primary" id="add-user-submit">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Manage User modal (Super Admin only) -->
+    <div class="sa-modal-overlay" id="manage-user-modal" aria-hidden="true">
+        <div class="sa-modal" role="dialog" aria-modal="true" aria-labelledby="manage-user-title">
+            <h3 id="manage-user-title">MANAGE USER</h3>
+            <form id="manage-user-form">
+                <input type="hidden" id="manage-user-id">
+                <div class="sa-form-group">
+                    <label for="manage-username">Username</label>
+                    <input id="manage-username" type="text" disabled>
+                </div>
+                <div class="sa-form-group">
+                    <label for="manage-role">Role</label>
+                    <select id="manage-role">
+                        <option value="admin">Admin</option>
+                        <option value="super_admin">Super Admin</option>
+                    </select>
+                </div>
+                <div class="sa-form-group">
+                    <label for="manage-status">Status</label>
+                    <select id="manage-status">
+                        <option value="active">Active</option>
+                        <option value="suspended">Suspended</option>
+                    </select>
+                </div>
+
+                <hr class="sa-divider">
+
+                <div class="sa-form-group">
+                    <label for="manage-new-password">Reset Password</label>
+                    <input id="manage-new-password" type="password" autocomplete="new-password" minlength="8" placeholder="New password (min 8 chars)">
+                    <small class="sa-hint">Leaving this blank will not change the password.</small>
+                </div>
+
+                <p class="sa-modal-error" id="manage-user-error" role="alert"></p>
+                <div class="sa-modal-actions">
+                    <button type="button" class="sa-btn sa-btn-secondary" id="manage-user-cancel">Cancel</button>
+                    <button type="submit" class="sa-btn sa-btn-primary" id="manage-user-save">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/login.js"></script>
     <script src="js/superadmindb.js"></script>
 
 </body>

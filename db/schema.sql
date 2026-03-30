@@ -4,6 +4,11 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'admin', -- 'super_admin', 'admin', 'viewer'
+    -- Enforce "single active session per account" (used to prevent concurrent logins).
+    active_session_id VARCHAR(255),
+    active_session_expires_at TIMESTAMP,
+    -- User status for Super Admin management (suspended users cannot authenticate).
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

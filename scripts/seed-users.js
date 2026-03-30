@@ -20,7 +20,8 @@ async function upsertUser({ username, password, role }) {
     `INSERT INTO users (username, password_hash, role)
      VALUES ($1, $2, $3)
      ON CONFLICT (username) DO UPDATE
-     SET password_hash = $2, role = $3
+     -- Reset any active session lock when reseeding credentials/role.
+     SET password_hash = $2, role = $3, is_active = TRUE, active_session_id = NULL, active_session_expires_at = NULL
      RETURNING id, username, role;`,
     [username, hash, role]
   );
@@ -57,4 +58,3 @@ seed()
     console.error('❌ Seeding failed:', err);
     process.exit(1);
   });
-

@@ -1,3 +1,15 @@
+/**
+ * Express backend for the IPVT (Infrastructure Projects Virtual Tour) tool.
+ *
+ * High-level responsibilities:
+ * - Session-based authentication (Admin / Super Admin)
+ * - Project CRUD APIs backed by PostgreSQL
+ * - Static asset serving for the frontend (HTML/CSS/JS)
+ * - File-based project assets (tiles/uploads) served via project-scoped routes
+ * - Realtime updates via Socket.IO (e.g., projects list changes)
+ * - Audit logging of important actions (when the DB table is available)
+ */
+
 const express = require('express');
 const multer = require('multer'); 
 const fs = require('fs');
@@ -15,7 +27,6 @@ const db = require('./db');
 
 const app = express();
 const PORT = 3000;
-const http = require('http');
 const { Server } = require('socket.io');
 
 const projectsDir = path.join(__dirname, 'projects');
@@ -26,7 +37,39 @@ if (!fs.existsSync(projectsDir)) {
   fs.mkdirSync(projectsDir, { recursive: true });
 }
 
+// Ensure the DB has the columns required to enforce "one active session per account".
+// (Safe to run repeatedly; uses IF NOT EXISTS.)
+async function ensureSingleSessionColumns() {
+  try {
+    await db.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS active_session_id VARCHAR(255)');
+    await db.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS active_session_expires_at TIMESTAMP');
+    await db.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE');
+    await db.query('UPDATE users SET is_active = TRUE WHERE is_active IS NULL');
+  } catch (e) {
+    console.warn('[users] unable to ensure single-session columns:', e.message || e);
+  }
+}
+ensureSingleSessionColumns().catch(() => {});
+
 let auditLogsDbDisabled = false;
+
+/**
+ * Persists an audit log event to PostgreSQL.
+ *
+ * Notes:
+ * - This function is designed to be safe even if migrations haven't been applied yet.
+ *   If the `audit_logs` table doesn't exist, DB audit logging is disabled to avoid
+ *   spamming the console on every request.
+ *
+ * @param {object} [params]
+ * @param {string|null} [params.projectId] - associated project id (if any)
+ * @param {number|null} [params.userId] - actor user id (if any)
+ * @param {string} params.action - short action key, e.g. "project.create"
+ * @param {string|null} [params.message] - human-readable description
+ * @param {object} [params.metadata] - additional structured data stored as JSONB
+ * @param {Date|string|number|null} [params.createdAt] - timestamp override (defaults to now)
+ * @returns {Promise<void>}
+ */
 async function insertAuditLog({ projectId, userId, action, message, metadata, createdAt } = {}) {
   if (auditLogsDbDisabled) return;
   if (!action) return;
@@ -56,6 +99,12 @@ async function insertAuditLog({ projectId, userId, action, message, metadata, cr
   }
 }
 
+/**
+ * Emits a `projects:changed` realtime event to all connected Socket.IO clients.
+ * This is called after project mutations so dashboards update without refresh.
+ *
+ * @returns {Promise<void>}
+ */
 async function emitProjectsChanged() {
   try {
     const res = await db.query('SELECT * FROM projects ORDER BY created_at ASC');
@@ -521,6 +570,48 @@ app.use(session({
   }
 }));
 
+function getSessionFromStore(store, sid) {
+  return new Promise((resolve) => {
+    if (!store || typeof store.get !== 'function') return resolve(null);
+    store.get(sid, (err, sess) => {
+      if (err) return resolve(null);
+      resolve(sess || null);
+    });
+  });
+}
+
+async function clearActiveSessionForUser(userId, expectedSid = null) {
+  if (!userId) return;
+  try {
+    if (expectedSid) {
+      await db.query(
+        'UPDATE users SET active_session_id = NULL, active_session_expires_at = NULL WHERE id = $1 AND active_session_id = $2',
+        [Number(userId), String(expectedSid)]
+      );
+    } else {
+      await db.query(
+        'UPDATE users SET active_session_id = NULL, active_session_expires_at = NULL WHERE id = $1',
+        [Number(userId)]
+      );
+    }
+  } catch (e) {
+    // Best-effort cleanup only.
+  }
+}
+
+async function getCurrentUserFromDb(userId) {
+  if (!userId) return null;
+  try {
+    const r = await db.query(
+      'SELECT id, username, role, is_active, active_session_id, active_session_expires_at FROM users WHERE id = $1',
+      [Number(userId)]
+    );
+    return r.rows[0] || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
@@ -531,80 +622,343 @@ app.post('/api/login', async (req, res) => {
     const result = await db.query('SELECT * FROM users WHERE username = $1', [username]);
     const user = result.rows[0];
 
-    if (user && await bcrypt.compare(password, user.password_hash)) {
-      req.session.userId = user.id;
-      req.session.username = user.username;
-      req.session.role = user.role;
-      return res.json({ success: true, user: { username: user.username, role: user.role } });
-    } else {
+    if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
+
+    // Block suspended users (if column exists).
+    if (user.is_active === false) {
+      return res.status(403).json({ success: false, message: 'Account is suspended. Please contact the Super Admin.' });
+    }
+
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    // Enforce: one active session per account (prevents concurrent logins across browsers/incognito).
+    try {
+      const now = new Date();
+      const activeSid = user.active_session_id ? String(user.active_session_id) : null;
+      const activeExp = user.active_session_expires_at ? new Date(user.active_session_expires_at) : null;
+      const hasUnexpired = Boolean(activeSid && activeExp && activeExp > now);
+
+      if (activeSid) {
+        if (hasUnexpired) {
+          // MemoryStore sessions are cleared on server restart; avoid permanent lockout in that case.
+          const existing = await getSessionFromStore(req.sessionStore, activeSid);
+          if (existing) {
+            return res.status(409).json({
+              success: false,
+              message: 'Account in session. Please log out first.',
+            });
+          }
+        }
+        // Session was expired or missing from store: clear the stale DB record and allow login.
+        await clearActiveSessionForUser(user.id, activeSid);
+      }
+    } catch (e) {
+      // If the columns don't exist yet (or store is unavailable), skip the single-session check.
+    }
+
+    req.session.userId = user.id;
+    req.session.username = user.username;
+    req.session.role = user.role;
+
+    // Save the session before recording its id in Postgres.
+    await new Promise((resolve, reject) => {
+      req.session.save((err) => (err ? reject(err) : resolve()));
+    });
+
+    try {
+      const expiresAt = req.session.cookie && req.session.cookie.expires
+        ? new Date(req.session.cookie.expires)
+        : new Date(Date.now() + (Number(req.session.cookie && req.session.cookie.maxAge) || 0));
+      await db.query(
+        'UPDATE users SET active_session_id = $1, active_session_expires_at = $2 WHERE id = $3',
+        [String(req.sessionID), expiresAt, Number(user.id)]
+      );
+    } catch (e) {
+      // Best-effort: login is still valid even if we can't persist session tracking.
+    }
+
+    return res.json({ success: true, user: { username: user.username, role: user.role } });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
+/**
+ * Logs out the current session.
+ *
+ * Output: `{ success: true }` on success.
+ */
 app.post('/api/logout', (req, res) => {
+  const userId = req.session && req.session.userId ? req.session.userId : null;
+  const sid = req.sessionID;
   req.session.destroy((err) => {
     if (err) return res.status(500).json({ success: false });
-    res.clearCookie('connect.sid');
+    res.clearCookie('connect.sid', { path: '/', secure: true, httpOnly: true });
+    clearActiveSessionForUser(userId, sid).catch(() => {});
     res.json({ success: true });
   });
 });
 
+/**
+ * Returns the current session identity (used by the frontend to guard pages).
+ *
+ * Output:
+ * - `{ loggedIn: true, username, role }`
+ * - `{ loggedIn: false }`
+ */
 app.get('/api/me', (req, res) => {
-  if (req.session.userId) {
-    res.json({ loggedIn: true, username: req.session.username, role: req.session.role });
-  } else {
+  (async () => {
+    if (!req.session.userId) return res.json({ loggedIn: false });
+
+    const user = await getCurrentUserFromDb(req.session.userId);
+    if (!user || user.is_active === false) {
+      try { req.session.destroy(() => {}); } catch (e) {}
+      return res.json({ loggedIn: false });
+    }
+    if (user.active_session_id && String(user.active_session_id) !== String(req.sessionID)) {
+      try { req.session.destroy(() => {}); } catch (e) {}
+      return res.json({ loggedIn: false });
+    }
+    if (user.active_session_expires_at && new Date(user.active_session_expires_at) <= new Date()) {
+      try { req.session.destroy(() => {}); } catch (e) {}
+      return res.json({ loggedIn: false });
+    }
+
+    req.session.username = user.username;
+    req.session.role = user.role;
+
+    res.json({ loggedIn: true, username: user.username, role: user.role });
+  })().catch((e) => {
+    console.error('/api/me error:', e);
     res.json({ loggedIn: false });
-  }
+  });
 });
 
 // Middleware to protect admin pages
+/**
+ * Admin-facing roles (both Admin and Super Admin are treated as "admin" for most tools).
+ *
+ * @param {string} role
+ * @returns {boolean}
+ */
 function isAdminRole(role) {
   return role === 'admin' || role === 'super_admin';
 }
 
+/**
+ * Super Admin role check.
+ *
+ * @param {string} role
+ * @returns {boolean}
+ */
 function isSuperAdminRole(role) {
   return role === 'super_admin';
 }
 
+/**
+ * Protects admin HTML pages.
+ * - Unauthenticated users are redirected to `login.html`.
+ * - Authenticated but unauthorized users receive 403.
+ */
 const protectAdmin = (req, res, next) => {
-  const ppath = req.path;
-  if (ppath === '/dashboard.html' || ppath === '/project-editor.html') {
-    if (!req.session.userId) {
-      return res.redirect('/');
+  (async () => {
+    const ppath = req.path;
+    const requiresAdmin = ppath === '/dashboard.html' || ppath === '/project-editor.html';
+    const requiresSuperAdmin = ppath === '/superadmindb.html';
+    if (!requiresAdmin && !requiresSuperAdmin) return next();
+
+    if (!req.session.userId) return res.redirect('/login.html');
+
+    const user = await getCurrentUserFromDb(req.session.userId);
+    if (!user || user.is_active === false) {
+      try { req.session.destroy(() => {}); } catch (e) {}
+      return res.redirect('/login.html');
     }
-    if (!isAdminRole(req.session.role)) {
-      return res.status(403).send('Forbidden');
+    if (user.active_session_id && String(user.active_session_id) !== String(req.sessionID)) {
+      try { req.session.destroy(() => {}); } catch (e) {}
+      return res.redirect('/login.html');
     }
-  }
-  next();
+    if (user.active_session_expires_at && new Date(user.active_session_expires_at) <= new Date()) {
+      try { req.session.destroy(() => {}); } catch (e) {}
+      return res.redirect('/login.html');
+    }
+
+    req.session.username = user.username;
+    req.session.role = user.role;
+
+    if (requiresSuperAdmin) {
+      if (!isSuperAdminRole(user.role)) {
+        if (isAdminRole(user.role)) return res.redirect('/dashboard.html');
+        return res.status(403).send('Forbidden');
+      }
+      return next();
+    }
+
+    if (!isAdminRole(user.role)) return res.status(403).send('Forbidden');
+    next();
+  })().catch((e) => {
+    console.error('protectAdmin error:', e);
+    res.redirect('/login.html');
+  });
 };
 app.use(protectAdmin);
 
-// Middleware to protect Write APIs (Admin + Super Admin)
+/**
+ * Protects write APIs that require an authenticated Admin/Super Admin.
+ * Responds with JSON errors instead of redirecting.
+ */
 const requireApiAuth = (req, res, next) => {
-  if (!req.session.userId) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  if (!isAdminRole(req.session.role)) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-  next();
+  (async () => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Validate that the session is still the active session for this account.
+    const user = await getCurrentUserFromDb(req.session.userId);
+    if (!user || user.is_active === false) {
+      try { req.session.destroy(() => {}); } catch (e) {}
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (user.active_session_id && String(user.active_session_id) !== String(req.sessionID)) {
+      try { req.session.destroy(() => {}); } catch (e) {}
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (user.active_session_expires_at && new Date(user.active_session_expires_at) <= new Date()) {
+      try { req.session.destroy(() => {}); } catch (e) {}
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Always trust DB role over potentially stale session role.
+    req.session.role = user.role;
+    req.session.username = user.username;
+
+    if (!isAdminRole(user.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    next();
+  })().catch((e) => {
+    console.error('requireApiAuth error:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  });
 };
 
-// Middleware to protect Super Admin-only APIs
+/**
+ * Protects Super Admin-only APIs.
+ */
 const requireSuperAdminApiAuth = (req, res, next) => {
-  if (!req.session.userId) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  if (!isSuperAdminRole(req.session.role)) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-  next();
+  (async () => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const user = await getCurrentUserFromDb(req.session.userId);
+    if (!user || user.is_active === false) {
+      try { req.session.destroy(() => {}); } catch (e) {}
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (user.active_session_id && String(user.active_session_id) !== String(req.sessionID)) {
+      try { req.session.destroy(() => {}); } catch (e) {}
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (user.active_session_expires_at && new Date(user.active_session_expires_at) <= new Date()) {
+      try { req.session.destroy(() => {}); } catch (e) {}
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    req.session.role = user.role;
+    req.session.username = user.username;
+
+    if (!isSuperAdminRole(user.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    next();
+  })().catch((e) => {
+    console.error('requireSuperAdminApiAuth error:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  });
 };
+
+// ---- Audit logs (Super Admin) ----
+function parseOptionalInt(value, fallback) {
+  const n = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+app.get('/api/audit-logs', requireSuperAdminApiAuth, async (req, res) => {
+  const q = String((req.query && req.query.q) || '').trim();
+  const limitRaw = parseOptionalInt(req.query && req.query.limit, 50);
+  const offsetRaw = parseOptionalInt(req.query && req.query.offset, 0);
+  const limit = Math.max(1, Math.min(200, limitRaw));
+  const offset = Math.max(0, offsetRaw);
+
+  const where = [];
+  const params = [];
+  const add = (val) => {
+    params.push(val);
+    return `$${params.length}`;
+  };
+
+  if (q) {
+    const like = `%${q}%`;
+    const p = add(like);
+    where.push(`(
+      a.action ILIKE ${p}
+      OR a.message ILIKE ${p}
+      OR COALESCE(u.username, '') ILIKE ${p}
+      OR COALESCE(pj.name, '') ILIKE ${p}
+      OR COALESCE(pj.number, '') ILIKE ${p}
+    )`);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  try {
+    const countRes = await db.query(
+      `SELECT COUNT(*)::int AS total
+       FROM audit_logs a
+       LEFT JOIN users u ON u.id = a.user_id
+       LEFT JOIN projects pj ON pj.id = a.project_id
+       ${whereSql}`,
+      params
+    );
+
+    const rowsRes = await db.query(
+      `SELECT
+         a.id,
+         a.created_at,
+         a.action,
+         a.message,
+         a.project_id,
+         pj.number AS project_number,
+         pj.name AS project_name,
+         u.username AS created_by
+       FROM audit_logs a
+       LEFT JOIN users u ON u.id = a.user_id
+       LEFT JOIN projects pj ON pj.id = a.project_id
+       ${whereSql}
+       ORDER BY a.created_at DESC, a.id DESC
+       LIMIT ${add(limit)} OFFSET ${add(offset)}`,
+      params
+    );
+
+    res.json({ total: countRes.rows[0]?.total ?? 0, rows: rowsRes.rows });
+  } catch (e) {
+    // If migrations haven't been applied yet, return an empty list instead of failing the UI.
+    if (e && e.code === '42P01') {
+      return res.json({ total: 0, rows: [] });
+    }
+    console.error('Error listing audit logs:', e);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
 
 // ---- User management (Super Admin only) ----
 function isValidUsername(username) {
@@ -626,10 +980,21 @@ function normalizeUserRole(role) {
 }
 
 app.get('/api/users', requireSuperAdminApiAuth, async (req, res) => {
+  const q = String((req.query && req.query.q) || '').trim();
   try {
-    const result = await db.query(
-      'SELECT id, username, role, created_at FROM users ORDER BY created_at ASC'
-    );
+    if (q) {
+      const like = `%${q}%`;
+      const result = await db.query(
+        `SELECT id, username, role, is_active, created_at
+         FROM users
+         WHERE username ILIKE $1 OR role ILIKE $1
+         ORDER BY created_at ASC`,
+        [like]
+      );
+      return res.json(result.rows);
+    }
+
+    const result = await db.query('SELECT id, username, role, is_active, created_at FROM users ORDER BY created_at ASC');
     res.json(result.rows);
   } catch (e) {
     console.error('Error listing users:', e);
@@ -657,7 +1022,7 @@ app.post('/api/users', requireSuperAdminApiAuth, async (req, res) => {
     const insertRes = await db.query(
       `INSERT INTO users (username, password_hash, role)
        VALUES ($1, $2, $3)
-       RETURNING id, username, role, created_at`,
+       RETURNING id, username, role, is_active, created_at`,
       [String(username).trim(), hash, nextRole]
     );
 
@@ -674,6 +1039,123 @@ app.post('/api/users', requireSuperAdminApiAuth, async (req, res) => {
     res.json({ success: true, user: insertRes.rows[0] });
   } catch (e) {
     console.error('Error creating user:', e);
+    res.status(500).json({ success: false, message: 'Database error' });
+  }
+});
+
+app.patch('/api/users/:id', requireSuperAdminApiAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ success: false, message: 'Invalid user id' });
+
+  // Disallow self-modification here to avoid accidental lockout.
+  if (req.session.userId && Number(req.session.userId) === id) {
+    return res.status(400).json({ success: false, message: 'You cannot modify your own account from here.' });
+  }
+
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const hasRole = Object.prototype.hasOwnProperty.call(body, 'role');
+  const hasActive = Object.prototype.hasOwnProperty.call(body, 'is_active');
+  if (!hasRole && !hasActive) {
+    return res.status(400).json({ success: false, message: 'No changes provided' });
+  }
+
+  const updates = [];
+  const params = [];
+  const add = (v) => {
+    params.push(v);
+    return `$${params.length}`;
+  };
+
+  let nextRole = null;
+  if (hasRole) {
+    nextRole = normalizeUserRole(body.role);
+    updates.push(`role = ${add(nextRole)}`);
+  }
+
+  let nextIsActive = null;
+  if (hasActive) {
+    nextIsActive = Boolean(body.is_active);
+    updates.push(`is_active = ${add(nextIsActive)}`);
+  }
+
+  // Any admin action should revoke active session to enforce immediate effect.
+  updates.push('active_session_id = NULL');
+  updates.push('active_session_expires_at = NULL');
+
+  try {
+    const beforeRes = await db.query('SELECT id, username, role, is_active FROM users WHERE id = $1', [id]);
+    const before = beforeRes.rows[0];
+    if (!before) return res.status(404).json({ success: false, message: 'User not found' });
+    if (isSuperAdminRole(before.role)) {
+      return res.status(403).json({ success: false, message: 'Super Admin accounts cannot be modified.' });
+    }
+
+    const sql = `UPDATE users SET ${updates.join(', ')} WHERE id = ${add(id)} RETURNING id, username, role, is_active, created_at`;
+    const updatedRes = await db.query(sql, params);
+    const updated = updatedRes.rows[0];
+
+    try {
+      await insertAuditLog({
+        projectId: null,
+        userId: req.session.userId,
+        action: 'user:update',
+        message: `User updated: ${updated.username}.`,
+        metadata: {
+          before: { role: before.role, is_active: before.is_active },
+          after: { role: updated.role, is_active: updated.is_active },
+          targetUser: { id: updated.id, username: updated.username },
+        },
+      });
+    } catch (e) {}
+
+    res.json({ success: true, user: updated });
+  } catch (e) {
+    console.error('Error updating user:', e);
+    res.status(500).json({ success: false, message: 'Database error' });
+  }
+});
+
+app.post('/api/users/:id/reset-password', requireSuperAdminApiAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ success: false, message: 'Invalid user id' });
+
+  if (req.session.userId && Number(req.session.userId) === id) {
+    return res.status(400).json({ success: false, message: 'You cannot reset your own password from here.' });
+  }
+
+  const password = req.body && typeof req.body === 'object' ? req.body.password : null;
+  if (!isValidPassword(password)) {
+    return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
+  }
+
+  try {
+    const userRes = await db.query('SELECT id, username, role FROM users WHERE id = $1', [id]);
+    const target = userRes.rows[0];
+    if (!target) return res.status(404).json({ success: false, message: 'User not found' });
+    if (isSuperAdminRole(target.role)) {
+      return res.status(403).json({ success: false, message: 'Super Admin accounts cannot be modified.' });
+    }
+
+    const saltRounds = 10;
+    const hash = await bcrypt.hash(String(password), saltRounds);
+    await db.query(
+      'UPDATE users SET password_hash = $1, active_session_id = NULL, active_session_expires_at = NULL WHERE id = $2',
+      [hash, id]
+    );
+
+    try {
+      await insertAuditLog({
+        projectId: null,
+        userId: req.session.userId,
+        action: 'user:password_reset',
+        message: `Password reset for user: ${target.username}.`,
+        metadata: { targetUser: { id: target.id, username: target.username } },
+      });
+    } catch (e) {}
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Error resetting password:', e);
     res.status(500).json({ success: false, message: 'Database error' });
   }
 });
@@ -762,6 +1244,7 @@ app.use(async (req, res, next) => {
 });
 
 // Serve static files
+app.get(['/', '/index.html'], (req, res) => res.redirect('/login.html'));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Project-scoped static: /projects/:id/upload and /projects/:id/tiles
@@ -1206,9 +1689,9 @@ app.put('/api/projects/:id', requireApiAuth, async (req, res) => {
   }
 });
 
-app.delete('/api/projects/:id', requireApiAuth, (req, res) => {
-  res.status(403).json({ success: false, message: 'Project deletion is disabled.' });
-});
+// app.delete('/api/projects/:id', requireApiAuth, (req, res) => {
+//   res.status(403).json({ success: false, message: 'Project deletion is disabled.' });
+// });
 
 // ---- Simple in-memory job tracking for async tile processing ----
 const jobs = new Map();
@@ -1662,14 +2145,6 @@ async function handleLayoutRename(req, res) {
 
 app.put('/api/floorplans/rename', requireApiAuth, handleLayoutRename);
 app.put('/api/layouts/rename', requireApiAuth, handleLayoutRename);
-
-app.delete('/api/floorplans/:filename', requireApiAuth, (req, res) => {
-  res.status(403).json({ success: false, message: 'Floor plan deletion is disabled.' });
-});
-
-app.delete('/api/layouts/:filename', requireApiAuth, (req, res) => {
-  res.status(403).json({ success: false, message: 'Layout deletion is disabled.' });
-});
 
 async function handleLayoutsList(req, res) {
   const paths = await resolvePaths(req);
@@ -2452,10 +2927,6 @@ app.post('/api/initial-views', requireApiAuth, async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Database error' });
   }
-});
-
-app.delete('/upload/:filename', requireApiAuth, (req, res) => {
-  res.status(403).json({ success: false, message: 'Panorama deletion is disabled.' });
 });
 
 server.listen(PORT, '0.0.0.0', () => {

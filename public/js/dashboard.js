@@ -1,3 +1,16 @@
+/**
+ * Dashboard page controller (admin).
+ *
+ * Responsibilities:
+ * - Fetch and render the list of projects from the API
+ * - Provide create/open/rename/status-update workflows via modals
+ * - Provide search (with a small fade animation)
+ * - Subscribe to realtime updates via Socket.IO so multiple clients stay in sync
+ *
+ * This file is loaded as an ES module from `dashboard.html`.
+ */
+
+// ---- DOM element handles ----
 const projectListEl = document.getElementById('project-list');
 const emptyStateEl = document.getElementById('empty-state');
 const projectSearchInput = document.getElementById('project-search-input');
@@ -17,11 +30,16 @@ const renameProjectNameInput = document.getElementById('rename-project-name');
 const renameProjectErrorEl = document.getElementById('rename-project-error');
 const renameModalCancelBtn = document.getElementById('rename-modal-cancel');
 const renameModalSaveBtn = document.getElementById('rename-modal-save');
+
+// Socket.IO client (served by the backend at `/socket.io/...`)
 import { io } from '/socket.io/socket.io.esm.min.js';
 
+// ---- Validation / business rules ----
 const MAX_PROJECT_NAME_LENGTH = 150;
 const MAX_PROJECT_NUMBER_LENGTH = 20;
 const ALLOWED_PROJECT_STATUSES = new Set(['on-going', 'completed']);
+
+// ---- In-memory state used for filtering and rendering ----
 let allProjects = [];
 let openProjectProjects = [];
 const SEARCH_FADE_MS = 140;
@@ -75,16 +93,36 @@ if (renameProjectNumberInput) {
   });
 }
 
+/**
+ * Normalizes a project name for comparisons (case-insensitive and whitespace-trimmed).
+ *
+ * @param {string} name
+ * @returns {string}
+ */
 function normalizeProjectName(name) {
   return (name || '').trim().toLowerCase();
 }
 
+/**
+ * Normalizes a project status so older values and different spellings map consistently.
+ *
+ * @param {string} value
+ * @returns {'on-going'|'completed'}
+ */
 function normalizeProjectStatus(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'in-progress') return 'on-going';
   return ALLOWED_PROJECT_STATUSES.has(normalized) ? normalized : 'on-going';
 }
 
+/**
+ * Merges a freshly fetched project list with any previously-known statuses.
+ * This is used to keep the UI stable when the API returns older records with missing/legacy fields.
+ *
+ * @param {Array<object>} prevList
+ * @param {Array<object>} nextList
+ * @returns {Array<object>}
+ */
 function mergeProjectStatuses(prevList, nextList) {
   if (!Array.isArray(nextList)) return [];
   const prevById = new Map((prevList || []).map((p) => [p.id, p]));
@@ -98,13 +136,27 @@ function mergeProjectStatuses(prevList, nextList) {
   });
 }
 
+/**
+ * Checks whether a project name already exists in the current in-memory list.
+ * Used to provide immediate feedback before attempting to create/rename on the server.
+ *
+ * @param {string} name
+ * @param {string|null} [excludeId=null] - ID to ignore (useful when renaming an existing project)
+ * @returns {boolean}
+ */
 function projectNameExists(name, excludeId = null) {
   const n = normalizeProjectName(name);
   if (!n) return false;
   return allProjects.some((p) => normalizeProjectName(p.name) === n && (!excludeId || p.id !== excludeId));
 }
 
-/** Sanitize string for URL/folder id */
+/**
+ * Converts a user-facing project name into a safe identifier.
+ * Note: The backend uses its own canonical IDs; this helper is kept for legacy or client-only cases.
+ *
+ * @param {string} name
+ * @returns {string}
+ */
 function toProjectId(name) {
   return name
     .trim()
@@ -113,12 +165,26 @@ function toProjectId(name) {
     .replace(/[^a-z0-9_-]/g, '');
 }
 
+/**
+ * Fetches all projects from the server.
+ *
+ * @returns {Promise<Array<object>>}
+ * @throws {Error} when the request fails
+ */
 async function fetchProjects() {
   const res = await fetch('/api/projects');
   if (!res.ok) throw new Error('Failed to load projects');
   return res.json();
 }
 
+/**
+ * Creates a project via the API.
+ *
+ * @param {string} name
+ * @param {string} number
+ * @returns {Promise<object>} created project
+ * @throws {Error} when the API rejects the request
+ */
 async function createProject(name, number) {
   const status = 'in-progress';
   const res = await fetch('/api/projects', {
@@ -131,6 +197,16 @@ async function createProject(name, number) {
   return data;
 }
 
+/**
+ * Updates a project (rename / number / status) via the API.
+ *
+ * @param {string} id
+ * @param {string} newName
+ * @param {string} newNumber
+ * @param {string} status
+ * @returns {Promise<object>} updated project partial/record
+ * @throws {Error} when the API rejects the request
+ */
 async function renameProject(id, newName, newNumber, status) {
   const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
     method: 'PUT',
@@ -146,6 +222,13 @@ async function renameProject(id, newName, newNumber, status) {
   return data;
 }
 
+/**
+ * Convenience wrapper to update only a project's status.
+ *
+ * @param {object} project - current project object
+ * @param {string} nextStatus
+ * @returns {Promise<object>} merged updated project
+ */
 async function updateProjectStatus(project, nextStatus) {
   const status = normalizeProjectStatus(nextStatus);
   const updated = await renameProject(project.id, project.name, project.number || '', status);
@@ -156,6 +239,13 @@ async function updateProjectStatus(project, nextStatus) {
   };
 }
 
+/**
+ * Navigates to the project editor for a given project.
+ * Uses the project number for links when available (more human-friendly).
+ *
+ * @param {object} project
+ * @returns {void}
+ */
 function openProject(project) {
   // Prefer project number in shared URLs when available.
   const projectToken = (project.number && String(project.number).trim()) || project.id;
@@ -163,6 +253,13 @@ function openProject(project) {
   window.location.href = `project-editor.html?${params}`;
 }
 
+/**
+ * Validates project names for UI input.
+ *
+ * @param {string} name
+ * @param {string|null} [currentName=null] - provided for context; the function does not treat it specially
+ * @returns {string|null} error message, or null if valid
+ */
 function validateProjectName(name, currentName = null) {
   const trimmed = name.trim();
   if (!trimmed) return 'Project name is required.';
@@ -171,6 +268,13 @@ function validateProjectName(name, currentName = null) {
   return null;
 }
 
+/**
+ * Validates project numbers for UI input.
+ *
+ * @param {string} number
+ * @param {string} [requiredMessage='Project number is required.']
+ * @returns {string|null} error message, or null if valid
+ */
 function validateProjectNumber(number, requiredMessage = 'Project number is required.') {
   const trimmed = (number || '').trim();
   if (!trimmed) return requiredMessage;
@@ -181,6 +285,14 @@ function validateProjectNumber(number, requiredMessage = 'Project number is requ
   return null;
 }
 
+/**
+ * Opens the rename modal, wires up its event handlers, and cleans up listeners when closed.
+ * The modal performs client-side validation first, then calls the API.
+ *
+ * @param {object} project
+ * @param {HTMLElement} nameDisplayEl - element that displays the name in the table row (used for context)
+ * @returns {void}
+ */
 function showRenameModal(project, nameDisplayEl) {
   renameProjectErrorEl.textContent = '';
   if (renameProjectNumberInput) {
@@ -260,6 +372,18 @@ function showRenameModal(project, nameDisplayEl) {
   };
 }
 
+/**
+ * Builds a single row in the project table.
+ *
+ * Row interactions:
+ * - Clicking the row opens the project editor (except when clicking buttons)
+ * - "View" opens the public viewer in a new tab
+ * - "Edit" opens the rename modal
+ * - Status dropdown persists changes via the API
+ *
+ * @param {object} project
+ * @returns {HTMLDivElement}
+ */
 function renderProjectRow(project) {
   const row = document.createElement('div');
   row.className = 'project-row';
@@ -399,11 +523,23 @@ function renderProjectRow(project) {
   return row;
 }
 
+/**
+ * Shows/hides the dashboard empty-state text.
+ * We derive emptiness from the rendered list so it works with search filtering.
+ *
+ * @returns {void}
+ */
 function updateEmptyState() {
   const count = projectListEl.querySelectorAll('.project-row').length;
   emptyStateEl.style.display = count === 0 ? 'block' : 'none';
 }
 
+/**
+ * Renders the main project list in the dashboard table.
+ *
+ * @param {Array<object>} projects
+ * @returns {void}
+ */
 function renderProjectList(projects) {
   projectListEl.innerHTML = '';
   for (const p of projects) {
@@ -412,6 +548,12 @@ function renderProjectList(projects) {
   updateEmptyState();
 }
 
+/**
+ * Renders the list inside the "Open Existing Project" modal.
+ *
+ * @param {Array<object>} projects
+ * @returns {void}
+ */
 function renderOpenProjectList(projects) {
   if (!openProjectListEl) return;
   openProjectListEl.innerHTML = '';
@@ -441,6 +583,13 @@ function renderOpenProjectList(projects) {
   }
 }
 
+/**
+ * Renders a filtered list with a short fade-out/fade-in animation.
+ * This improves perceived responsiveness when typing in the search input.
+ *
+ * @param {Array<object>} projects
+ * @returns {void}
+ */
 function renderProjectListWithSearchAnimation(projects) {
   if (!projectListEl) {
     renderProjectList(projects);
@@ -473,6 +622,12 @@ function renderProjectListWithSearchAnimation(projects) {
   }, SEARCH_FADE_MS);
 }
 
+/**
+ * Applies the main dashboard search query and renders the result.
+ *
+ * @param {{animate?: boolean}} [options]
+ * @returns {void}
+ */
 function applyProjectSearch(options = {}) {
   const { animate = false } = options;
   const query = (projectSearchInput && projectSearchInput.value.trim()) || '';
@@ -496,6 +651,11 @@ function applyProjectSearch(options = {}) {
   }
 }
 
+/**
+ * Applies search filtering inside the "Open Existing Project" modal.
+ *
+ * @returns {void}
+ */
 function applyOpenProjectSearch() {
   const query = (openProjectSearchInput && openProjectSearchInput.value.trim()) || '';
   let projectsToRender = openProjectProjects;
@@ -512,6 +672,12 @@ function applyOpenProjectSearch() {
   renderOpenProjectList(projectsToRender);
 }
 
+/**
+ * Loads projects from the server and renders them.
+ * Called on initial page load and indirectly through realtime socket updates.
+ *
+ * @returns {Promise<void>}
+ */
 async function loadProjects() {
   try {
     const fetched = await fetchProjects();
@@ -523,6 +689,8 @@ async function loadProjects() {
   }
 }
 
+// ---- UI event wiring ----
+// Modal open/close, create/rename actions, and search input listeners.
 document.getElementById('btn-new-project').onclick = () => {
   newProjectNumberInput.value = '';
   newProjectNameInput.value = '';
@@ -617,7 +785,8 @@ if (openProjectSearchInput) {
 
 loadProjects();
 
-// Realtime updates: update project list when other clients change it
+// ---- Realtime updates ----
+// When any client creates/updates projects, the server broadcasts `projects:changed`.
 try {
   const socket = io();
   socket.on('projects:changed', (projects) => {
