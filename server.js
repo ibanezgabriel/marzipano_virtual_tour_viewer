@@ -11,7 +11,6 @@
  */
 
 const express = require('express');
-const multer = require('multer'); 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -1926,43 +1925,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Multer: dynamic destination based on project (set by route)
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: async (req, file, cb) => {
-      const projectToken = req.query.project || (req.body && req.body.project);
-      const project = await findProjectByIdOrNumber(projectToken);
-      const projectId = project ? project.id : projectToken;
-      const p = getProjectPaths(projectId);
-      if (!p) return cb(new Error('Project required'), null);
-      const dir = p.upload;
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-      cb(null, createStoredUploadFilename(file.originalname));
-    },
-  }),
-});
-
-// Separate storage for layout images (project-scoped "layouts" directory; legacy fallback: "floorplans")
-const floorplanUpload = multer({
-  storage: multer.diskStorage({
-    destination: async (req, file, cb) => {
-      const projectToken = req.query.project || (req.body && req.body.project);
-      const project = await findProjectByIdOrNumber(projectToken);
-      const projectId = project ? project.id : projectToken;
-      const p = getProjectPaths(projectId);
-      if (!p) return cb(new Error('Project required'), null);
-      const dir = p.layouts;
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-      cb(null, createStoredUploadFilename(file.originalname));
-    },
-  }),
-});
+const { upload, floorplanUpload } = require('./multer-config');
 
 async function listUploadedImages(uploadsDir) {
   const files = await fs.promises.readdir(uploadsDir);
