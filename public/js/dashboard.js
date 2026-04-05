@@ -539,11 +539,15 @@ async function renameProject(id, newName, newNumber, status) {
   return data;
 }
 
-async function requestProjectApproval(projectId) {
+async function requestProjectApproval(projectId, changes = null) {
+  const body = {};
+  if (changes && typeof changes === 'object') {
+    body.changes = changes;
+  }
   const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/request-approval`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify({}),
+    body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || data.error || `Request failed (HTTP ${res.status})`);
@@ -689,7 +693,18 @@ function showRenameModal(project, nameDisplayEl) {
       if (!IS_STAGING_VIEW) {
         // For published projects: edits must be approved by Super Admin before re-publishing.
         try {
-          await requestProjectApproval(project.id);
+          await requestProjectApproval(project.id, {
+            previous: {
+              name: project.name,
+              number: currentNumber,
+              status: currentStatus,
+            },
+            next: {
+              name: name.trim(),
+              number,
+              status: nextStatus,
+            },
+          });
           window.alert('Approval request submitted. View it in the Staging dashboard while it is pending.');
         } catch (err) {
           const msg = err && err.message ? err.message : String(err || 'Unknown error');

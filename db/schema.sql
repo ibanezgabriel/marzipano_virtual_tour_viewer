@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS users (
 -- 2. PROJECTS: Replaces projects.json
 CREATE TABLE IF NOT EXISTS projects (
     id VARCHAR(255) PRIMARY KEY, -- Slug ID (e.g. 'project-alpha')
+    -- On-disk folder name for project assets (can change when display name changes).
+    -- Defaults to the id, but is kept separate so renaming doesn't rewrite primary keys / foreign keys.
+    folder_name VARCHAR(255),
     name VARCHAR(255) NOT NULL,
     number VARCHAR(50) NOT NULL,
     status VARCHAR(20) DEFAULT 'on-going',

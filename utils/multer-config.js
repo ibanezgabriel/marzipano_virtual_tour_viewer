@@ -2,9 +2,9 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const db = require('./db');
+const db = require('../db');
 
-const projectsDir = path.join(__dirname, 'projects');
+const projectsDir = path.join(__dirname, '..', 'projects');
 
 function ensureDirSync(dirPath) {
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
@@ -60,8 +60,8 @@ function createProjectDestination(getDir) {
     try {
       const projectToken = req.query.project || (req.body && req.body.project);
       const project = await findProjectByIdOrNumber(projectToken);
-      const projectId = project ? project.id : projectToken;
-      const p = getProjectPaths(projectId);
+      const folderName = project ? String(project.folder_name || project.id || '').trim() : String(projectToken || '').trim();
+      const p = getProjectPaths(folderName);
       if (!p) return cb(new Error('Project required'), null);
       const dir = getDir(p);
       ensureDirSync(dir);
@@ -96,3 +96,4 @@ module.exports = {
   upload,
   floorplanUpload,
 };
+

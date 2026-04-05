@@ -21,7 +21,7 @@ async function migrate() {
   // 1. Get all projects from the DATABASE to ensure exact ID matching
   let dbProjects = [];
   try {
-    const res = await db.query('SELECT id FROM projects');
+    const res = await db.query('SELECT * FROM projects');
     dbProjects = res.rows;
   } catch (err) {
     console.error('❌ Failed to fetch projects from DB:', err.message);
@@ -32,7 +32,8 @@ async function migrate() {
     const projectId = p.id;
     console.log(`\n📂 Processing Project: ${projectId}`);
     
-    const pPath = path.join(projectsDir, projectId);
+    const folderName = (p.folder_name && String(p.folder_name).trim()) || projectId;
+    const pPath = path.join(projectsDir, folderName);
     
     // Check if folder exists (works on Windows even if casing differs)
     if (!fs.existsSync(pPath)) {

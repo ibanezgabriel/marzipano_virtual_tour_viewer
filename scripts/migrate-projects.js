@@ -58,6 +58,12 @@ async function ensureWorkflowColumn() {
   await db.query(
     "ALTER TABLE projects ADD COLUMN IF NOT EXISTS workflow_state VARCHAR(30) NOT NULL DEFAULT 'DRAFT'"
   );
+  try {
+    await db.query('ALTER TABLE projects ADD COLUMN IF NOT EXISTS folder_name VARCHAR(255)');
+    await db.query("UPDATE projects SET folder_name = id WHERE folder_name IS NULL OR folder_name = ''");
+  } catch (e) {
+    // Best-effort: older schemas may not support this yet.
+  }
 }
 
 async function migrate() {
@@ -73,8 +79,25 @@ async function migrate() {
   const manifestIds = new Set(manifestProjects.map((p) => String(p && p.id ? p.id : '').trim()).filter(Boolean));
 
   const folderIds = listProjectIdsFromFolders();
+
+  // Avoid creating duplicates when folders no longer match the DB project id (e.g. after renames).
+  const existingProjectIds = new Set();
+  const existingFolderNames = new Set();
+  try {
+    const existingRes = await db.query('SELECT * FROM projects');
+    (existingRes.rows || []).forEach((row) => {
+      const id = String(row && row.id ? row.id : '').trim();
+      if (id) existingProjectIds.add(id);
+      const folder = String((row && row.folder_name) || id || '').trim();
+      if (folder) existingFolderNames.add(folder);
+    });
+  } catch (e) {
+    // If the projects table doesn't exist yet, we'll rely on inserts below.
+  }
+
   const folderProjects = folderIds
     .filter((id) => !manifestIds.has(id))
+    .filter((id) => !existingProjectIds.has(id) && !existingFolderNames.has(id))
     .map((id) => ({
       id,
       name: humanizeProjectName(id),
@@ -131,13 +154,28 @@ async function migrate() {
 
     try {
       // Upsert: Insert if not exists, otherwise do nothing
-      const res = await db.query(
-        `INSERT INTO projects (id, name, number, status, workflow_state) 
-         VALUES ($1, $2, $3, $4, $5) 
-         ON CONFLICT (id) DO NOTHING 
-         RETURNING id`,
-        [id, name, number, status, workflowState]
-      );
+      let res = null;
+      try {
+        res = await db.query(
+          `INSERT INTO projects (id, folder_name, name, number, status, workflow_state) 
+           VALUES ($1, $2, $3, $4, $5, $6) 
+           ON CONFLICT (id) DO NOTHING 
+           RETURNING id`,
+          [id, id, name, number, status, workflowState]
+        );
+      } catch (e) {
+        if (e && e.code === '42703') {
+          res = await db.query(
+            `INSERT INTO projects (id, name, number, status, workflow_state) 
+             VALUES ($1, $2, $3, $4, $5) 
+             ON CONFLICT (id) DO NOTHING 
+             RETURNING id`,
+            [id, name, number, status, workflowState]
+          );
+        } else {
+          throw e;
+        }
+      }
 
       if (res.rows.length > 0) {
         console.log(`✅ Migrated: ${name} (${id}) [${workflowState}]`);

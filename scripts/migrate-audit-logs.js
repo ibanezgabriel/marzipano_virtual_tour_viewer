@@ -53,8 +53,9 @@ async function insertAuditLogIfMissing(client, { projectId, action, message, met
   );
 }
 
-async function migrateProject(client, projectId) {
-  const projectPath = path.join(projectsDir, projectId);
+async function migrateProject(client, projectId, projectFolderName = null) {
+  const folderName = projectFolderName || projectId;
+  const projectPath = path.join(projectsDir, folderName);
   const dataDir = path.join(projectPath, 'data');
   const auditDir = path.join(dataDir, 'audit');
   const panosDir = path.join(auditDir, 'panos');
@@ -115,14 +116,18 @@ async function migrateAll() {
       process.exit(1);
     }
 
-    const projectsRes = await client.query('SELECT id FROM projects ORDER BY created_at ASC');
-    const projectIds = projectsRes.rows.map((r) => r.id);
+    const projectsRes = await client.query('SELECT * FROM projects ORDER BY created_at ASC');
+    const projects = projectsRes.rows.map((r) => ({
+      id: r.id,
+      folderName: (r.folder_name && String(r.folder_name).trim()) || r.id,
+    }));
 
     let total = 0;
-    for (const projectId of projectIds) {
+    for (const p of projects) {
+      const projectId = p.id;
       try {
         await client.query('BEGIN');
-        const count = await migrateProject(client, projectId);
+        const count = await migrateProject(client, projectId, p.folderName);
         await client.query('COMMIT');
         total += count;
         console.log(`✅ ${projectId}: processed ${count} archive entries`);

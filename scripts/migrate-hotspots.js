@@ -53,8 +53,9 @@ function stripLayoutHotspotIds(obj) {
   return out;
 }
 
-async function migrateProject(projectId) {
-  const projectPath = path.join(projectsDir, projectId);
+async function migrateProject(projectId, projectFolderName = null) {
+  const folderName = projectFolderName || projectId;
+  const projectPath = path.join(projectsDir, folderName);
   const dataDir = path.join(projectPath, 'data');
   const panoHotspotsPath = path.join(dataDir, 'hotspots.json');
   const layoutHotspotsPath = path.join(dataDir, 'layout-hotspots.json');
@@ -174,8 +175,11 @@ async function migrateAll() {
 
   let projects = [];
   try {
-    const res = await db.query('SELECT id FROM projects ORDER BY created_at ASC');
-    projects = res.rows.map((r) => r.id);
+    const res = await db.query('SELECT * FROM projects ORDER BY created_at ASC');
+    projects = res.rows.map((r) => ({
+      id: r.id,
+      folderName: (r.folder_name && String(r.folder_name).trim()) || r.id,
+    }));
   } catch (e) {
     console.error('❌ Could not load projects from DB:', e.message || e);
     process.exit(1);
@@ -185,9 +189,10 @@ async function migrateAll() {
   let totalLayout = 0;
   let skipped = 0;
 
-  for (const projectId of projects) {
+  for (const p of projects) {
+    const projectId = p.id;
     try {
-      const result = await migrateProject(projectId);
+      const result = await migrateProject(projectId, p.folderName);
       if (result.skipped) {
         skipped += 1;
         console.log(`⚠️  ${projectId}: no non-empty hotspot files found (skipped)`);

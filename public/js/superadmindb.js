@@ -298,7 +298,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!projectsListEl) return;
         if (projectsLoadedOnce && !force) return;
         try {
-            projectsAll = await fetchAllProjects();
+            const all = await fetchAllProjects();
+            // Projects that are still drafts should not appear in the Projects tab.
+            projectsAll = Array.isArray(all)
+                ? all.filter((p) => normalizeWorkflowState(p && p.workflow_state) !== 'DRAFT')
+                : [];
             projectsLoadedOnce = true;
             applyProjectsSearch();
         } catch (e) {
@@ -504,7 +508,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         approvalTbody.innerHTML = '';
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 6;
+        td.colSpan = 7;
         td.textContent = message;
         tr.appendChild(td);
         approvalTbody.appendChild(tr);
@@ -537,8 +541,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tdProjName = document.createElement('td');
             tdProjName.textContent = r.project_name || '';
 
+            const tdActionCode = document.createElement('td');
+            tdActionCode.textContent = r.action_code || '';
+
             const tdInfo = document.createElement('td');
-            tdInfo.textContent = approvalInfoLabel(r);
+            tdInfo.textContent = r.information || approvalInfoLabel(r);
 
             const tdBy = document.createElement('td');
             tdBy.textContent = r.requested_by || '';
@@ -580,6 +587,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await decideApproval(r.id, 'approve', '');
                     approvalsLoadedOnce = false;
                     await loadApprovalRequests({ force: true });
+                    projectsLoadedOnce = false;
+                    await loadProjects({ force: true });
                 } catch (e) {
                     window.alert(e.message || 'Failed to approve.');
                 }
@@ -596,13 +605,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await decideApproval(r.id, 'reject', reason);
                     approvalsLoadedOnce = false;
                     await loadApprovalRequests({ force: true });
+                    projectsLoadedOnce = false;
+                    await loadProjects({ force: true });
                 } catch (e) {
                     window.alert(e.message || 'Failed to reject.');
                 }
             });
 
             tdAction.append(reviewBtn, approveBtn, rejectBtn);
-            tr.append(tdTs, tdProjNo, tdProjName, tdInfo, tdBy, tdAction);
+            tr.append(tdTs, tdProjNo, tdProjName, tdActionCode, tdInfo, tdBy, tdAction);
             approvalTbody.appendChild(tr);
         }
     }
