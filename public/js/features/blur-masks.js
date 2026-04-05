@@ -128,13 +128,14 @@ function serializeBlurMasks() {
   return obj;
 }
 
-function saveBlurMasksToStorage() {
+function saveBlurMasksToStorage({ persistToServer = true } = {}) {
   const payload = serializeBlurMasks();
   try {
     localStorage.setItem(BLUR_STORAGE_KEY, JSON.stringify(payload));
   } catch (e) {
     console.warn('Could not save blur masks to localStorage', e);
   }
+  if (!persistToServer) return;
   fetch(appendProjectParams('/api/blur-masks'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -302,9 +303,6 @@ function removeMaskEntry(entry, imageName) {
     clearEditingMask();
   }
   list.splice(idx, 1);
-  if (list.length === 0) {
-    blurMasksByImage.delete(imageName);
-  }
   try {
     const scene = getCurrentScene();
     const container = scene && scene.hotspotContainer ? scene.hotspotContainer() : null;
@@ -563,8 +561,8 @@ export function updateBlurMasksForRenamedImage(oldName, newName) {
   const list = blurMasksByImage.get(oldName);
   blurMasksByImage.delete(oldName);
   blurMasksByImage.set(newName, list);
-  flushQueuedSave();
-  saveBlurMasksToStorage();
+  // Local cache update only; server DB uses pano IDs so rename does not require persistence.
+  saveBlurMasksToStorage({ persistToServer: false });
 }
 
 export function cleanupBlurMasksForDeletedImages(validImageNames) {

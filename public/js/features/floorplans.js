@@ -100,7 +100,7 @@ export function initLayouts() {
     return obj;
   }
 
-  function saveFloorplanHotspotsToStorage() {
+  function saveFloorplanHotspotsToStorage({ persistToServer = true } = {}) {
     const payload = serializeFloorplanHotspots();
     try {
       localStorage.setItem(LAYOUT_HOTSPOTS_KEY, JSON.stringify(payload));
@@ -108,6 +108,7 @@ export function initLayouts() {
       console.warn('Could not save layout hotspots to localStorage', e);
     }
     // Persist to server so hotspots follow the project
+    if (!persistToServer) return;
     fetch(appendProjectParams('/api/layout-hotspots'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -126,7 +127,8 @@ export function initLayouts() {
       });
     });
     if (changed) {
-      saveFloorplanHotspotsToStorage();
+      // Local cache update only; server DB uses pano IDs so rename does not require persistence.
+      saveFloorplanHotspotsToStorage({ persistToServer: false });
       renderFloorplanHotspots();
       renderRenderedHotspots();
     }

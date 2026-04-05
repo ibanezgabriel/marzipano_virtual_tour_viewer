@@ -38,14 +38,16 @@ function serializeHotspots() {
   return obj;
 }
 
-function saveHotspotsToStorage() {
+function saveHotspotsToStorage({ persistToServer = true } = {}) {
   const payload = serializeHotspots();
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch (e) {
     console.warn('Could not save hotspots to localStorage', e);
   }
-  // Persist to server so client view can load hotspots from any device
+  // Persist to server so client view can load hotspots from any device.
+  // Some operations (like pano rename) only need local cache updates because the DB uses pano IDs.
+  if (!persistToServer) return;
   fetch(appendProjectParams('/api/hotspots'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -97,7 +99,7 @@ async function loadHotspotsFromServer() {
 }
 
 /** Update hotspots when an image is renamed: change linkTo and map keys to use the new name. */
-export function updateHotspotsForRenamedImage(oldName, newName) {
+export function updateHotspotsForRenamedImage(oldName, newName, { persistToServer = false } = {}) {
   let changed = false;
   hotspotsByImage.forEach((list, imageName) => {
     list.forEach((entry) => {
@@ -113,7 +115,7 @@ export function updateHotspotsForRenamedImage(oldName, newName) {
     hotspotsByImage.set(newName, list);
     changed = true;
   }
-  if (changed) saveHotspotsToStorage();
+  if (changed) saveHotspotsToStorage({ persistToServer });
 }
 
 /** Remove stored hotspots for image names that are no longer in the list (panorama deleted).

@@ -2,6 +2,78 @@ function createApprovalRequestsService({ db, normalizeProjectStatus, insertAudit
   // Ensure approval requests can be used as a notification source for admins.
   let approvalRequestsNotificationsSupported = null;
 
+  function normalizeUsername(value) {
+    const v = String(value || '').trim();
+    return v || 'Unknown';
+  }
+
+  const SESSION_ACTION_CODE_ORDER = [
+    'PROJECT_CREATE',
+    'PROJECT_UPDATE',
+    'PANO_UPLOAD',
+    'PANO_RENAME',
+    'PANO_UPDATE',
+    'LAYOUT_UPLOAD',
+    'LAYOUT_RENAME',
+    'LAYOUT_UPDATE',
+    'HOTSPOT_ADD',
+    'HOTSPOT_REMOVE',
+    'BLUR_APPLY',
+    'BLUR_REMOVE',
+    'VIEW_SET',
+  ];
+  const SESSION_ACTION_CODE_SET = new Set(SESSION_ACTION_CODE_ORDER);
+
+  function normalizeSessionActionCode(action) {
+    const raw = String(action || '').trim();
+    if (!raw) return null;
+    if (SESSION_ACTION_CODE_SET.has(raw)) return raw;
+
+    // Backward compatibility for older audit action keys.
+    if (raw === 'project:create') return 'PROJECT_CREATE';
+    if (raw.startsWith('project:')) return 'PROJECT_UPDATE';
+
+    if (raw === 'archive:pano:upload') return 'PANO_UPLOAD';
+    if (raw === 'archive:pano:rename') return 'PANO_RENAME';
+    if (raw === 'archive:pano:update') return 'PANO_UPDATE';
+
+    if (raw === 'archive:floorplan:upload') return 'LAYOUT_UPLOAD';
+    if (raw === 'archive:floorplan:rename') return 'LAYOUT_RENAME';
+    if (raw === 'archive:floorplan:update') return 'LAYOUT_UPDATE';
+
+    // Backward compatibility for legacy approval-request action codes.
+    if (
+      raw === 'PROJECT_RENAME' ||
+      raw === 'PROJECT_ID_UPDATE' ||
+      raw === 'PROJECT_STATUS_CHANGE' ||
+      raw === 'PROJECT_INFO_UPDATE'
+    ) {
+      return 'PROJECT_UPDATE';
+    }
+
+    return null;
+  }
+
+  function sortSessionActionCodes(codes) {
+    const unique = Array.from(new Set((codes || []).filter(Boolean)));
+    unique.sort((a, b) => {
+      const ia = SESSION_ACTION_CODE_ORDER.indexOf(a);
+      const ib = SESSION_ACTION_CODE_ORDER.indexOf(b);
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+    return unique;
+  }
+
+  function applyActionCodeSpecificityRules(codes) {
+    const sorted = sortSessionActionCodes((codes || []).filter(Boolean));
+    const hasSpecific = sorted.some((code) => !String(code || '').startsWith('PROJECT_'));
+    if (!hasSpecific) return sorted;
+    return sorted.filter((code) => code !== 'PROJECT_UPDATE');
+  }
+
   async function ensureApprovalRequestNotificationColumns() {
     try {
       await db.query('ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS decided_at TIMESTAMP');
@@ -118,12 +190,7 @@ function createApprovalRequestsService({ db, normalizeProjectStatus, insertAudit
     const changedCount = (nameChanged ? 1 : 0) + (numberChanged ? 1 : 0) + (statusChanged ? 1 : 0);
     if (changedCount === 0) return null;
 
-    let actionCode = 'PROJECT_INFO_UPDATE';
-    if (changedCount === 1) {
-      if (nameChanged) actionCode = 'PROJECT_RENAME';
-      else if (numberChanged) actionCode = 'PROJECT_ID_UPDATE';
-      else actionCode = 'PROJECT_STATUS_CHANGE';
-    }
+    const actionCode = 'PROJECT_UPDATE';
 
     const infoParts = [];
     if (nameChanged) infoParts.push(`Requested name change from '${prevName}' to '${nextName}'`);
@@ -153,7 +220,17 @@ function createApprovalRequestsService({ db, normalizeProjectStatus, insertAudit
          FROM audit_logs
          WHERE project_id = $1
            AND user_id = $2
-           AND action IN ('project:update', 'project:rename', 'project:name', 'project:number', 'project:status')
+           AND action IN (
+             'project:update',
+             'project:rename',
+             'project:name',
+             'project:number',
+             'project:status',
+             'PROJECT_UPDATE'
+           )
+           AND metadata IS NOT NULL
+           AND metadata ? 'old'
+           AND metadata ? 'new'
          ORDER BY created_at DESC, id DESC
          LIMIT 1`,
         [String(projectId), Number(userId)]
@@ -165,6 +242,86 @@ function createApprovalRequestsService({ db, normalizeProjectStatus, insertAudit
     } catch (e) {
       if (e && e.code === '42P01') return null;
       return null;
+    }
+  }
+
+  async function inferSessionStartAt({ projectId, projectCreatedAt }) {
+    const fallback = projectCreatedAt ? new Date(projectCreatedAt) : null;
+    if (!projectId) return fallback;
+    try {
+      const result = await db.query(
+        `SELECT created_at
+         FROM audit_logs
+         WHERE project_id = $1
+           AND action IN ('REQ_APPROVED', 'REQ_REJECTED')
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1`,
+        [String(projectId)]
+      );
+      const createdAt = result.rows[0] && result.rows[0].created_at ? new Date(result.rows[0].created_at) : null;
+      if (createdAt && Number.isFinite(createdAt.getTime())) return createdAt;
+    } catch (e) {
+      if (e && e.code === '42P01') return fallback;
+    }
+    return fallback;
+  }
+
+  async function inferSessionActionCodesFromAudit({ projectId, userId, startAt }) {
+    if (!projectId || userId === undefined || userId === null) return [];
+    const since = startAt && Number.isFinite(new Date(startAt).getTime()) ? new Date(startAt) : new Date(0);
+    try {
+      const result = await db.query(
+        `SELECT DISTINCT action
+         FROM audit_logs
+         WHERE project_id = $1
+           AND user_id = $2
+           AND created_at >= $3`,
+        [String(projectId), Number(userId), since]
+      );
+
+      const codes = new Set();
+      (result.rows || []).forEach((row) => {
+        const normalized = normalizeSessionActionCode(row && row.action);
+        if (normalized) codes.add(normalized);
+      });
+      return sortSessionActionCodes(Array.from(codes));
+    } catch (e) {
+      if (e && e.code === '42P01') return [];
+      return [];
+    }
+  }
+
+  async function inferSessionInfoMessagesFromAudit({ projectId, userId, startAt, limit = 6 }) {
+    if (!projectId || userId === undefined || userId === null) return [];
+    const since = startAt && Number.isFinite(new Date(startAt).getTime()) ? new Date(startAt) : new Date(0);
+    try {
+      // Keep the approval request "Information" column focused on tangible assets/features,
+      // not redundant project metadata changes (those are handled by the explicit changeSet summary).
+      const actions = SESSION_ACTION_CODE_ORDER.filter((code) => !String(code).startsWith('PROJECT_'));
+      const result = await db.query(
+        `SELECT action, message
+         FROM audit_logs
+         WHERE project_id = $1
+           AND user_id = $2
+           AND created_at >= $3
+           AND action = ANY($4::text[])
+         ORDER BY created_at DESC, id DESC
+         LIMIT 60`,
+        [String(projectId), Number(userId), since, actions]
+      );
+      const rows = Array.isArray(result.rows) ? result.rows : [];
+      const messages = [];
+      for (const row of rows) {
+        const msg = row && row.message ? String(row.message).trim() : '';
+        if (!msg) continue;
+        if (messages.includes(msg)) continue;
+        messages.push(msg);
+        if (messages.length >= Math.max(0, Number(limit) || 0)) break;
+      }
+      return messages;
+    } catch (e) {
+      if (e && e.code === '42P01') return [];
+      return [];
     }
   }
 
@@ -226,12 +383,34 @@ function createApprovalRequestsService({ db, normalizeProjectStatus, insertAudit
 
     const rows = (rowsRes.rows || []).map((row) => {
       const payload = row && row.payload && typeof row.payload === 'object' ? row.payload : null;
-      const summary = payload ? computeProjectInfoChangeSummary(payload.changes) : null;
+      const persistedSummary =
+        payload &&
+        payload.summary &&
+        typeof payload.summary === 'object' &&
+        (payload.summary.action_code || payload.summary.action_codes || payload.summary.information)
+          ? payload.summary
+          : null;
+
+      const computedSummary = payload ? computeProjectInfoChangeSummary(payload.changes) : null;
+      const summary = persistedSummary || computedSummary;
+
       const out = { ...row };
       delete out.payload;
       if (summary) {
-        out.action_code = summary.action_code;
-        out.information = summary.information;
+        if (Array.isArray(summary.action_codes) && summary.action_codes.length > 0) {
+          const normalized = summary.action_codes.map((code) => normalizeSessionActionCode(code)).filter(Boolean);
+          if (normalized.length > 0) {
+            out.action_code = applyActionCodeSpecificityRules(normalized).join(', ');
+          } else if (summary.action_code) {
+            out.action_code = String(summary.action_code);
+          }
+        } else if (summary.action_code) {
+          const raw = String(summary.action_code);
+          const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
+          const normalized = parts.map((p) => normalizeSessionActionCode(p)).filter(Boolean);
+          out.action_code = normalized.length > 0 ? applyActionCodeSpecificityRules(normalized).join(', ') : raw;
+        }
+        if (summary.information) out.information = String(summary.information);
       }
       return out;
     });
@@ -239,7 +418,7 @@ function createApprovalRequestsService({ db, normalizeProjectStatus, insertAudit
     return { total: countRes.rows[0]?.total ?? 0, rows };
   }
 
-  async function createApprovalRequest({ projectId, body, sessionUserId }) {
+  async function createApprovalRequest({ projectId, body, sessionUserId, sessionUsername }) {
     const projRes = await db.query('SELECT * FROM projects WHERE id = $1', [projectId]);
     const project = projRes.rows[0];
     if (!project) return { ok: false, status: 404, json: { success: false, message: 'Project not found' } };
@@ -289,6 +468,44 @@ function createApprovalRequestsService({ db, normalizeProjectStatus, insertAudit
       };
     }
 
+    const summaryParts = [];
+    const projectInfoSummary = payload.changes ? computeProjectInfoChangeSummary(payload.changes) : null;
+    if (projectInfoSummary && projectInfoSummary.information) {
+      summaryParts.push(String(projectInfoSummary.information));
+    }
+
+    const sessionStartAt = await inferSessionStartAt({ projectId, projectCreatedAt: project.created_at });
+    const sessionActionCodes = await inferSessionActionCodesFromAudit({
+      projectId,
+      userId: sessionUserId,
+      startAt: sessionStartAt,
+    });
+    const sessionMessages = await inferSessionInfoMessagesFromAudit({
+      projectId,
+      userId: sessionUserId,
+      startAt: sessionStartAt,
+      limit: 8,
+    });
+    sessionMessages.forEach((m) => {
+      if (!m) return;
+      if (summaryParts.includes(m)) return;
+      summaryParts.push(m);
+    });
+
+    const actionCodes = new Set(sessionActionCodes);
+    if (projectInfoSummary && projectInfoSummary.action_code) {
+      actionCodes.add(String(projectInfoSummary.action_code));
+    }
+    const finalCodes = applyActionCodeSpecificityRules(Array.from(actionCodes));
+
+    if (finalCodes.length > 0 || summaryParts.length > 0) {
+      payload.summary = {
+        action_codes: finalCodes,
+        action_code: finalCodes.join(', '),
+        information: summaryParts.join('; '),
+      };
+    }
+
     const insertRes = await db.query(
       `INSERT INTO approval_requests (requester_id, project_id, request_type, payload, status)
        VALUES ($1, $2, $3, $4::jsonb, 'PENDING')
@@ -300,11 +517,12 @@ function createApprovalRequestsService({ db, normalizeProjectStatus, insertAudit
     await emitProjectsChanged();
 
     try {
+      const adminName = normalizeUsername(sessionUsername);
       await insertAuditLog({
         projectId,
         userId: sessionUserId,
-        action: 'approval:requested',
-        message: 'Approval requested for project.',
+        action: 'REQ_SUBMITTED',
+        message: `Admin ${adminName} requested approval for ${project.name}`,
         metadata: { requestId: insertRes.rows[0]?.id, request_type: 'project:publish' },
       });
     } catch (e) {}
@@ -361,12 +579,30 @@ function createApprovalRequestsService({ db, normalizeProjectStatus, insertAudit
       await db.query('COMMIT');
 
       try {
+        const actorName = normalizeUsername(sessionUsername);
+        const payload = request.payload && typeof request.payload === 'object' ? request.payload : {};
+        const projectName =
+          payload && payload.project && payload.project.name
+            ? String(payload.project.name)
+            : payload && payload.project_name
+              ? String(payload.project_name)
+              : 'Unknown project';
+
+        const trimmedReason = typeof commentValue === 'string' ? commentValue.trim() : '';
+        const reason = trimmedReason || 'No reason specified';
+
+        const action = decision === 'APPROVED' ? 'REQ_APPROVED' : 'REQ_REJECTED';
+        const message =
+          decision === 'APPROVED'
+            ? `Super Admin ${actorName} approved request for ${projectName}`
+            : `Super Admin ${actorName} rejected request for ${projectName}. Reason: ${reason}`;
+
         await insertAuditLog({
           projectId,
           userId: sessionUserId,
-          action: decision === 'APPROVED' ? 'approval:approved' : 'approval:rejected',
-          message: decision === 'APPROVED' ? 'Project approved and published.' : 'Project approval rejected.',
-          metadata: { requestId: id, comment: commentValue || null },
+          action,
+          message,
+          metadata: { requestId: id, comment: trimmedReason || null },
         });
       } catch (e) {}
 

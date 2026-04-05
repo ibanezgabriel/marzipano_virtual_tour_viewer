@@ -1,4 +1,25 @@
 function createAuditLogsService({ db }) {
+  function normalizeActionCode(action) {
+    const raw = String(action || '').trim();
+    if (!raw) return raw;
+
+    // --- Categorized Action Code system ---
+    // Project metadata changes
+    if (raw === 'project:create') return 'PROJECT_CREATE';
+    if (raw.startsWith('project:')) return 'PROJECT_UPDATE';
+
+    // Media actions (archive mirrored)
+    if (raw === 'archive:pano:upload') return 'PANO_UPLOAD';
+    if (raw === 'archive:pano:rename') return 'PANO_RENAME';
+    if (raw === 'archive:pano:update') return 'PANO_UPDATE';
+
+    if (raw === 'archive:floorplan:upload') return 'LAYOUT_UPLOAD';
+    if (raw === 'archive:floorplan:rename') return 'LAYOUT_RENAME';
+    if (raw === 'archive:floorplan:update') return 'LAYOUT_UPDATE';
+
+    return raw;
+  }
+
   // Ensure audit logs can store project name/number snapshots.
   async function ensureAuditLogSnapshotColumns() {
     try {
@@ -36,6 +57,7 @@ function createAuditLogsService({ db }) {
     if (auditLogsDbDisabled) return;
     if (!action) return;
     try {
+      const actionCode = normalizeActionCode(action);
       const created = createdAt ? new Date(createdAt) : new Date();
       const projectIdValue = projectId === undefined || projectId === null ? null : String(projectId);
 
@@ -61,7 +83,7 @@ function createAuditLogsService({ db }) {
       await db.query(
         `INSERT INTO audit_logs (project_id, project_number, project_name, user_id, action, message, metadata, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)`,
-        [projectIdValue, projectNumberValue, projectNameValue, userId ? Number(userId) : null, String(action), message ? String(message) : null, metadataJson, created]
+        [projectIdValue, projectNumberValue, projectNameValue, userId ? Number(userId) : null, String(actionCode), message ? String(message) : null, metadataJson, created]
       );
     } catch (e) {
       // If schema migration hasn't been applied yet, avoid spamming errors on every request.
@@ -73,6 +95,7 @@ function createAuditLogsService({ db }) {
       // If snapshot columns aren't present yet, fall back to the legacy insert.
       if (e && e.code === '42703') {
         try {
+          const actionCode = normalizeActionCode(action);
           const created = createdAt ? new Date(createdAt) : new Date();
           const projectIdValue = projectId === undefined || projectId === null ? null : String(projectId);
           await db.query(
@@ -81,7 +104,7 @@ function createAuditLogsService({ db }) {
             [
               projectIdValue,
               userId ? Number(userId) : null,
-              String(action),
+              String(actionCode),
               message ? String(message) : null,
               JSON.stringify(metadata && typeof metadata === 'object' ? metadata : {}),
               created,
@@ -104,16 +127,6 @@ function createAuditLogsService({ db }) {
       params.push(val);
       return `$${params.length}`;
     };
-
-    // Exclude micro-actions from the Super Admin audit view.
-    // (These can be very noisy and aren't meaningful for oversight.)
-    where.push(
-      `NOT (
-        a.action ILIKE ${add('%hotspots%')}
-        OR a.action ILIKE ${add('%blur%')}
-        OR a.action ILIKE ${add('%initial-view%')}
-      )`
-    );
 
     if (q) {
       const like = `%${q}%`;
@@ -168,4 +181,3 @@ function createAuditLogsService({ db }) {
 }
 
 module.exports = createAuditLogsService;
-

@@ -223,6 +223,7 @@ apiRouter.use(
     io,
     projectsService,
     legacyAuditLogService,
+    insertAuditLog: auditLogsService.insertAuditLog,
     markProjectModifiedIfPublished: projectWorkflowService.markProjectModifiedIfPublished,
     requireApiAuth: auth.requireApiAuth,
   })
@@ -244,7 +245,7 @@ apiRouter.use(
     db,
     io,
     projectsService,
-    legacyAuditLogService,
+    insertAuditLog: auditLogsService.insertAuditLog,
     markProjectModifiedIfPublished: projectWorkflowService.markProjectModifiedIfPublished,
     requireApiAuth: auth.requireApiAuth,
   })
@@ -254,7 +255,7 @@ apiRouter.use(
     db,
     io,
     projectsService,
-    legacyAuditLogService,
+    insertAuditLog: auditLogsService.insertAuditLog,
     markProjectModifiedIfPublished: projectWorkflowService.markProjectModifiedIfPublished,
     requireApiAuth: auth.requireApiAuth,
   })
@@ -264,7 +265,8 @@ apiRouter.use(
     db,
     io,
     projectsService,
-    legacyAuditLogService,
+    insertAuditLog: auditLogsService.insertAuditLog,
+    markProjectModifiedIfPublished: projectWorkflowService.markProjectModifiedIfPublished,
     requireApiAuth: auth.requireApiAuth,
   })
 );

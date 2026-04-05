@@ -35,6 +35,7 @@ function createApprovalRequestsRouter({ approvalRequestsService, requireApiAuth,
         projectId,
         body: req.body,
         sessionUserId: req.session.userId,
+        sessionUsername: req.session && req.session.username ? String(req.session.username) : null,
       });
       if (!result.ok) {
         return res.status(result.status).json(result.json);
@@ -84,4 +85,3 @@ function createApprovalRequestsRouter({ approvalRequestsService, requireApiAuth,
 }
 
 module.exports = createApprovalRequestsRouter;
-

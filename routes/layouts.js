@@ -11,7 +11,6 @@ const {
   diffChangedTopLevelKeys,
   normalizeTopLevelArrayMap,
   getArrayCountByKey,
-  buildCollectionChangeMessage,
 } = require('../utils/diff');
 
 function createLayoutsRouter({
@@ -19,6 +18,7 @@ function createLayoutsRouter({
   io,
   projectsService,
   legacyAuditLogService,
+  insertAuditLog,
   markProjectModifiedIfPublished,
   requireApiAuth,
 }) {
@@ -294,14 +294,26 @@ function createLayoutsRouter({
           if (!fp || !fs.existsSync(fp)) return;
           const beforeCount = getArrayCountByKey(beforeStripped, filename);
           const afterCount = getArrayCountByKey(strippedBody, filename);
-          const message = buildCollectionChangeMessage('Layout hotspot', 'layout hotspots', beforeCount, afterCount);
-          legacyAuditLogService.appendAuditEntry(
-            paths,
-            'floorplan',
-            filename,
-            { action: 'hotspots', message },
-            { dedupeWindowMs: 5000, userId: req.session.userId }
-          );
+          const action = afterCount < beforeCount ? 'HOTSPOT_REMOVE' : 'HOTSPOT_ADD';
+          const message =
+            afterCount < beforeCount
+              ? `Hotspot removed on ${filename}`
+              : afterCount > beforeCount
+                ? `Hotspot added on ${filename}`
+                : `Hotspot updated on ${filename}`;
+          insertAuditLog({
+            projectId: paths.projectId,
+            userId: req.session.userId,
+            action,
+            message,
+            metadata: {
+              feature: 'hotspot',
+              asset_kind: 'layout',
+              asset_name: filename,
+              before_count: beforeCount,
+              after_count: afterCount,
+            },
+          }).catch(() => {});
         });
       } catch (e) {}
     } catch (err) {
@@ -322,4 +334,3 @@ function createLayoutsRouter({
 }
 
 module.exports = createLayoutsRouter;
-

@@ -5,14 +5,13 @@ const {
   diffChangedTopLevelKeys,
   normalizeTopLevelArrayMap,
   getArrayCountByKey,
-  buildCollectionChangeMessage,
 } = require('../utils/diff');
 
 function createHotspotsRouter({
   db,
   io,
   projectsService,
-  legacyAuditLogService,
+  insertAuditLog,
   markProjectModifiedIfPublished,
   requireApiAuth,
 }) {
@@ -160,14 +159,26 @@ function createHotspotsRouter({
           if (!fs.existsSync(img)) return;
           const beforeCount = getArrayCountByKey(beforeStripped, filename);
           const afterCount = getArrayCountByKey(strippedBody, filename);
-          const message = buildCollectionChangeMessage('Hotspot', 'hotspots', beforeCount, afterCount);
-          legacyAuditLogService.appendAuditEntry(
-            paths,
-            'pano',
-            filename,
-            { action: 'hotspots', message },
-            { dedupeWindowMs: 5000, userId: req.session.userId }
-          );
+          const action = afterCount < beforeCount ? 'HOTSPOT_REMOVE' : 'HOTSPOT_ADD';
+          const message =
+            afterCount < beforeCount
+              ? `Hotspot removed on ${filename}`
+              : afterCount > beforeCount
+                ? `Hotspot added on ${filename}`
+                : `Hotspot updated on ${filename}`;
+          insertAuditLog({
+            projectId: paths.projectId,
+            userId: req.session.userId,
+            action,
+            message,
+            metadata: {
+              feature: 'hotspot',
+              asset_kind: 'pano',
+              asset_name: filename,
+              before_count: beforeCount,
+              after_count: afterCount,
+            },
+          }).catch(() => {});
         });
       } catch (e) {}
     } catch (err) {
@@ -183,4 +194,3 @@ function createHotspotsRouter({
 }
 
 module.exports = createHotspotsRouter;
-

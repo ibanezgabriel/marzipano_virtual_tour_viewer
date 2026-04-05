@@ -598,11 +598,7 @@ export function updateInitialViewForRenamedImage(oldName, newName) {
   initialViewsByImage[newName] = initialViewsByImage[oldName];
   delete initialViewsByImage[oldName];
   saveInitialViewsToStorage();
-  fetch(appendProjectParams('/api/initial-views'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(initialViewsByImage),
-  }).catch((e) => console.warn('Could not persist initial view rename to server', e));
+  // Local cache update only; server DB uses pano IDs so rename does not require persistence.
 }
 
 /** Force-reload initial views from the server and reapply to the current scene. */
