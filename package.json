@@ -6,9 +6,11 @@
   "scripts": {
     "seed:users": "node db/seed-users.js",
     "migrate:layouts": "node scripts/migrate-layouts-rename.js",
+    "migrate:panoramas": "node scripts/migrate-panoramas.js",
     "migrate:hotspots": "node scripts/migrate-hotspots.js",
     "migrate:audit": "node scripts/migrate-audit-logs.js",
-    "migrate:workflow": "node scripts/migrate-project-workflow-state.js"
+    "migrate:workflow": "node scripts/migrate-project-workflow-state.js",
+    "migrate:projects": "node scripts/migrate-projects.js"
   },
   "keywords": [],
   "author": "",

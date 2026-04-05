@@ -221,6 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const updated = await updateProjectStatus(project, next);
                     projectsAll = projectsAll.map((p) => (p.id === project.id ? { ...p, ...updated } : p));
                     applyProjectsSearch();
+                    markAuditStale();
                 } catch (e) {
                     statusSelect.value = previous;
                     window.alert(e.message || 'Failed to update status.');
@@ -325,6 +326,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     let auditOffset = 0;
     let auditTotal = 0;
 
+    function markAuditStale() {
+        auditLoadedOnce = false;
+        auditOffset = 0;
+    }
+
     const pad2 = (n) => String(n).padStart(2, '0');
 
     function formatDateTime(value) {
@@ -366,6 +372,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     act === 'rename' ? 'Renamed' :
                     act;
                 return `${kindLabel} ${actLabel}`;
+            }
+            if (parts.length >= 2 && parts[0] === 'project') {
+                const act = parts[1];
+                return (
+                    act === 'create' ? 'Project Created' :
+                    act === 'rename' ? 'Project Renamed' :
+                    act === 'name' ? 'Project Name Updated' :
+                    act === 'number' ? 'Project Number Updated' :
+                    act === 'status' ? 'Project Status Updated' :
+                    act === 'modified' ? 'Project Modified' :
+                    act === 'update' ? 'Project Updated' :
+                    raw
+                );
             }
             return raw;
         };
@@ -870,7 +889,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             if (targetKey === 'audit-logs') {
-                loadAuditLogs();
+                loadAuditLogs({ force: true });
             }
             if (targetKey === 'user-management') {
                 loadUsers();
@@ -940,6 +959,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 projectsAll = projectsAll.map((p) => (p.id === id ? { ...p, ...updated } : p));
                 closeRenameProjectModal();
                 applyProjectsSearch();
+                markAuditStale();
             } catch (err) {
                 if (renameProjectErrorEl) renameProjectErrorEl.textContent = err.message || 'Failed to update project.';
             } finally {

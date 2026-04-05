@@ -124,10 +124,17 @@
                 <label for="rename-project-name">Project Name</label>
                 <input type="text" id="rename-project-name" placeholder="Project Name" maxlength="150">
             </div>
+            <div class="form-group">
+                <label for="rename-project-status">Status</label>
+                <select id="rename-project-status">
+                    <option value="on-going">On-going</option>
+                    <option value="completed">Completed</option>
+                </select>
+            </div>
             <p class="modal-error" id="rename-project-error" role="alert"></p>
             <div class="modal-actions">
                 <button type="button" class="btn-secondary" id="rename-modal-cancel">Cancel</button>
-                <button type="button" class="btn-primary" id="rename-modal-save">Save</button>
+                <button type="button" class="btn-primary" id="rename-modal-save">Request Approval</button>
             </div>
         </div>
     </div>

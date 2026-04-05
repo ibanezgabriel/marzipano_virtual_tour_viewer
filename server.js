@@ -214,11 +214,14 @@ async function emitProjectsChanged() {
  *
  * @param {string} projectId
  * @param {number|null} userId
+ * @param {string|null} actorRole
  * @param {object} [metadata]
  * @returns {Promise<boolean>} true if the workflow state was changed
  */
-async function markProjectModifiedIfPublished(projectId, userId, metadata = {}) {
+async function markProjectModifiedIfPublished(projectId, userId, actorRole, metadata = {}) {
   if (!projectId) return false;
+  // Super Admin edits are authoritative and should not force a re-approval cycle.
+  if (isSuperAdminRole(actorRole)) return false;
   try {
     const updated = await db.query(
       "UPDATE projects SET workflow_state = 'MODIFIED', updated_at = NOW() WHERE id = $1 AND workflow_state = 'PUBLISHED' RETURNING id",
@@ -1421,6 +1424,7 @@ app.post('/api/projects/:id/request-approval', requireApiAuth, async (req, res) 
     );
 
     await db.query("UPDATE projects SET workflow_state = 'PENDING_APPROVAL' WHERE id = $1", [projectId]);
+    await emitProjectsChanged();
 
     try {
       await insertAuditLog({
@@ -1501,6 +1505,10 @@ async function handleApprovalDecision(req, res, decision) {
         message: decision === 'APPROVED' ? 'Project approved and published.' : 'Project approval rejected.',
         metadata: { requestId: id, comment: commentValue || null },
       });
+    } catch (e) {}
+
+    try {
+      await emitProjectsChanged();
     } catch (e) {}
 
     res.json({ success: true });
@@ -2205,7 +2213,21 @@ app.put('/api/projects/:id', requireApiAuth, async (req, res) => {
     if (conflictRes.rows.length > 0) {
       return res.status(409).json({ success: false, message: 'A project with this name already exists' });
     }
-  
+
+    const actorRole = req.session && req.session.role ? req.session.role : null;
+    const actorIsSuperAdmin = isSuperAdminRole(actorRole);
+
+    const nextStatus = normalizeProjectStatus(status || currentProject.status);
+    const prevStatus = normalizeProjectStatus(currentProject.status);
+    const nameChanged = trimmedName !== currentProject.name;
+    const numberChanged = trimmedNumber !== currentProject.number;
+    const statusChanged = nextStatus !== prevStatus;
+    const renamed = nameChanged || numberChanged;
+    const shouldMarkModified =
+      !actorIsSuperAdmin &&
+      String(currentProject.workflow_state || '').toUpperCase() === 'PUBLISHED' &&
+      (renamed || statusChanged);
+
     const updateRes = await db.query(
       `UPDATE projects
        SET name = $1,
@@ -2221,43 +2243,47 @@ app.put('/api/projects/:id', requireApiAuth, async (req, res) => {
       [
         trimmedName,
         trimmedNumber,
-        normalizeProjectStatus(status || currentProject.status),
+        nextStatus,
         oldId,
-        (() => {
-          const nextStatus = normalizeProjectStatus(status || currentProject.status);
-          const prevStatus = normalizeProjectStatus(currentProject.status);
-          const renamed = trimmedName !== currentProject.name || trimmedNumber !== currentProject.number;
-          const statusChanged = nextStatus !== prevStatus;
-          return String(currentProject.workflow_state || '').toUpperCase() === 'PUBLISHED' && (renamed || statusChanged);
-        })(),
+        shouldMarkModified,
       ]
     );
 
     await emitProjectsChanged();
 
-    const nextStatus = normalizeProjectStatus(status || currentProject.status);
-    const prevStatus = normalizeProjectStatus(currentProject.status);
-    const renamed = trimmedName !== currentProject.name || trimmedNumber !== currentProject.number;
+    const messageParts = [];
+    if (nameChanged) messageParts.push(`Name: "${currentProject.name}" -> "${trimmedName}"`);
+    if (numberChanged) messageParts.push(`Number: "${currentProject.number}" -> "${trimmedNumber}"`);
+    if (statusChanged) messageParts.push(`Status: "${prevStatus}" -> "${nextStatus}"`);
 
-    await insertAuditLog({
-      projectId: oldId,
-      ...(renamed ? { projectName: currentProject.name, projectNumber: currentProject.number } : {}),
-      userId: req.session.userId,
-      action: renamed ? 'project:rename' : (nextStatus !== prevStatus ? 'project:status' : 'project:update'),
-      message: renamed ? `Renamed to ${trimmedName}.` : (nextStatus !== prevStatus ? `Status updated to ${nextStatus}.` : `Project updated: ${oldId}.`),
-      metadata: {
-        old: {
-          name: currentProject.name,
-          number: currentProject.number,
-          status: currentProject.status,
+    if (messageParts.length > 0) {
+      let action = 'project:update';
+      if (nameChanged && numberChanged) action = 'project:rename';
+      else if (nameChanged) action = 'project:name';
+      else if (numberChanged) action = 'project:number';
+      else if (statusChanged) action = 'project:status';
+
+      await insertAuditLog({
+        projectId: oldId,
+        projectNumber: trimmedNumber,
+        projectName: trimmedName,
+        userId: req.session.userId,
+        action,
+        message: messageParts.join('; '),
+        metadata: {
+          old: {
+            name: currentProject.name,
+            number: currentProject.number,
+            status: currentProject.status,
+          },
+          new: {
+            name: trimmedName,
+            number: trimmedNumber,
+            status: nextStatus,
+          },
         },
-        new: {
-          name: trimmedName,
-          number: trimmedNumber,
-          status: nextStatus,
-        },
-      },
-    });
+      });
+    }
     // If this update moved a published project back to MODIFIED, record a single "modified" audit entry.
     if (String(currentProject.workflow_state || '').toUpperCase() === 'PUBLISHED' && String(updateRes.rows[0]?.workflow_state || '').toUpperCase() === 'MODIFIED') {
       try {
@@ -2413,7 +2439,7 @@ app.post('/upload', requireApiAuth, upload.array("panorama", 20), async (req, re
     } catch (e) {}
 
     // If this was a published project, move it back to staging as MODIFIED.
-    await markProjectModifiedIfPublished(paths.projectId, req.session.userId, { via: 'panorama:upload' });
+    await markProjectModifiedIfPublished(paths.projectId, req.session.userId, req.session.role, { via: 'panorama:upload' });
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch (rollbackErr) {}
     // Best-effort cleanup of the just-uploaded files if we couldn't persist to the DB.
@@ -2535,7 +2561,7 @@ async function handleLayoutUpload(req, res) {
       );
     });
   } catch (e) {}
-  await markProjectModifiedIfPublished(paths.projectId, req.session.userId, { via: 'layout:upload' });
+  await markProjectModifiedIfPublished(paths.projectId, req.session.userId, req.session.role, { via: 'layout:upload' });
   let updatedOrder = null;
   try {
     updatedOrder = floorplanOrderAppend(paths, filenames);
@@ -2608,7 +2634,7 @@ async function handleLayoutUpdate(req, res) {
           { userId: req.session.userId }
         );
       } catch (e) {}
-      await markProjectModifiedIfPublished(paths.projectId, req.session.userId, { via: 'layout:update' });
+      await markProjectModifiedIfPublished(paths.projectId, req.session.userId, req.session.role, { via: 'layout:update' });
       return res.json({
         success: true,
         message: 'Layout updated successfully',
@@ -2666,7 +2692,7 @@ async function handleLayoutUpdate(req, res) {
       console.error('Socket emit error:', e);
     }
 
-    await markProjectModifiedIfPublished(paths.projectId, req.session.userId, { via: 'layout:update' });
+    await markProjectModifiedIfPublished(paths.projectId, req.session.userId, req.session.role, { via: 'layout:update' });
     return res.json({
       success: true,
       message: 'Layout updated successfully',
@@ -2734,7 +2760,7 @@ async function handleLayoutRename(req, res) {
         { userId: req.session.userId }
       );
     } catch (e) {}
-    markProjectModifiedIfPublished(paths.projectId, req.session.userId, { via: 'layout:rename' }).catch(() => {});
+    markProjectModifiedIfPublished(paths.projectId, req.session.userId, req.session.role, { via: 'layout:rename' }).catch(() => {});
     return res.json({ success: true, message: 'Layout renamed successfully', oldFilename, newFilename });
   });
 }
@@ -2770,7 +2796,7 @@ async function handleLayoutsOrder(req, res) {
     const dir = path.dirname(paths.layoutOrderPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     writeFloorplanOrder(paths.layoutOrderPath, body.order);
-    await markProjectModifiedIfPublished(paths.projectId, req.session.userId, { via: 'layout:order' });
+    await markProjectModifiedIfPublished(paths.projectId, req.session.userId, req.session.role, { via: 'layout:order' });
     res.json({ success: true });
     try {
       io.to(`project:${paths.projectId}`).emit('floorplans:order', { order: body.order });
@@ -2837,7 +2863,7 @@ app.put('/api/panos/order', requireApiAuth, async (req, res) => {
       const filename = body.order[i];
       await db.query('UPDATE panoramas SET rank = $1 WHERE project_id = $2 AND filename = $3', [i, paths.projectId, filename]);
     }
-    await markProjectModifiedIfPublished(paths.projectId, req.session.userId, { via: 'panorama:order' });
+    await markProjectModifiedIfPublished(paths.projectId, req.session.userId, req.session.role, { via: 'panorama:order' });
     res.json({ success: true });
     try { io.to(`project:${paths.projectId}`).emit('panos:order', { order: body.order }); } catch (e) { console.error('Socket emit error:', e); }
   } catch (e) {
@@ -2950,7 +2976,7 @@ app.put('/upload/rename', requireApiAuth, async (req, res) => {
         { userId: req.session.userId }
       );
     } catch (e) {}
-    await markProjectModifiedIfPublished(paths.projectId, req.session.userId, { via: 'panorama:rename' });
+    await markProjectModifiedIfPublished(paths.projectId, req.session.userId, req.session.role, { via: 'panorama:rename' });
     try { io.to(`project:${paths.projectId}`).emit('pano:renamed', { oldFilename, newFilename }); } catch (e) { console.error('Socket emit error:', e); }
     res.json({
       success: true,
@@ -3015,7 +3041,7 @@ app.put('/upload/update', requireApiAuth, upload.single('panorama'), async (req,
       });
 
       await db.query('UPDATE panoramas SET filename = $1 WHERE project_id = $2 AND filename = $3', [newFilename, paths.projectId, oldFilename]);
-      await markProjectModifiedIfPublished(paths.projectId, req.session.userId, { via: 'panorama:update' });
+      await markProjectModifiedIfPublished(paths.projectId, req.session.userId, req.session.role, { via: 'panorama:update' });
 
       try {
         renameAuditLog(paths, 'pano', oldFilename, newFilename);
@@ -3262,7 +3288,7 @@ async function handleLayoutHotspotsPost(req, res) {
     } catch (e) {}
 
     if (changed.length > 0) {
-      await markProjectModifiedIfPublished(paths.projectId, req.session.userId, { via: 'layout-hotspots:update' });
+      await markProjectModifiedIfPublished(paths.projectId, req.session.userId, req.session.role, { via: 'layout-hotspots:update' });
     }
     res.json({ success: true, unchanged: changed.length === 0 });
     if (changed.length === 0) return;
@@ -3327,7 +3353,7 @@ app.post('/api/blur-masks', requireApiAuth, async (req, res) => {
     }
 
     if (changed.length > 0) {
-      await markProjectModifiedIfPublished(paths.projectId, req.session.userId, { via: 'blur-masks:update' });
+      await markProjectModifiedIfPublished(paths.projectId, req.session.userId, req.session.role, { via: 'blur-masks:update' });
     }
     res.json({ success: true, unchanged: changed.length === 0 });
 
@@ -3446,7 +3472,7 @@ app.post('/api/hotspots', requireApiAuth, async (req, res) => {
     } catch (e) {}
 
     if (changed.length > 0) {
-      await markProjectModifiedIfPublished(paths.projectId, req.session.userId, { via: 'hotspots:update' });
+      await markProjectModifiedIfPublished(paths.projectId, req.session.userId, req.session.role, { via: 'hotspots:update' });
     }
     res.json({ success: true, unchanged: changed.length === 0 });
     if (changed.length === 0) return;

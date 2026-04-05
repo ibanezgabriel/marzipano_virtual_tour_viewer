@@ -27,6 +27,7 @@ const openModalCloseBtn = document.getElementById('open-modal-close');
 const renameProjectModal = document.getElementById('rename-project-modal');
 const renameProjectNumberInput = document.getElementById('rename-project-number');
 const renameProjectNameInput = document.getElementById('rename-project-name');
+const renameProjectStatusSelect = document.getElementById('rename-project-status');
 const renameProjectErrorEl = document.getElementById('rename-project-error');
 const renameModalCancelBtn = document.getElementById('rename-modal-cancel');
 const renameModalSaveBtn = document.getElementById('rename-modal-save');
@@ -426,6 +427,11 @@ function normalizeProjectStatus(value) {
   return ALLOWED_PROJECT_STATUSES.has(normalized) ? normalized : 'on-going';
 }
 
+function projectStatusLabel(value) {
+  const normalized = normalizeProjectStatus(value);
+  return normalized === 'completed' ? 'Completed' : 'On-going';
+}
+
 /**
  * Merges a freshly fetched project list with any previously-known statuses.
  * This is used to keep the UI stable when the API returns older records with missing/legacy fields.
@@ -533,6 +539,17 @@ async function renameProject(id, newName, newNumber, status) {
   return data;
 }
 
+async function requestProjectApproval(projectId) {
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/request-approval`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || data.error || `Request failed (HTTP ${res.status})`);
+  return data;
+}
+
 /**
  * Convenience wrapper to update only a project's status.
  *
@@ -616,6 +633,12 @@ function showRenameModal(project, nameDisplayEl) {
     renameProjectNumberInput.value = project.number || '';
   }
   renameProjectNameInput.value = project.name;
+  if (renameProjectStatusSelect) {
+    renameProjectStatusSelect.value = normalizeProjectStatus(project.status);
+  }
+  if (renameModalSaveBtn) {
+    renameModalSaveBtn.textContent = IS_STAGING_VIEW ? 'Save' : 'Request Approval';
+  }
   renameProjectModal.classList.add('visible');
   renameProjectNameInput.focus();
   renameProjectNameInput.select();
@@ -634,6 +657,7 @@ function showRenameModal(project, nameDisplayEl) {
     const name = renameProjectNameInput.value;
     const numberRaw = renameProjectNumberInput ? renameProjectNumberInput.value || '' : '';
     const number = numberRaw.replace(/[^A-Za-z0-9-]+/g, '').slice(0, MAX_PROJECT_NUMBER_LENGTH);
+    const nextStatus = normalizeProjectStatus(renameProjectStatusSelect ? renameProjectStatusSelect.value : project.status);
     const numberError = validateProjectNumber(number, 'Project number is required.');
     if (numberError) {
       renameProjectErrorEl.textContent = numberError;
@@ -653,26 +677,49 @@ function showRenameModal(project, nameDisplayEl) {
     }
     // If neither name nor number actually changed, do nothing.
     const currentNumber = String(project.number || '');
-    if (name.trim() === project.name.trim() && number === currentNumber) {
+    const currentStatus = normalizeProjectStatus(project.status);
+    if (name.trim() === project.name.trim() && number === currentNumber && nextStatus === currentStatus) {
       renameProjectErrorEl.textContent = 'No changes made.';
       return;
     }
     try {
-      const updated = await renameProject(project.id, name.trim(), number, project.status);
+      renameModalSaveBtn.disabled = true;
+      const updated = await renameProject(project.id, name.trim(), number, nextStatus);
+
+      if (!IS_STAGING_VIEW) {
+        // For published projects: edits must be approved by Super Admin before re-publishing.
+        try {
+          await requestProjectApproval(project.id);
+          window.alert('Approval request submitted. View it in the Staging dashboard while it is pending.');
+        } catch (err) {
+          const msg = err && err.message ? err.message : String(err || 'Unknown error');
+          window.alert(
+            `Project updated but approval request failed: ${msg}\n\nOpen the Staging dashboard and request approval from the project editor.`
+          );
+        }
+
+        // Either way, the project is now staging/pending and should drop out of the published list.
+        allProjects = allProjects.filter((p) => p.id !== project.id);
+        applyProjectSearch();
+        cleanup();
+        return;
+      }
+
       const finalProject = {
         ...project,
         ...updated,
         name: updated.name || name.trim(),
         number: updated.number !== undefined ? updated.number : number,
-        status: updated.status !== undefined ? updated.status : project.status,
+        status: updated.status !== undefined ? updated.status : nextStatus,
       };
       // Update in-memory list
       allProjects = allProjects.map((p) => (p.id === project.id ? finalProject : p));
-      // Re-render list so both name and number reflect changes
       renderProjectList(allProjects);
       cleanup();
     } catch (e) {
-      renameProjectErrorEl.textContent = e.message || 'Failed to rename project.';
+      renameProjectErrorEl.textContent = e.message || 'Failed to update project.';
+    } finally {
+      renameModalSaveBtn.disabled = false;
     }
   };
 
@@ -696,7 +743,7 @@ function showRenameModal(project, nameDisplayEl) {
  * - Clicking the row opens the project editor (except when clicking buttons)
  * - "View" opens the public viewer in a new tab
  * - "Edit" opens the rename modal
- * - Status dropdown persists changes via the API
+ * - Status is edited via the modal
  *
  * @param {object} project
  * @returns {HTMLDivElement}
@@ -733,47 +780,10 @@ function renderProjectRow(project) {
     statusDisplay.textContent = workflowLabel(state);
     statusCell.appendChild(statusDisplay);
   } else {
-    const statusDisplay = document.createElement('select');
-    statusDisplay.className = 'project-status-display project-status-select';
-    const statusOptions = [
-      { value: 'on-going', label: 'On-going' },
-      { value: 'completed', label: 'Completed' },
-    ];
-    statusOptions.forEach(({ value, label }) => {
-      const option = document.createElement('option');
-      option.value = value;
-      option.textContent = label;
-      option.className = value === 'completed' ? 'status-option-completed' : 'status-option-ongoing';
-      statusDisplay.appendChild(option);
-    });
-    statusDisplay.value = normalizeProjectStatus(project.status);
-    statusDisplay.classList.toggle('status-completed', statusDisplay.value === 'completed');
-    statusDisplay.classList.toggle('status-ongoing', statusDisplay.value === 'on-going');
+    const statusDisplay = document.createElement('div');
+    statusDisplay.className = 'project-status-display';
+    statusDisplay.textContent = projectStatusLabel(project.status);
     statusCell.appendChild(statusDisplay);
-
-    // Prevent row click (open project) when interacting with status control
-    statusCell.addEventListener('click', (e) => {
-      e.stopPropagation();
-    });
-
-    statusDisplay.addEventListener('change', async () => {
-      const previous = normalizeProjectStatus(project.status);
-      const next = normalizeProjectStatus(statusDisplay.value);
-      if (next === previous) return;
-      statusDisplay.disabled = true;
-      statusDisplay.classList.toggle('status-completed', next === 'completed');
-      statusDisplay.classList.toggle('status-ongoing', next === 'on-going');
-      try {
-        const updatedProject = await updateProjectStatus(project, next);
-        allProjects = allProjects.map((p) => (p.id === project.id ? updatedProject : p));
-        renderProjectList(allProjects);
-      } catch (e) {
-        statusDisplay.value = previous;
-        alert(e.message || 'Failed to update status.');
-      } finally {
-        statusDisplay.disabled = false;
-      }
-    });
   }
 
   const viewBtn = document.createElement('button');
