@@ -155,6 +155,7 @@ const legacyAuditLogService = createLegacyAuditLogService({
 
 const approvalRequestsService = createApprovalRequestsService({
   db,
+  projectsService,
   normalizeProjectStatus: projectsService.normalizeProjectStatus,
   insertAuditLog: auditLogsService.insertAuditLog,
   emitProjectsChanged: realtimeService.emitProjectsChanged,

@@ -9,6 +9,8 @@
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
+    let currentSessionUserId = null;
+
     // Enforce Super Admin access client-side for a better UX (server-side middleware still enforces this).
     try {
         const res = await fetch('/api/me');
@@ -21,6 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.location.replace('/dashboard.html');
             return;
         }
+        currentSessionUserId = me && me.id !== undefined && me.id !== null ? String(me.id) : null;
         const nameEl = document.querySelector('.user-card .user-name');
         if (nameEl) nameEl.textContent = me.username || 'Super Admin';
     } catch (e) {
@@ -171,27 +174,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (rows.length === 0) return;
 
         for (const project of rows) {
-            const state = normalizeWorkflowState(project && project.workflow_state);
-
-            const row = document.createElement('div');
+            const row = document.createElement('tr');
             row.className = 'project-row';
             row.dataset.projectId = project.id;
 
             const numberDisplay = document.createElement('div');
             numberDisplay.className = 'project-number-display';
             numberDisplay.textContent = project.number || '';
-            const numberCell = document.createElement('div');
+            const numberCell = document.createElement('td');
             numberCell.className = 'project-number-cell';
             numberCell.appendChild(numberDisplay);
 
             const nameDisplay = document.createElement('div');
             nameDisplay.className = 'project-name-display';
             nameDisplay.textContent = project.name || '';
-            const nameCell = document.createElement('div');
+            const nameCell = document.createElement('td');
             nameCell.className = 'project-name-cell';
             nameCell.appendChild(nameDisplay);
 
-            const statusCell = document.createElement('div');
+            const statusCell = document.createElement('td');
             statusCell.className = 'project-status-cell';
             const statusSelect = document.createElement('select');
             statusSelect.className = 'project-status-display project-status-select';
@@ -230,7 +231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
 
-            const actionsCell = document.createElement('div');
+            const actionsCell = document.createElement('td');
             actionsCell.className = 'project-actions-cell';
 
             const viewBtn = document.createElement('button');
@@ -542,15 +543,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             tdProjName.textContent = r.project_name || '';
 
             const tdActionCode = document.createElement('td');
+            tdActionCode.className = 'approval-code-cell';
             tdActionCode.textContent = r.action_code || '';
 
             const tdInfo = document.createElement('td');
+            tdInfo.className = 'approval-info-cell';
             tdInfo.textContent = r.information || approvalInfoLabel(r);
 
             const tdBy = document.createElement('td');
             tdBy.textContent = r.requested_by || '';
 
             const tdAction = document.createElement('td');
+            tdAction.className = 'approval-actions-cell';
             const reviewBtn = document.createElement('button');
             reviewBtn.type = 'button';
             reviewBtn.className = 'approval-action approval-review';
@@ -693,9 +697,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let usersLoadedOnce = false;
     let usersQuery = '';
+    let activeManagedUser = null;
 
     function roleLabel(role) {
         return role === 'super_admin' ? 'Super Admin' : 'Admin';
+    }
+
+    function isOwnSuperAdminAccount(user) {
+        return !!(
+            user &&
+            user.role === 'super_admin' &&
+            currentSessionUserId !== null &&
+            String(user.id) === currentSessionUserId
+        );
     }
 
     function setUserError(message) {
@@ -707,7 +721,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!usersTbody) return;
         usersTbody.innerHTML = '';
 
-        const visibleUsers = Array.isArray(users) ? users.filter((u) => u && u.role !== 'super_admin') : [];
+        const visibleUsers = Array.isArray(users) ? users.filter(Boolean) : [];
 
         if (visibleUsers.length === 0) {
             const tr = document.createElement('tr');
@@ -742,13 +756,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             manageBtn.type = 'button';
             manageBtn.textContent = 'Manage';
             if (u.role === 'super_admin') {
-                manageBtn.disabled = true;
-                manageBtn.title = 'Super Admin accounts cannot be managed from the dashboard.';
-            } else {
-                manageBtn.addEventListener('click', () => {
-                    openManageUserModal(u);
-                });
+                const isOwnSuperAdmin = isOwnSuperAdminAccount(u);
+                manageBtn.title = isOwnSuperAdmin
+                    ? 'You can update your username and password. Role and status are locked on your own Super Admin account.'
+                    : 'You can manage this Super Admin account, including role and status.';
             }
+            manageBtn.addEventListener('click', () => {
+                openManageUserModal(u);
+            });
             tdAction.appendChild(manageBtn);
 
             tr.append(tdIndex, tdUsername, tdRole, tdCreated, tdStatus, tdAction);
@@ -758,11 +773,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function openManageUserModal(user) {
         if (!user || !manageUserModal) return;
+        activeManagedUser = user;
         if (manageUserErrorEl) manageUserErrorEl.textContent = '';
         manageUserIdInput.value = String(user.id || '');
         manageUsernameInput.value = user.username || '';
         manageRoleSelect.value = user.role === 'super_admin' ? 'super_admin' : 'admin';
         manageStatusSelect.value = user.is_active === false ? 'suspended' : 'active';
+        const isLockedSuperAdmin = isOwnSuperAdminAccount(user);
+        if (manageRoleSelect) {
+            manageRoleSelect.disabled = isLockedSuperAdmin;
+            manageRoleSelect.title = isLockedSuperAdmin ? 'Role is locked on your own Super Admin account.' : '';
+        }
+        if (manageStatusSelect) {
+            manageStatusSelect.disabled = isLockedSuperAdmin;
+            manageStatusSelect.title = isLockedSuperAdmin ? 'Status is locked on your own Super Admin account.' : '';
+        }
         manageNewPasswordInput.value = '';
         manageUserModal.classList.add('visible');
         manageUserModal.setAttribute('aria-hidden', 'false');
@@ -771,6 +796,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function closeManageUserModal() {
         if (!manageUserModal) return;
+        activeManagedUser = null;
         manageUserModal.classList.remove('visible');
         manageUserModal.setAttribute('aria-hidden', 'true');
     }
@@ -848,10 +874,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function updateUser(id, { username, role, is_active }) {
+        const body = {};
+        if (username !== undefined) body.username = username;
+        if (role !== undefined) body.role = role;
+        if (is_active !== undefined) body.is_active = is_active;
         const res = await fetch(`/api/users/${encodeURIComponent(id)}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ username, role, is_active }),
+            body: JSON.stringify(body),
         });
         const raw = await res.text().catch(() => '');
         let data = null;
@@ -1132,6 +1162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const id = manageUserIdInput.value;
             const username = manageUsernameInput ? String(manageUsernameInput.value || '').trim() : '';
+            const isLockedSuperAdmin = isOwnSuperAdminAccount(activeManagedUser);
             const role = manageRoleSelect ? manageRoleSelect.value : 'admin';
             const status = manageStatusSelect ? manageStatusSelect.value : 'active';
             const is_active = status !== 'suspended';
@@ -1149,12 +1180,64 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (manageUserErrorEl) manageUserErrorEl.textContent = 'New password must be at least 8 characters.';
                 return;
             }
+            if (
+                isLockedSuperAdmin &&
+                activeManagedUser &&
+                (
+                    role !== (activeManagedUser.role === 'super_admin' ? 'super_admin' : 'admin') ||
+                    is_active !== (activeManagedUser.is_active !== false)
+                )
+            ) {
+                if (manageUserErrorEl) manageUserErrorEl.textContent = 'You cannot change the role or status of your own Super Admin account.';
+                return;
+            }
+            if (
+                activeManagedUser &&
+                username === String(activeManagedUser.username || '').trim() &&
+                (isLockedSuperAdmin || (
+                    role === (activeManagedUser.role === 'super_admin' ? 'super_admin' : 'admin') &&
+                    is_active === (activeManagedUser.is_active !== false)
+                )) &&
+                !newPassword
+            ) {
+                if (manageUserErrorEl) manageUserErrorEl.textContent = 'No changes made.';
+                return;
+            }
 
             if (manageUserSaveBtn) manageUserSaveBtn.disabled = true;
             try {
-                await updateUser(id, { username, role, is_active });
+                const hasUsernameChange = !!(
+                    activeManagedUser &&
+                    username !== String(activeManagedUser.username || '').trim()
+                );
+                const hasRoleChange = !!(
+                    !isLockedSuperAdmin &&
+                    activeManagedUser &&
+                    role !== (activeManagedUser.role === 'super_admin' ? 'super_admin' : 'admin')
+                );
+                const hasStatusChange = !!(
+                    !isLockedSuperAdmin &&
+                    activeManagedUser &&
+                    is_active !== (activeManagedUser.is_active !== false)
+                );
+                const hasProfileChanges = hasUsernameChange || hasRoleChange || hasStatusChange;
+
+                let updateResult = null;
+                if (hasProfileChanges) {
+                    const updatePayload = isLockedSuperAdmin
+                        ? { username }
+                        : { username, role, is_active };
+                    updateResult = await updateUser(id, updatePayload);
+                }
                 if (newPassword) {
                     await resetUserPassword(id, newPassword);
+                }
+                if (currentSessionUserId && String(id) === currentSessionUserId) {
+                    const currentNameEl = document.querySelector('.user-card .user-name');
+                    const nextUsername = updateResult && updateResult.user && updateResult.user.username
+                        ? updateResult.user.username
+                        : username;
+                    if (currentNameEl) currentNameEl.textContent = nextUsername || 'Super Admin';
                 }
                 closeManageUserModal();
                 usersLoadedOnce = false;

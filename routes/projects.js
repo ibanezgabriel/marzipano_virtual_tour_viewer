@@ -149,10 +149,19 @@ function createProjectsRouter({
       const nameChanged = trimmedName !== currentProject.name;
       const numberChanged = trimmedNumber !== currentProject.number;
       const statusChanged = nextStatus !== prevStatus;
+      const currentWorkflowState = String(currentProject.workflow_state || '').toUpperCase();
+
+      if (!actorIsSuperAdmin && currentWorkflowState === 'PUBLISHED' && (nameChanged || numberChanged || statusChanged)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Published project changes require Super Admin approval. Submit an approval request instead.',
+        });
+      }
+
       const renamed = nameChanged || numberChanged;
       const shouldMarkModified =
         !actorIsSuperAdmin &&
-        String(currentProject.workflow_state || '').toUpperCase() === 'PUBLISHED' &&
+        currentWorkflowState === 'PUBLISHED' &&
         (renamed || statusChanged);
 
       // Keep project id stable, but optionally rename the on-disk folder when the display name changes.
@@ -313,7 +322,7 @@ function createProjectsRouter({
         });
       }
       // If this update moved a published project back to MODIFIED, record a single "modified" audit entry.
-      if (String(currentProject.workflow_state || '').toUpperCase() === 'PUBLISHED' && String(updateRes.rows[0]?.workflow_state || '').toUpperCase() === 'MODIFIED') {
+      if (currentWorkflowState === 'PUBLISHED' && String(updateRes.rows[0]?.workflow_state || '').toUpperCase() === 'MODIFIED') {
         try {
           await insertAuditLog({
             projectId: oldId,

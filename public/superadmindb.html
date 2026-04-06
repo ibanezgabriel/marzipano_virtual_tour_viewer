@@ -42,13 +42,17 @@
 
             <div class="sa-projects-dashboard">
                 <div class="project-table-scroll" id="sa-project-table-scroll">
-                    <section class="project-container-header" id="sa-project-container-header">
-                        <p>Project Number</p>
-                        <p>Project Name</p>
-                        <p>Status</p>
-                        <p id="sa-header-action">Action</p>
-                    </section>
-                    <section class="project-list" id="sa-project-list"></section>
+                    <table class="sa-projects-table">
+                        <thead>
+                            <tr>
+                                <th>Project Number</th>
+                                <th>Project Name</th>
+                                <th>Status</th>
+                                <th id="sa-header-action">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sa-project-list"></tbody>
+                    </table>
                 </div>
                 <p class="sa-empty-state" id="sa-projects-empty-state">No projects found.</p>
             </div>
@@ -63,20 +67,22 @@
                 </div>
             </div>
 
-            <table class="approval-table">
-                <thead>
-                    <tr>
-                        <th>DATE &amp; TIME</th>
-                        <th>PROJECT NO.</th>
-                        <th>PROJECT NAME</th>
-                        <th>ACTION</th>
-                        <th>INFORMATION</th>
-                        <th>REQUESTED BY</th>
-                        <th>REVIEW</th>
-                    </tr>
-                </thead>
-                <tbody id="approval-requests-tbody"></tbody>
-            </table>
+            <div class="approval-table-wrap">
+                <table class="approval-table">
+                    <thead>
+                        <tr>
+                            <th>DATE &amp; TIME</th>
+                            <th>PROJECT NO.</th>
+                            <th>PROJECT NAME</th>
+                            <th>ACTION</th>
+                            <th>INFORMATION</th>
+                            <th>REQUESTED BY</th>
+                            <th>REVIEW</th>
+                        </tr>
+                    </thead>
+                    <tbody id="approval-requests-tbody"></tbody>
+                </table>
+            </div>
         </section>
 
         <section class="content-section" data-section="audit-logs">

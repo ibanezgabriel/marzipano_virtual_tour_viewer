@@ -88,6 +88,11 @@ const dashboardTitleBaseText = dashboardTitleEl ? dashboardTitleEl.textContent :
 const openProjectHeaderEl = document.querySelector('.open-project-header-element');
 const toggleDashboardViewBtn = document.getElementById('btn-toggle-dashboard-view');
 const dashboardViewLabelEl = document.getElementById('dashboard-view-label');
+let currentUserRole = null;
+
+function isSuperAdminUser() {
+  return currentUserRole === 'super_admin';
+}
 
 function syncDashboardViewUi() {
   if (IS_STAGING_VIEW) {
@@ -125,6 +130,9 @@ let notificationsUserKey = 'unknown';
     const me = await res.json().catch(() => null);
     if (me && me.loggedIn && me.username) {
       dashboardUsernameEl.textContent = String(me.username).toUpperCase();
+    }
+    if (me && me.loggedIn && me.role) {
+      currentUserRole = String(me.role);
     }
     if (me && me.loggedIn) {
       if (me.id !== undefined && me.id !== null && String(me.id).trim()) {
@@ -539,10 +547,13 @@ async function renameProject(id, newName, newNumber, status) {
   return data;
 }
 
-async function requestProjectApproval(projectId, changes = null) {
+async function requestProjectApproval(projectId, changes = null, requestType = null) {
   const body = {};
   if (changes && typeof changes === 'object') {
     body.changes = changes;
+  }
+  if (requestType) {
+    body.request_type = String(requestType);
   }
   const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/request-approval`, {
     method: 'POST',
@@ -641,7 +652,7 @@ function showRenameModal(project, nameDisplayEl) {
     renameProjectStatusSelect.value = normalizeProjectStatus(project.status);
   }
   if (renameModalSaveBtn) {
-    renameModalSaveBtn.textContent = IS_STAGING_VIEW ? 'Save' : 'Request Approval';
+    renameModalSaveBtn.textContent = (IS_STAGING_VIEW || isSuperAdminUser()) ? 'Save' : 'Request Approval';
   }
   renameProjectModal.classList.add('visible');
   renameProjectNameInput.focus();
@@ -688,12 +699,10 @@ function showRenameModal(project, nameDisplayEl) {
     }
     try {
       renameModalSaveBtn.disabled = true;
-      const updated = await renameProject(project.id, name.trim(), number, nextStatus);
-
-      if (!IS_STAGING_VIEW) {
-        // For published projects: edits must be approved by Super Admin before re-publishing.
-        try {
-          await requestProjectApproval(project.id, {
+      if (!IS_STAGING_VIEW && !isSuperAdminUser()) {
+        await requestProjectApproval(
+          project.id,
+          {
             previous: {
               name: project.name,
               number: currentNumber,
@@ -704,22 +713,16 @@ function showRenameModal(project, nameDisplayEl) {
               number,
               status: nextStatus,
             },
-          });
-          window.alert('Approval request submitted. View it in the Staging dashboard while it is pending.');
-        } catch (err) {
-          const msg = err && err.message ? err.message : String(err || 'Unknown error');
-          window.alert(
-            `Project updated but approval request failed: ${msg}\n\nOpen the Staging dashboard and request approval from the project editor.`
-          );
-        }
-
-        // Either way, the project is now staging/pending and should drop out of the published list.
-        allProjects = allProjects.filter((p) => p.id !== project.id);
+          },
+          'project:update'
+        );
+        window.alert('Approval request submitted. The published project will remain unchanged until a Super Admin approves it.');
         applyProjectSearch();
         cleanup();
         return;
       }
 
+      const updated = await renameProject(project.id, name.trim(), number, nextStatus);
       const finalProject = {
         ...project,
         ...updated,

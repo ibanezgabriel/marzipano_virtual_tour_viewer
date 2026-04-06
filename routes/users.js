@@ -72,7 +72,7 @@ function createUsersRouter({ db, bcrypt, insertAuditLog, requireSuperAdminApiAut
         await insertAuditLog({
           projectId: null,
           userId: req.session.userId,
-          action: 'user:create',
+          action: 'USER:CREATE',
           message: `User created: ${insertRes.rows[0].username} (${insertRes.rows[0].role}).`,
           metadata: { user: { id: insertRes.rows[0].id, username: insertRes.rows[0].username, role: insertRes.rows[0].role } },
         });
@@ -89,11 +89,6 @@ function createUsersRouter({ db, bcrypt, insertAuditLog, requireSuperAdminApiAut
     const id = Number(req.params.id);
     if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ success: false, message: 'Invalid user id' });
 
-    // Disallow self-modification here to avoid accidental lockout.
-    if (req.session.userId && Number(req.session.userId) === id) {
-      return res.status(400).json({ success: false, message: 'You cannot modify your own account from here.' });
-    }
-
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const hasUsername = Object.prototype.hasOwnProperty.call(body, 'username');
     const hasRole = Object.prototype.hasOwnProperty.call(body, 'role');
@@ -102,44 +97,39 @@ function createUsersRouter({ db, bcrypt, insertAuditLog, requireSuperAdminApiAut
       return res.status(400).json({ success: false, message: 'No changes provided' });
     }
 
-    const updates = [];
-    const params = [];
-    const add = (v) => {
-      params.push(v);
-      return `$${params.length}`;
-    };
-
-    let nextRole = null;
-    if (hasRole) {
-      nextRole = normalizeUserRole(body.role);
-      updates.push(`role = ${add(nextRole)}`);
-    }
-
     let nextUsername = null;
     if (hasUsername) {
       if (!isValidUsername(body.username)) {
         return res.status(400).json({ success: false, message: 'Invalid username' });
       }
       nextUsername = String(body.username).trim();
-      updates.push(`username = ${add(nextUsername)}`);
     }
-
-    let nextIsActive = null;
-    if (hasActive) {
-      nextIsActive = Boolean(body.is_active);
-      updates.push(`is_active = ${add(nextIsActive)}`);
-    }
-
-    // Any admin action should revoke active session to enforce immediate effect.
-    updates.push('active_session_id = NULL');
-    updates.push('active_session_expires_at = NULL');
 
     try {
       const beforeRes = await db.query('SELECT id, username, role, is_active FROM users WHERE id = $1', [id]);
       const before = beforeRes.rows[0];
       if (!before) return res.status(404).json({ success: false, message: 'User not found' });
-      if (isSuperAdminRole(before.role)) {
-        return res.status(403).json({ success: false, message: 'Super Admin accounts cannot be modified.' });
+      const targetIsSuperAdmin = isSuperAdminRole(before.role);
+      const isSelf = req.session.userId && Number(req.session.userId) === id;
+      const requestedRole = hasRole ? normalizeUserRole(body.role) : before.role;
+      const requestedIsActive = hasActive ? Boolean(body.is_active) : before.is_active;
+      const canEditRoleAndStatus = !targetIsSuperAdmin || !isSelf;
+
+      if (isSelf && !targetIsSuperAdmin) {
+        return res.status(400).json({ success: false, message: 'You cannot modify your own account from here.' });
+      }
+      if (
+        targetIsSuperAdmin &&
+        isSelf &&
+        (
+          (hasRole && requestedRole !== before.role) ||
+          (hasActive && requestedIsActive !== before.is_active)
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'You cannot change the role or status of your own Super Admin account.',
+        });
       }
 
       if (nextUsername && nextUsername !== before.username) {
@@ -149,15 +139,62 @@ function createUsersRouter({ db, bcrypt, insertAuditLog, requireSuperAdminApiAut
         }
       }
 
+      const updates = [];
+      const params = [];
+      const add = (v) => {
+        params.push(v);
+        return `$${params.length}`;
+      };
+
+      let nextRole = before.role;
+      if (canEditRoleAndStatus && hasRole) {
+        nextRole = normalizeUserRole(body.role);
+        if (nextRole !== before.role) {
+          updates.push(`role = ${add(nextRole)}`);
+        }
+      }
+
+      if (hasUsername && nextUsername !== before.username) {
+        updates.push(`username = ${add(nextUsername)}`);
+      }
+
+      let nextIsActive = before.is_active;
+      if (canEditRoleAndStatus && hasActive) {
+        nextIsActive = Boolean(body.is_active);
+        if (nextIsActive !== before.is_active) {
+          updates.push(`is_active = ${add(nextIsActive)}`);
+        }
+      }
+
+      if (updates.length === 0) {
+        return res.status(400).json({ success: false, message: 'No changes provided' });
+      }
+
+      if (isSelf && req.sessionID) {
+        const expiresAt = req.session.cookie && req.session.cookie.expires
+          ? new Date(req.session.cookie.expires)
+          : new Date(Date.now() + (Number(req.session.cookie && req.session.cookie.maxAge) || 0));
+        updates.push(`active_session_id = ${add(String(req.sessionID))}`);
+        updates.push(`active_session_expires_at = ${add(expiresAt)}`);
+      } else {
+        updates.push('active_session_id = NULL');
+        updates.push('active_session_expires_at = NULL');
+      }
+
       const sql = `UPDATE users SET ${updates.join(', ')} WHERE id = ${add(id)} RETURNING id, username, role, is_active, created_at`;
       const updatedRes = await db.query(sql, params);
       const updated = updatedRes.rows[0];
+
+      if (isSelf) {
+        req.session.username = updated.username;
+        req.session.role = updated.role;
+      }
 
       try {
         await insertAuditLog({
           projectId: null,
           userId: req.session.userId,
-          action: 'user:update',
+          action: 'USER:UPDATE',
           message: nextUsername && nextUsername !== before.username
             ? `Username changed: ${before.username} -> ${updated.username}.`
             : `User updated: ${updated.username}.`,
@@ -180,10 +217,6 @@ function createUsersRouter({ db, bcrypt, insertAuditLog, requireSuperAdminApiAut
     const id = Number(req.params.id);
     if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ success: false, message: 'Invalid user id' });
 
-    if (req.session.userId && Number(req.session.userId) === id) {
-      return res.status(400).json({ success: false, message: 'You cannot reset your own password from here.' });
-    }
-
     const password = req.body && typeof req.body === 'object' ? req.body.password : null;
     if (!isValidPassword(password)) {
       return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
@@ -193,22 +226,35 @@ function createUsersRouter({ db, bcrypt, insertAuditLog, requireSuperAdminApiAut
       const userRes = await db.query('SELECT id, username, role FROM users WHERE id = $1', [id]);
       const target = userRes.rows[0];
       if (!target) return res.status(404).json({ success: false, message: 'User not found' });
-      if (isSuperAdminRole(target.role)) {
-        return res.status(403).json({ success: false, message: 'Super Admin accounts cannot be modified.' });
+      const targetIsSuperAdmin = isSuperAdminRole(target.role);
+      const isSelf = req.session.userId && Number(req.session.userId) === id;
+
+      if (isSelf && !targetIsSuperAdmin) {
+        return res.status(400).json({ success: false, message: 'You cannot reset your own password from here.' });
       }
 
       const saltRounds = 10;
       const hash = await bcrypt.hash(String(password), saltRounds);
-      await db.query(
-        'UPDATE users SET password_hash = $1, active_session_id = NULL, active_session_expires_at = NULL WHERE id = $2',
-        [hash, id]
-      );
+      if (isSelf && req.sessionID) {
+        const expiresAt = req.session.cookie && req.session.cookie.expires
+          ? new Date(req.session.cookie.expires)
+          : new Date(Date.now() + (Number(req.session.cookie && req.session.cookie.maxAge) || 0));
+        await db.query(
+          'UPDATE users SET password_hash = $1, active_session_id = $2, active_session_expires_at = $3 WHERE id = $4',
+          [hash, String(req.sessionID), expiresAt, id]
+        );
+      } else {
+        await db.query(
+          'UPDATE users SET password_hash = $1, active_session_id = NULL, active_session_expires_at = NULL WHERE id = $2',
+          [hash, id]
+        );
+      }
 
       try {
         await insertAuditLog({
           projectId: null,
           userId: req.session.userId,
-          action: 'user:password_reset',
+          action: 'USER:PASSWORD_RESET',
           message: `Password reset for user: ${target.username}.`,
           metadata: { targetUser: { id: target.id, username: target.username } },
         });
@@ -225,4 +271,3 @@ function createUsersRouter({ db, bcrypt, insertAuditLog, requireSuperAdminApiAut
 }
 
 module.exports = createUsersRouter;
-
