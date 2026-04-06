@@ -470,6 +470,7 @@ export function initFloorplans() {
 
         li.append(nameEl, actionsEl);
         li.dataset.filename = filename;
+        li.title = filename;
         li.draggable = true;
         li.addEventListener('click', () => onFloorplanClick(filename));
         li.addEventListener('dragstart', (ev) => {

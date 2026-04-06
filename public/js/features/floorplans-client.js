@@ -26,6 +26,9 @@ let magnifierLevelsEl = null;
 let magnifierLevelBtns = [];
 let magnifierLens = null;
 let floorList = null;
+let floorplanFiles = [];
+let floorplanPrevBtn = null;
+let floorplanNextBtn = null;
 
 const MAGNIFIER_DEFAULT_LEVEL = 2;
 const MAGNIFIER_LEVEL_OPTIONS = [2, 2.5];
@@ -111,6 +114,34 @@ function setMagnifierEnabled(enabled) {
 function resetMagnifierState() {
   setMagnifierLevel(MAGNIFIER_DEFAULT_LEVEL);
   setMagnifierEnabled(false);
+}
+
+function getFloorplanIndex(name) {
+  if (!name) return -1;
+  return floorplanFiles.indexOf(name);
+}
+
+function updateFloorplanNav() {
+  if (!floorplanPrevBtn || !floorplanNextBtn) return;
+  const idx = getFloorplanIndex(selectedFloorplan);
+  const hasPrev = idx > 0;
+  const hasNext = idx >= 0 && idx < floorplanFiles.length - 1;
+  floorplanPrevBtn.disabled = !hasPrev;
+  floorplanNextBtn.disabled = !hasNext;
+  floorplanPrevBtn.style.display = hasPrev ? 'inline-flex' : 'none';
+  floorplanNextBtn.style.display = hasNext ? 'inline-flex' : 'none';
+}
+
+function setActiveFloorplan(filename) {
+  if (!filename) return;
+  selectedFloorplan = filename;
+  if (floorList) {
+    Array.from(floorList.querySelectorAll('li')).forEach((node) => {
+      node.classList.toggle('active', node.dataset.filename === filename);
+    });
+  }
+  showPreview(filename);
+  updateFloorplanNav();
 }
 
 function updateMagnifierLens(clientX, clientY, { forceVisible = false } = {}) {
@@ -301,6 +332,11 @@ function ensureModalElements() {
         </div>
       </div>
       <div class="floorplan-modal-actions">
+        <div class="floorplan-modal-spacer" aria-hidden="true"></div>
+        <div class="floorplan-nav" aria-label="Floor plan navigation">
+          <button type="button" id="floorplan-prev" class="floorplan-nav-btn" aria-label="Previous floor plan">Prev</button>
+          <button type="button" id="floorplan-next" class="floorplan-nav-btn" aria-label="Next floor plan">Next</button>
+        </div>
         <div class="floorplan-magnifier-controls" aria-label="Floor plan magnifier controls">
           <div id="floorplan-magnifier-levels" class="floorplan-magnifier-levels" role="group" aria-label="Magnification level">
             <button type="button" data-magnifier-level="2">2x</button>
@@ -326,6 +362,8 @@ function ensureModalElements() {
   magnifierToggleBtn = modalOverlay.querySelector('#floorplan-magnifier-toggle');
   magnifierLevelsEl = modalOverlay.querySelector('#floorplan-magnifier-levels');
   magnifierLevelBtns = Array.from(modalOverlay.querySelectorAll('[data-magnifier-level]'));
+  floorplanPrevBtn = modalOverlay.querySelector('#floorplan-prev');
+  floorplanNextBtn = modalOverlay.querySelector('#floorplan-next');
 
   modalOverlay.addEventListener('click', (e) => {
     if (e.target === modalOverlay) {
@@ -410,6 +448,32 @@ function ensureModalElements() {
     });
   });
 
+  if (floorplanPrevBtn) {
+    floorplanPrevBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = getFloorplanIndex(selectedFloorplan);
+      if (idx > 0) {
+        const target = floorplanFiles[idx - 1];
+        setActiveFloorplan(target);
+        openModalFor(target);
+      }
+    });
+  }
+
+  if (floorplanNextBtn) {
+    floorplanNextBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = getFloorplanIndex(selectedFloorplan);
+      if (idx >= 0 && idx < floorplanFiles.length - 1) {
+        const target = floorplanFiles[idx + 1];
+        setActiveFloorplan(target);
+        openModalFor(target);
+      }
+    });
+  }
+
   if (modalEl) {
     modalEl.addEventListener('mouseleave', () => {
       hideMagnifierLens();
@@ -433,6 +497,7 @@ function openModalFor(filename) {
   if (!filename) return;
   ensurePreviewElements();
   ensureModalElements();
+  selectedFloorplan = filename;
   const base = getFloorplanBase();
   const src = `${base}/${encodeURIComponent(filename)}`;
   if (modalImg) {
@@ -450,6 +515,7 @@ function openModalFor(filename) {
   setPreviewVisible(false);
   modalOverlay.classList.add('visible');
   document.body.classList.add('floorplan-modal-open');
+  updateFloorplanNav();
   requestAnimationFrame(() => {
     rerenderHotspotsForLayout();
   });
@@ -533,6 +599,7 @@ async function loadFloorplans() {
     const res = await fetch(appendProjectParams('/api/floorplans'));
     if (!res.ok) return;
     const files = await res.json();
+    floorplanFiles = Array.isArray(files) ? files.slice() : [];
     floorList.innerHTML = '';
     files.forEach((filename) => {
       const li = document.createElement('li');
@@ -540,21 +607,25 @@ async function loadFloorplans() {
       const displayName = dotIndex > 0 ? filename.substring(0, dotIndex) : filename;
       li.textContent = displayName;
       li.dataset.filename = filename;
+      li.title = filename;
       li.draggable = false;
       li.onclick = () => {
         const name = li.dataset.filename;
-        selectedFloorplan = name;
-        Array.from(floorList.querySelectorAll('li')).forEach((node) => {
-          node.classList.toggle('active', node === li);
-        });
-        showPreview(name);
+        setActiveFloorplan(name);
         openModalFor(name);
       };
       floorList.appendChild(li);
     });
+    if (files.length > 0 && !selectedFloorplan) {
+      const firstFile = files[0];
+      setActiveFloorplan(firstFile);
+      openModalFor(firstFile);
+    }
     if (!files || files.length === 0) {
+      floorplanFiles = [];
       selectedFloorplan = null;
       setPreviewVisible(false);
+      updateFloorplanNav();
       floorList.innerHTML = "<li class='active' style='text-align: center'>No floor plan uploaded</li>";
     }
   } catch (e) {

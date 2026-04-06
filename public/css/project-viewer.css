@@ -18,11 +18,57 @@
 
 .floorplan-modal-overlay-client .floorplan-magnifier-controls {
   display: flex;
-  flex: 1;
   flex-direction: row;
   justify-content: flex-end;
   align-items: center;
   gap: 10px;
+}
+
+.floorplan-modal-overlay-client .floorplan-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px 6px;
+}
+
+.floorplan-modal-overlay-client .floorplan-modal-spacer {
+  flex: 1;
+}
+
+.floorplan-modal-overlay-client .floorplan-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+
+.floorplan-modal-overlay-client .floorplan-magnifier-controls {
+  flex: 1;
+}
+
+.floorplan-modal-overlay-client .floorplan-nav-btn {
+  min-width: 78px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  background: #115272;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+
+.floorplan-modal-overlay-client .floorplan-nav-btn:hover {
+  transform: translateY(-1px);
+}
+
+.floorplan-modal-overlay-client .floorplan-nav-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+  transform: none;
 }
 
 .floorplan-modal-overlay-client .floorplan-magnifier-levels {
