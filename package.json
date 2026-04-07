@@ -4,7 +4,11 @@
   "description": "",
   "main": "public/js/app.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "db:init": "node db/init-db.js",
+    "db:test": "node db/test-db.js",
+    "seed:users": "node db/seed-users.js",
+    "migrate:data": "node db/migrate-data.js"
   },
   "keywords": [],
   "author": "",

@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
-const { Pool } = require("pg");
 require("dotenv").config();
+const { getPool } = require("./pool");
 
 function splitSql(sql) {
   const noLineComments = sql
@@ -15,21 +15,12 @@ function splitSql(sql) {
     .filter(Boolean);
 }
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || undefined,
-  host: process.env.DATABASE_URL ? undefined : process.env.PGHOST,
-  port: process.env.DATABASE_URL ? undefined : (process.env.PGPORT ? Number(process.env.PGPORT) : undefined),
-  user: process.env.DATABASE_URL ? undefined : process.env.PGUSER,
-  password: process.env.DATABASE_URL ? undefined : process.env.PGPASSWORD,
-  database: process.env.DATABASE_URL ? undefined : process.env.PGDATABASE,
-});
-
 async function main() {
   const schemaPath = path.join(__dirname, "..", "db", "schema.sql");
   const sql = fs.readFileSync(schemaPath, "utf8");
   const statements = splitSql(sql);
 
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     for (const statement of statements) {
       await client.query(statement);
@@ -37,11 +28,12 @@ async function main() {
     console.log(`OK: created/verified ${statements.length} statements from db/schema.sql`);
   } finally {
     client.release();
-    await pool.end();
   }
 }
 
 main().catch((err) => {
   console.error("DB init failed:", err);
   process.exitCode = 1;
+}).finally(async () => {
+  await getPool().end();
 });
