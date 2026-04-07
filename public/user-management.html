@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QCDE - IPVT | Superadmin</title>
+    <link rel="icon" type="image/x-icon" href="assets/icons/NEW-LOGO-QCDE.png">
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+    <main class="dashboard">
+        <section id="dashboard-title">
+            <img src="assets/icons/NEW-LOGO-QCDE.png">
+            <h1>QCDE - IPVT (User Management)</h1>
+            <button id="logout-btn" class="logout-btn" data-logout-message="Are you sure you want to log out?">
+                <img src="assets/icons/log-out.png" class="icons">
+            </button>
+        </section>
+
+        <div id="project-container">
+            <section id="project-toolbar">
+                <div class="action-bar">
+                    <button type="button" class="action-btn" id="btn-create-admin">
+                        <img src="assets/add-project.png" class="icons" style="width: 30px; height: 30px;"> CREATE ADMIN ACCOUNT
+                    </button>
+                </div>
+                <div class="project-search-wrap">
+                    <span class="project-search-icon">
+                        <img src="assets/search.png">
+                    </span>
+                    <input type="text" id="admin-search-input" class="project-search-input" placeholder="Search admin accounts" autocomplete="off">
+                </div>
+            </section>
+
+            <div class="project-table-scroll" id="admin-table-scroll">
+                <section id="project-container-header">
+                    <p>ID</p>
+                    <p>Username</p>
+                    <p>Status</p>
+                    <p id="header-action">Actions</p>
+                </section>
+                <section class="project-list" id="admin-list"></section>
+            </div>
+        </div>
+
+        <p class="empty-state" id="admin-empty-state">No admin accounts yet. Create one to get started.</p>
+    </main>
+
+    <div class="modal-overlay" id="create-admin-modal">
+        <div class="modal">
+            <h2>CREATE ADMIN ACCOUNT</h2>
+            <div class="form-group">
+                <label for="create-admin-username">Username</label>
+                <input type="text" id="create-admin-username" placeholder="Username" maxlength="40">
+            </div>
+            <div class="form-group">
+                <label for="create-admin-name">Name</label>
+                <input type="text" id="create-admin-name" placeholder="Full Name" maxlength="80">
+            </div>
+            <div class="form-group">
+                <label for="create-admin-password">Password</label>
+                <input type="password" id="create-admin-password" placeholder="Password" maxlength="80">
+            </div>
+            <p class="modal-error" id="create-admin-error" role="alert"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" id="create-admin-cancel">Cancel</button>
+                <button type="button" class="btn-primary" id="create-admin-submit">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="edit-admin-modal">
+        <div class="modal">
+            <h2>UPDATE ADMIN ACCOUNT</h2>
+            <div class="form-group">
+                <label for="edit-admin-username">Username</label>
+                <input type="text" id="edit-admin-username" placeholder="Username" maxlength="40">
+            </div>
+            <div class="form-group">
+                <label for="edit-admin-name">Name</label>
+                <input type="text" id="edit-admin-name" placeholder="Full Name" maxlength="80">
+            </div>
+            <div class="form-group">
+                <label for="edit-admin-status">Status</label>
+                <select id="edit-admin-status">
+                    <option value="Active">Active</option>
+                    <option value="Suspended">Suspended</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="edit-admin-password">New Password (optional)</label>
+                <input type="password" id="edit-admin-password" placeholder="Leave blank to keep current password" maxlength="80">
+            </div>
+            <p class="modal-error" id="edit-admin-error" role="alert"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" id="edit-admin-cancel">Cancel</button>
+                <button type="button" class="btn-primary" id="edit-admin-save">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="delete-admin-modal">
+        <div class="modal">
+            <h2>DELETE ADMIN ACCOUNT</h2>
+            <p>Are you sure you want to delete this admin account? This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" id="delete-admin-cancel">Cancel</button>
+                <button type="button" class="btn-primary" id="delete-admin-confirm">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/user-management.js"></script>
+    <script src="js/login.js"></script>
+</body>
+</html>

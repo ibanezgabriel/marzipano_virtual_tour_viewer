@@ -218,6 +218,7 @@
     gap: 12px;
     width: 100%;
     transition: opacity 140ms ease;
+    margin-top: 12px;
 }
 
 /* Scroll container for header + rows (keeps columns aligned with scrollbar) */
@@ -228,6 +229,34 @@
     padding: 0 0.8rem 1rem 0;
     margin: 1rem 0;
     scrollbar-gutter: stable;
+}
+
+/* User management (admin list) column alignment */
+#admin-table-scroll {
+  --admin-col-id: clamp(140px, 18vw, 220px);
+  --admin-col-user: minmax(0, 1fr);
+  --admin-col-status: clamp(140px, 16vw, 200px);
+  --admin-col-actions: clamp(180px, 20vw, 260px);
+}
+
+#admin-table-scroll #project-container-header {
+  grid-template-columns: var(--admin-col-id) var(--admin-col-user) var(--admin-col-status) var(--admin-col-actions);
+}
+
+#admin-list .project-row {
+  display: grid;
+  grid-template-columns: var(--admin-col-id) var(--admin-col-user) var(--admin-col-status) var(--admin-col-actions);
+  align-items: center;
+  justify-content: initial;
+  column-gap: 12px;
+  min-height: var(--dashboard-row-height);
+}
+
+#admin-list .project-number-display,
+#admin-list .project-name-display {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* In the main dashboard list, the wrapper scrolls (not the list itself) */
@@ -436,7 +465,7 @@
     cursor: pointer;
 }
 
-#btn-new-project, #btn-open-project {
+#btn-new-project, #btn-open-project, #btn-create-admin {
   display: flex;
   justify-content: center;
   align-items: center;
