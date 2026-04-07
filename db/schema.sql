@@ -14,11 +14,18 @@ CREATE TABLE IF NOT EXISTS users (
 -- PROJECTS
 CREATE TABLE IF NOT EXISTS projects (
   id BIGSERIAL PRIMARY KEY,
+  legacy_id TEXT UNIQUE,
   project_number TEXT NOT NULL UNIQUE,
   project_name TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'PUBLISHED',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE projects
+  ADD COLUMN IF NOT EXISTS legacy_id TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_legacy_id
+  ON projects(legacy_id);
 
 -- PANORAMAS
 CREATE TABLE IF NOT EXISTS panoramas (

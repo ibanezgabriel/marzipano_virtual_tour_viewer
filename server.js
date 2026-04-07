@@ -1,7 +1,22 @@
+require('dotenv').config();
 const express = require('express');
-const multer = require('multer'); 
+const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const {
+  clearSessionForUser,
+  createSessionForUser,
+  createUser,
+  deleteUser,
+  findUserBySession,
+  findUserByUsername,
+  listUsers,
+  mapUserRow,
+  normalizeRole,
+  updateUser,
+} = require('./db/users');
+const { verifyPassword } = require('./db/passwords');
+const { syncProjectByToken } = require('./db/project-sync');
 const {
   buildTilesForImage,
   readTilesMeta,
@@ -10,7 +25,7 @@ const {
 } = require('./public/js/tiler');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const http = require('http');
 const { Server } = require('socket.io');
 
@@ -18,6 +33,17 @@ const projectsDir = path.join(__dirname, 'projects');
 const projectsManifestPath = path.join(projectsDir, 'projects.json');
 const MAX_PROJECT_NUMBER_LENGTH = 20;
 const ALLOWED_PROJECT_STATUSES = new Set(['on-going', 'completed']);
+const SESSION_COOKIE_NAME = 'ipvt_session';
+const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: false,
+  path: '/',
+};
+const AUTH_REQUIRED_PAGE_PATHS = new Set(['/dashboard.html', '/project-editor.html', '/user-management.html']);
+const SUPERADMIN_ONLY_PAGE_PATHS = new Set(['/user-management.html']);
+const SUPERADMIN_HOME_PATH = '/user-management.html';
+const ADMIN_HOME_PATH = '/dashboard.html';
 
 if (!fs.existsSync(projectsDir)) {
   fs.mkdirSync(projectsDir, { recursive: true });
@@ -86,6 +112,135 @@ function normalizeProjectStatus(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'in-progress') return 'on-going';
   return ALLOWED_PROJECT_STATUSES.has(normalized) ? normalized : 'on-going';
+}
+
+function parseCookies(cookieHeader) {
+  const cookies = {};
+  String(cookieHeader || '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .forEach((part) => {
+      const separatorIndex = part.indexOf('=');
+      if (separatorIndex <= 0) return;
+      const name = part.slice(0, separatorIndex).trim();
+      const value = part.slice(separatorIndex + 1).trim();
+      try {
+        cookies[name] = decodeURIComponent(value);
+      } catch (error) {
+        cookies[name] = value;
+      }
+    });
+  return cookies;
+}
+
+function serializeUserForClient(userRow) {
+  const user = userRow && Object.prototype.hasOwnProperty.call(userRow, 'isActive')
+    ? userRow
+    : mapUserRow(userRow);
+  if (!user) return null;
+  return {
+    ...user,
+    roleLabel: user.role === 'superadmin' ? 'SuperAdmin' : 'Admin',
+    statusLabel: user.isActive ? 'Active' : 'Suspended',
+    homePath: getHomePathForUser(user),
+  };
+}
+
+async function getAuthenticatedUserFromRequest(req) {
+  const cookies = parseCookies(req.headers.cookie);
+  const sessionId = cookies[SESSION_COOKIE_NAME];
+  if (!sessionId) return null;
+
+  const user = await findUserBySession(sessionId);
+  if (!user) return null;
+
+  if (!user.is_active) {
+    try {
+      await clearSessionForUser(user.id);
+    } catch (error) {}
+    return null;
+  }
+
+  return user;
+}
+
+async function attachAuthenticatedUser(req, _res, next) {
+  if (req.authUser !== undefined) return next();
+  try {
+    req.authUser = await getAuthenticatedUserFromRequest(req);
+    return next();
+  } catch (error) {
+    console.error('Authentication lookup failed:', error);
+    return next(error);
+  }
+}
+
+function setSessionCookie(res, sessionId, expiresAt) {
+  res.cookie(SESSION_COOKIE_NAME, sessionId, {
+    ...SESSION_COOKIE_OPTIONS,
+    expires: expiresAt,
+  });
+}
+
+function clearSessionCookie(res) {
+  res.cookie(SESSION_COOKIE_NAME, '', {
+    ...SESSION_COOKIE_OPTIONS,
+    expires: new Date(0),
+  });
+}
+
+function redirectToLogin(req, res) {
+  const redirect = encodeURIComponent(req.originalUrl || req.url || '/dashboard.html');
+  res.redirect(`/login.html?redirect=${redirect}`);
+}
+
+function getHomePathForUser(user) {
+  return user && user.role === 'superadmin' ? SUPERADMIN_HOME_PATH : ADMIN_HOME_PATH;
+}
+
+async function syncProjectToDatabaseOrThrow(projectToken, actorUserId) {
+  return syncProjectByToken(projectToken, { createdByUserId: actorUserId });
+}
+
+function requireAuthenticatedApi(req, res, next) {
+  if (req.authUser) return next();
+  clearSessionCookie(res);
+  return res.status(401).json({ message: 'Authentication required.' });
+}
+
+function requireSuperAdminApi(req, res, next) {
+  if (!req.authUser) {
+    clearSessionCookie(res);
+    return res.status(401).json({ message: 'Authentication required.' });
+  }
+  if (req.authUser.role !== 'superadmin') {
+    return res.status(403).json({ message: 'Super admin access is required.' });
+  }
+  return next();
+}
+
+function isProtectedMutationRequest(req) {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return false;
+  const requestPath = req.path || '';
+  return (
+    requestPath === '/api/projects' ||
+    /^\/api\/projects\/[^/]+$/.test(requestPath) ||
+    requestPath === '/upload' ||
+    requestPath === '/upload-floorplan' ||
+    requestPath === '/upload-floorplan/update' ||
+    requestPath === '/api/floorplans/rename' ||
+    /^\/api\/floorplans\/[^/]+$/.test(requestPath) ||
+    requestPath === '/api/floorplans/order' ||
+    requestPath === '/api/panos/order' ||
+    requestPath === '/upload/rename' ||
+    requestPath === '/upload/update' ||
+    requestPath === '/api/floorplan-hotspots' ||
+    requestPath === '/api/blur-masks' ||
+    requestPath === '/api/hotspots' ||
+    requestPath === '/api/initial-views' ||
+    /^\/upload\/[^/]+$/.test(requestPath)
+  );
 }
 
 /** Get paths for a project. projectId must be validated (no .., no slashes). */
@@ -279,6 +434,15 @@ function appendAuditEntry(paths, kind, filename, { action, message, meta } = {},
   }
 }
 
+function buildAuditMeta(meta, user) {
+  const nextMeta = meta && typeof meta === 'object' ? { ...meta } : {};
+  const userId = user && Number(user.id);
+  if (userId) {
+    nextMeta.createdByUserId = userId;
+  }
+  return Object.keys(nextMeta).length > 0 ? nextMeta : undefined;
+}
+
 function initAuditLogIfMissing(paths, kind, filename) {
   if (!paths || !filename) return;
   const existing = readAuditEntries(paths, kind, filename);
@@ -467,6 +631,184 @@ function buildCollectionChangeMessage(labelSingular, labelPlural, beforeCount, a
 
 // Middleware to parse JSON bodies
 app.use(express.json());
+
+app.use(async (req, res, next) => {
+  const requestPath = req.path || '';
+  if (!AUTH_REQUIRED_PAGE_PATHS.has(requestPath)) return next();
+
+  try {
+    const user = await getAuthenticatedUserFromRequest(req);
+    if (!user) {
+      clearSessionCookie(res);
+      return redirectToLogin(req, res);
+    }
+
+    req.authUser = user;
+
+    if (user.role === 'superadmin' && requestPath !== SUPERADMIN_HOME_PATH) {
+      return res.redirect(SUPERADMIN_HOME_PATH);
+    }
+
+    if (SUPERADMIN_ONLY_PAGE_PATHS.has(requestPath) && user.role !== 'superadmin') {
+      return res.redirect(ADMIN_HOME_PATH);
+    }
+
+    return next();
+  } catch (error) {
+    console.error('Protected page check failed:', error);
+    return res.status(503).send('Authentication is temporarily unavailable.');
+  }
+});
+
+app.use(async (req, res, next) => {
+  if (!isProtectedMutationRequest(req)) return next();
+
+  try {
+    const user = await getAuthenticatedUserFromRequest(req);
+    if (!user) {
+      clearSessionCookie(res);
+      return res.status(401).json({ message: 'Authentication required.' });
+    }
+
+    req.authUser = user;
+    return next();
+  } catch (error) {
+    console.error('Protected API check failed:', error);
+    return res.status(503).json({ message: 'Authentication is temporarily unavailable.' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const username = String((req.body && req.body.username) || '').trim().toLowerCase();
+    const password = String((req.body && req.body.password) || '');
+
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username and password are required.' });
+    }
+
+    const user = await findUserByUsername(username);
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid username or password.' });
+    }
+
+    if (!user.is_active) {
+      clearSessionCookie(res);
+      return res.status(403).json({ message: 'This account is suspended.' });
+    }
+
+    const passwordMatches = await verifyPassword(password, user.password_hash);
+    if (!passwordMatches) {
+      return res.status(401).json({ message: 'Invalid username or password.' });
+    }
+
+    const session = await createSessionForUser(user.id);
+    setSessionCookie(res, session.sessionId, session.expiresAt);
+    return res.json({ success: true, user: serializeUserForClient(user) });
+  } catch (error) {
+    console.error('Login failed:', error);
+    return res.status(500).json({ message: 'Unable to sign in right now.' });
+  }
+});
+
+app.get('/api/auth/me', attachAuthenticatedUser, (req, res) => {
+  if (!req.authUser) {
+    clearSessionCookie(res);
+    return res.status(401).json({ message: 'Not signed in.' });
+  }
+  return res.json({ user: serializeUserForClient(req.authUser) });
+});
+
+app.post('/api/auth/logout', attachAuthenticatedUser, async (req, res) => {
+  try {
+    if (req.authUser) {
+      await clearSessionForUser(req.authUser.id);
+    }
+  } catch (error) {
+    console.error('Logout cleanup failed:', error);
+  }
+
+  clearSessionCookie(res);
+  return res.json({ success: true });
+});
+
+app.get('/api/users', attachAuthenticatedUser, requireSuperAdminApi, async (req, res) => {
+  try {
+    const role = req.query && typeof req.query.role === 'string' ? normalizeRole(req.query.role) : undefined;
+    const users = await listUsers({ role });
+    return res.json(users.map((user) => serializeUserForClient(user)));
+  } catch (error) {
+    console.error('Failed to list users:', error);
+    return res.status(500).json({ message: 'Unable to load users.' });
+  }
+});
+
+app.post('/api/users', attachAuthenticatedUser, requireSuperAdminApi, async (req, res) => {
+  try {
+    const user = await createUser({
+      username: req.body && req.body.username,
+      name: req.body && req.body.name,
+      role: req.body && req.body.role ? req.body.role : 'admin',
+      password: req.body && req.body.password,
+    });
+    return res.status(201).json({ user: serializeUserForClient(user) });
+  } catch (error) {
+    if (error && error.code === '23505') {
+      return res.status(409).json({ message: 'Username is already in use.' });
+    }
+    return res.status(400).json({ message: error.message || 'Unable to create user.' });
+  }
+});
+
+app.put('/api/users/:id', attachAuthenticatedUser, requireSuperAdminApi, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ message: 'Invalid user id.' });
+    }
+
+    const user = await updateUser(id, {
+      username: req.body && req.body.username,
+      name: req.body && req.body.name,
+      role: req.body && req.body.role,
+      isActive: req.body && req.body.isActive,
+      password: req.body && req.body.password,
+    });
+    return res.json({ user: serializeUserForClient(user) });
+  } catch (error) {
+    if (error && error.code === 'NOT_FOUND') {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+    if (error && error.code === 'LAST_SUPERADMIN') {
+      return res.status(400).json({ message: error.message });
+    }
+    if (error && error.code === '23505') {
+      return res.status(409).json({ message: 'Username is already in use.' });
+    }
+    return res.status(400).json({ message: error.message || 'Unable to update user.' });
+  }
+});
+
+app.delete('/api/users/:id', attachAuthenticatedUser, requireSuperAdminApi, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ message: 'Invalid user id.' });
+    }
+
+    const deleted = await deleteUser(id);
+    if (!deleted) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    if (error && error.code === 'LAST_SUPERADMIN') {
+      return res.status(400).json({ message: error.message });
+    }
+    return res.status(500).json({ message: 'Unable to delete user.' });
+  }
+});
 
 // Serve static files
 /**
@@ -911,7 +1253,7 @@ app.get('/api/projects', (req, res) => {
   res.json(projects);
 });
 
-app.post('/api/projects', (req, res) => {
+app.post('/api/projects', async (req, res) => {
   const { name, number, status } = req.body || {};
   if (number === undefined || number === null || !String(number).trim()) {
     return res.status(400).json({ success: false, message: 'Project number is required' });
@@ -946,12 +1288,18 @@ app.post('/api/projects', (req, res) => {
   const project = { id: finalId, name: trimmedName, number: trimmedNumber, status: normalizeProjectStatus(status) };
   projects.push(project);
   writeProjectsManifest(projects);
+  try {
+    await syncProjectToDatabaseOrThrow(finalId, req.authUser && req.authUser.id);
+  } catch (error) {
+    console.error('Project database sync failed after create:', error);
+    return res.status(500).json({ success: false, message: 'Project saved, but database sync failed.' });
+  }
   // Notify connected clients about project list changes
   emitProjectsChanged();
   res.json(project);
 });
 
-app.put('/api/projects/:id', (req, res) => {
+app.put('/api/projects/:id', async (req, res) => {
   const oldId = req.params.id;
   if (oldId.includes('..') || oldId.includes('/') || oldId.includes('\\')) {
     return res.status(400).json({ success: false, message: 'Invalid project id' });
@@ -1009,6 +1357,12 @@ app.put('/api/projects/:id', (req, res) => {
   projects[idx].number = trimmedNumber;
   projects[idx].status = normalizeProjectStatus(status || projects[idx].status);
   writeProjectsManifest(projects);
+  try {
+    await syncProjectToDatabaseOrThrow(projects[idx].id, req.authUser && req.authUser.id);
+  } catch (error) {
+    console.error('Project database sync failed after update:', error);
+    return res.status(500).json({ success: false, message: 'Project updated, but database sync failed.' });
+  }
   emitProjectsChanged();
   res.json(projects[idx]);
 });
@@ -1096,7 +1450,7 @@ app.get('/api/archive/images/:kind/:storedFilename', (req, res) => {
 });
 
 // ---- Panorama APIs (project-scoped via ?project=id) ----
-app.post('/upload', upload.array("panorama", 20), (req, res)=>{
+app.post('/upload', upload.array("panorama", 20), async (req, res)=>{
   if(!req.files || req.files.length === 0) {
     return res.status(400).json({
       success: false,
@@ -1110,9 +1464,19 @@ app.post('/upload', upload.array("panorama", 20), (req, res)=>{
   const filenames = req.files.map(f => f.filename);
   try {
     filenames.forEach((name) => {
-      appendAuditEntry(paths, 'pano', name, { action: 'upload', message: 'Panorama uploaded.' });
+      appendAuditEntry(paths, 'pano', name, {
+        action: 'upload',
+        message: 'Panorama uploaded.',
+        meta: buildAuditMeta(undefined, req.authUser),
+      });
     });
   } catch (e) {}
+  try {
+    await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
+  } catch (error) {
+    console.error('Project database sync failed after panorama upload:', error);
+    return res.status(500).json({ success: false, message: 'Panorama uploaded, but database sync failed.' });
+  }
   const job = createJob(filenames, paths.projectId);
   res.json({
     success: true,
@@ -1167,7 +1531,11 @@ app.post('/upload-floorplan', floorplanUpload.array('floorplan', 20), async (req
   const filenames = req.files.map((f) => f.filename);
   try {
     filenames.forEach((name) => {
-      appendAuditEntry(paths, 'floorplan', name, { action: 'upload', message: 'Floor plan uploaded.' });
+      appendAuditEntry(paths, 'floorplan', name, {
+        action: 'upload',
+        message: 'Floor plan uploaded.',
+        meta: buildAuditMeta(undefined, req.authUser),
+      });
     });
   } catch (e) {}
   let updatedOrder = null;
@@ -1180,6 +1548,12 @@ app.post('/upload-floorplan', floorplanUpload.array('floorplan', 20), async (req
     if (updatedOrder) io.to(`project:${paths.projectId}`).emit('floorplans:order', { order: updatedOrder });
   } catch (e) {
     console.error('Socket emit error:', e);
+  }
+  try {
+    await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
+  } catch (error) {
+    console.error('Project database sync failed after floor plan upload:', error);
+    return res.status(500).json({ success: false, message: 'Floor plan uploaded, but database sync failed.' });
   }
   res.json({ success: true, uploaded: filenames });
 });
@@ -1231,8 +1605,18 @@ app.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), async (
 
     if (oldFilename === newFilename) {
       try {
-        appendAuditEntry(paths, 'floorplan', newFilename, { action: 'update', message: 'Floor plan updated.' });
+        appendAuditEntry(paths, 'floorplan', newFilename, {
+          action: 'update',
+          message: 'Floor plan updated.',
+          meta: buildAuditMeta(undefined, req.authUser),
+        });
       } catch (e) {}
+      try {
+        await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
+      } catch (error) {
+        console.error('Project database sync failed after floor plan update:', error);
+        return res.status(500).json({ success: false, message: 'Floor plan updated, but database sync failed.' });
+      }
       return res.json({
         success: true,
         message: 'Floor plan updated successfully',
@@ -1256,17 +1640,18 @@ app.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), async (
       appendAuditEntry(paths, 'floorplan', newFilename, {
         action: 'update',
         message: `Floor plan updated (replaced "${oldFilename}" with "${newFilename}").`,
-        ...(archivedImage
+        meta: buildAuditMeta(
+          archivedImage
           ? {
-              meta: {
-                archivedImage: {
-                  kind: 'floorplan',
-                  originalFilename: archivedImage.originalFilename,
-                  storedFilename: archivedImage.storedFilename,
-                },
+              archivedImage: {
+                kind: 'floorplan',
+                originalFilename: archivedImage.originalFilename,
+                storedFilename: archivedImage.storedFilename,
               },
             }
-          : {}),
+          : undefined,
+          req.authUser
+        ),
       });
     } catch (e) {}
 
@@ -1281,6 +1666,12 @@ app.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), async (
       io.to(`project:${paths.projectId}`).emit('floorplans:order', { order: updatedOrder });
     } catch (e) {
       console.error('Socket emit error:', e);
+    }
+    try {
+      await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
+    } catch (error) {
+      console.error('Project database sync failed after floor plan replace:', error);
+      return res.status(500).json({ success: false, message: 'Floor plan updated, but database sync failed.' });
     }
 
     return res.json({
@@ -1298,7 +1689,7 @@ app.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), async (
 });
 
 // Rename a floor plan file.
-app.put('/api/floorplans/rename', (req, res) => {
+app.put('/api/floorplans/rename', async (req, res) => {
   const { oldFilename, newFilename } = req.body || {};
   if (!oldFilename || !newFilename) {
     return res.status(400).json({ success: false, message: 'Both old and new filenames are required' });
@@ -1321,11 +1712,8 @@ app.put('/api/floorplans/rename', (req, res) => {
   if (fs.existsSync(newPath)) {
     return res.status(409).json({ success: false, message: 'An image with this name already exists' });
   }
-  fs.rename(oldPath, newPath, (err) => {
-    if (err) {
-      console.error('Error renaming floor plan:', err);
-      return res.status(500).json({ success: false, message: 'Error renaming file' });
-    }
+  try {
+    await fs.promises.rename(oldPath, newPath);
     try {
       const order = readFloorplanOrder(paths.floorplanOrderPath);
       const newOrder = order.map(f => f === oldFilename ? newFilename : f);
@@ -1336,10 +1724,20 @@ app.put('/api/floorplans/rename', (req, res) => {
       appendAuditEntry(paths, 'floorplan', newFilename, {
         action: 'rename',
         message: `Floor plan renamed from "${oldFilename}" to "${newFilename}".`,
+        meta: buildAuditMeta(undefined, req.authUser),
       });
     } catch (e) {}
+    try {
+      await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
+    } catch (error) {
+      console.error('Project database sync failed after floor plan rename:', error);
+      return res.status(500).json({ success: false, message: 'Floor plan renamed, but database sync failed.' });
+    }
     return res.json({ success: true, message: 'Floor plan renamed successfully', oldFilename, newFilename });
-  });
+  } catch (err) {
+    console.error('Error renaming floor plan:', err);
+    return res.status(500).json({ success: false, message: 'Error renaming file' });
+  }
 });
 
 // Delete a floor plan image.
@@ -1451,7 +1849,7 @@ app.get('/api/panos/:filename', async (req, res) => {
   }
 });
 
-app.put('/upload/rename', (req, res) => {
+app.put('/upload/rename', async (req, res) => {
   const { oldFilename, newFilename } = req.body;
 
   if (!oldFilename || !newFilename) {
@@ -1493,13 +1891,8 @@ app.put('/upload/rename', (req, res) => {
     });
   }
 
-  fs.rename(oldFilePath, newFilePath, (err) => {
-    if (err) {
-      return res.status(500).json({
-        success: false,
-        message: 'Error renaming file'
-      });
-    }
+  try {
+    await fs.promises.rename(oldFilePath, newFilePath);
     const oldTileId = tileIdFromFilename(oldFilename);
     const newTileId = tileIdFromFilename(newFilename);
     const oldTilesPath = path.join(paths.tilesDir, oldTileId);
@@ -1529,8 +1922,15 @@ app.put('/upload/rename', (req, res) => {
       appendAuditEntry(paths, 'pano', newFilename, {
         action: 'rename',
         message: `Panorama renamed from "${oldFilename}" to "${newFilename}".`,
+        meta: buildAuditMeta(undefined, req.authUser),
       });
     } catch (e) {}
+    try {
+      await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
+    } catch (error) {
+      console.error('Project database sync failed after panorama rename:', error);
+      return res.status(500).json({ success: false, message: 'Panorama renamed, but database sync failed.' });
+    }
     try { io.to(`project:${paths.projectId}`).emit('pano:renamed', { oldFilename, newFilename }); } catch (e) { console.error('Socket emit error:', e); }
     res.json({
       success: true,
@@ -1538,7 +1938,13 @@ app.put('/upload/rename', (req, res) => {
       oldFilename,
       newFilename
     });
-  });
+  } catch (err) {
+    console.error('Error renaming panorama:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Error renaming file'
+    });
+  }
 });
 
 app.put('/upload/update', upload.single('panorama'), (req, res) => {
@@ -1599,19 +2005,21 @@ app.put('/upload/update', upload.single('panorama'), (req, res) => {
         appendAuditEntry(paths, 'pano', newFilename, {
           action: 'update',
           message: `Panorama updated (replaced "${oldFilename}" with "${newFilename}").`,
-          ...(archivedImage
+          meta: buildAuditMeta(
+            archivedImage
             ? {
-                meta: {
-                  archivedImage: {
-                    kind: 'pano',
-                    originalFilename: archivedImage.originalFilename,
-                    storedFilename: archivedImage.storedFilename,
-                  },
+                archivedImage: {
+                  kind: 'pano',
+                  originalFilename: archivedImage.originalFilename,
+                  storedFilename: archivedImage.storedFilename,
                 },
               }
-            : {}),
+            : undefined,
+            req.authUser
+          ),
         });
       } catch (e) {}
+      await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
       job.percent = 100;
       job.status = 'done';
       job.message = 'Update completed';
@@ -1678,7 +2086,7 @@ app.get('/api/floorplan-hotspots', (req, res) => {
   });
 });
 
-app.post('/api/floorplan-hotspots', (req, res) => {
+app.post('/api/floorplan-hotspots', async (req, res) => {
   const body = req.body;
   if (typeof body !== 'object' || body === null) {
     return res.status(400).json({ error: 'Invalid payload' });
@@ -1691,34 +2099,40 @@ app.post('/api/floorplan-hotspots', (req, res) => {
   const changed = diffChangedTopLevelKeys(before, normalizedBody);
   const json = JSON.stringify(normalizedBody, null, 2);
   const dir = path.dirname(paths.floorplanHotspotsPath);
-  fs.mkdir(dir, { recursive: true }, (mkErr) => {
-    if (mkErr) return res.status(500).json({ error: 'Unable to prepare storage for floor plan hotspots' });
-    fs.writeFile(paths.floorplanHotspotsPath, json, 'utf8', (err) => {
-      if (err) return res.status(500).json({ error: 'Unable to save floor plan hotspots' });
-      res.json({ success: true, unchanged: changed.length === 0 });
-      if (changed.length === 0) return;
-      try { io.to(`project:${paths.projectId}`).emit('floorplan-hotspots:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
-      try {
-        changed.forEach((filename) => {
-          const fp = path.join(paths.floorplansDir, filename);
-          if (!fs.existsSync(fp)) return;
-          const beforeCount = getArrayCountByKey(before, filename);
-          const afterCount = getArrayCountByKey(normalizedBody, filename);
-          const message = buildCollectionChangeMessage('Floor plan hotspot', 'floor plan hotspots', beforeCount, afterCount);
-          appendAuditEntry(
-            paths,
-            'floorplan',
-            filename,
-            { action: 'hotspots', message },
-            { dedupeWindowMs: 5000 }
-          );
-        });
-      } catch (e) {}
-    });
-  });
+  try {
+    await fs.promises.mkdir(dir, { recursive: true });
+    await fs.promises.writeFile(paths.floorplanHotspotsPath, json, 'utf8');
+    try {
+      changed.forEach((filename) => {
+        const fp = path.join(paths.floorplansDir, filename);
+        if (!fs.existsSync(fp)) return;
+        const beforeCount = getArrayCountByKey(before, filename);
+        const afterCount = getArrayCountByKey(normalizedBody, filename);
+        const message = buildCollectionChangeMessage('Floor plan hotspot', 'floor plan hotspots', beforeCount, afterCount);
+        appendAuditEntry(
+          paths,
+          'floorplan',
+          filename,
+          {
+            action: 'hotspots',
+            message,
+            meta: buildAuditMeta(undefined, req.authUser),
+          },
+          { dedupeWindowMs: 5000 }
+        );
+      });
+    } catch (e) {}
+    await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
+    res.json({ success: true, unchanged: changed.length === 0 });
+    if (changed.length === 0) return;
+    try { io.to(`project:${paths.projectId}`).emit('floorplan-hotspots:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
+  } catch (error) {
+    console.error('Floor plan hotspot save failed:', error);
+    return res.status(500).json({ error: 'Unable to save floor plan hotspots' });
+  }
 });
 
-app.post('/api/blur-masks', (req, res) => {
+app.post('/api/blur-masks', async (req, res) => {
   const body = req.body;
   if (typeof body !== 'object' || body === null) {
     return res.status(400).json({ error: 'Invalid payload' });
@@ -1731,34 +2145,40 @@ app.post('/api/blur-masks', (req, res) => {
   const changed = diffChangedTopLevelKeys(before, normalizedBody);
   const json = JSON.stringify(normalizedBody, null, 2);
   const dir = path.dirname(paths.blurMasksPath);
-  fs.mkdir(dir, { recursive: true }, (mkErr) => {
-    if (mkErr) return res.status(500).json({ error: 'Unable to prepare storage for blur masks' });
-    fs.writeFile(paths.blurMasksPath, json, 'utf8', (err) => {
-      if (err) return res.status(500).json({ error: 'Unable to save blur masks' });
-      res.json({ success: true, unchanged: changed.length === 0 });
-      if (changed.length === 0) return;
-      try { io.to(`project:${paths.projectId}`).emit('blur-masks:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
-      try {
-        changed.forEach((filename) => {
-          const img = path.join(paths.uploadsDir, filename);
-          if (!fs.existsSync(img)) return;
-          const beforeCount = getArrayCountByKey(before, filename);
-          const afterCount = getArrayCountByKey(normalizedBody, filename);
-          const message = buildCollectionChangeMessage('Blur mask', 'blur masks', beforeCount, afterCount);
-          appendAuditEntry(
-            paths,
-            'pano',
-            filename,
-            { action: 'blur', message },
-            { dedupeWindowMs: 15000 }
-          );
-        });
-      } catch (e) {}
-    });
-  });
+  try {
+    await fs.promises.mkdir(dir, { recursive: true });
+    await fs.promises.writeFile(paths.blurMasksPath, json, 'utf8');
+    try {
+      changed.forEach((filename) => {
+        const img = path.join(paths.uploadsDir, filename);
+        if (!fs.existsSync(img)) return;
+        const beforeCount = getArrayCountByKey(before, filename);
+        const afterCount = getArrayCountByKey(normalizedBody, filename);
+        const message = buildCollectionChangeMessage('Blur mask', 'blur masks', beforeCount, afterCount);
+        appendAuditEntry(
+          paths,
+          'pano',
+          filename,
+          {
+            action: 'blur',
+            message,
+            meta: buildAuditMeta(undefined, req.authUser),
+          },
+          { dedupeWindowMs: 15000 }
+        );
+      });
+    } catch (e) {}
+    await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
+    res.json({ success: true, unchanged: changed.length === 0 });
+    if (changed.length === 0) return;
+    try { io.to(`project:${paths.projectId}`).emit('blur-masks:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
+  } catch (error) {
+    console.error('Blur mask save failed:', error);
+    return res.status(500).json({ error: 'Unable to save blur masks' });
+  }
 });
 
-app.post('/api/hotspots', (req, res) => {
+app.post('/api/hotspots', async (req, res) => {
   const body = req.body;
   if (typeof body !== 'object' || body === null) {
     return res.status(400).json({ error: 'Invalid payload' });
@@ -1770,11 +2190,9 @@ app.post('/api/hotspots', (req, res) => {
   const normalizedBody = normalizeTopLevelArrayMap(body);
   const changed = diffChangedTopLevelKeys(before, normalizedBody);
   const json = JSON.stringify(normalizedBody, null, 2);
-  fs.writeFile(paths.hotspotsPath, json, 'utf8', (err) => {
-    if (err) return res.status(500).json({ error: 'Unable to save hotspots' });
-    res.json({ success: true, unchanged: changed.length === 0 });
-    if (changed.length === 0) return;
-    try { io.to(`project:${paths.projectId}`).emit('hotspots:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
+  try {
+    await fs.promises.mkdir(path.dirname(paths.hotspotsPath), { recursive: true });
+    await fs.promises.writeFile(paths.hotspotsPath, json, 'utf8');
     try {
       changed.forEach((filename) => {
         const img = path.join(paths.uploadsDir, filename);
@@ -1786,12 +2204,23 @@ app.post('/api/hotspots', (req, res) => {
           paths,
           'pano',
           filename,
-          { action: 'hotspots', message },
+          {
+            action: 'hotspots',
+            message,
+            meta: buildAuditMeta(undefined, req.authUser),
+          },
           { dedupeWindowMs: 5000 }
         );
       });
     } catch (e) {}
-  });
+    await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
+    res.json({ success: true, unchanged: changed.length === 0 });
+    if (changed.length === 0) return;
+    try { io.to(`project:${paths.projectId}`).emit('hotspots:changed', normalizedBody); } catch (e) { console.error('Socket emit error:', e); }
+  } catch (error) {
+    console.error('Hotspot save failed:', error);
+    return res.status(500).json({ error: 'Unable to save hotspots' });
+  }
 });
 
 // Per-image initial view parameters (yaw, pitch, fov) for each panorama
@@ -1812,7 +2241,7 @@ app.get('/api/initial-views', (req, res) => {
   });
 });
 
-app.post('/api/initial-views', (req, res) => {
+app.post('/api/initial-views', async (req, res) => {
   const body = req.body;
   if (typeof body !== 'object' || body === null) {
     return res.status(400).json({ error: 'Invalid payload' });
@@ -1823,27 +2252,33 @@ app.post('/api/initial-views', (req, res) => {
   const changed = diffChangedTopLevelKeys(before, body);
   const json = JSON.stringify(body, null, 2);
   const dir = path.dirname(paths.initialViewsPath);
-  fs.mkdir(dir, { recursive: true }, (mkErr) => {
-    if (mkErr) return res.status(500).json({ error: 'Unable to prepare storage for initial views' });
-    fs.writeFile(paths.initialViewsPath, json, 'utf8', (err) => {
-      if (err) return res.status(500).json({ error: 'Unable to save initial views' });
-      res.json({ success: true });
-      try { io.to(`project:${paths.projectId}`).emit('initial-views:changed', body); } catch (e) { console.error('Socket emit error:', e); }
-      try {
-        changed.forEach((filename) => {
-          const img = path.join(paths.uploadsDir, filename);
-          if (!fs.existsSync(img)) return;
-          appendAuditEntry(
-            paths,
-            'pano',
-            filename,
-            { action: 'initial-view', message: 'Initial view saved.' },
-            { dedupeWindowMs: 3000 }
-          );
-        });
-      } catch (e) {}
-    });
-  });
+  try {
+    await fs.promises.mkdir(dir, { recursive: true });
+    await fs.promises.writeFile(paths.initialViewsPath, json, 'utf8');
+    try {
+      changed.forEach((filename) => {
+        const img = path.join(paths.uploadsDir, filename);
+        if (!fs.existsSync(img)) return;
+        appendAuditEntry(
+          paths,
+          'pano',
+          filename,
+          {
+            action: 'initial-view',
+            message: 'Initial view saved.',
+            meta: buildAuditMeta(undefined, req.authUser),
+          },
+          { dedupeWindowMs: 3000 }
+        );
+      });
+    } catch (e) {}
+    await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
+    res.json({ success: true });
+    try { io.to(`project:${paths.projectId}`).emit('initial-views:changed', body); } catch (e) { console.error('Socket emit error:', e); }
+  } catch (error) {
+    console.error('Initial view save failed:', error);
+    return res.status(500).json({ error: 'Unable to save initial views' });
+  }
 });
 
 app.delete('/upload/:filename', (req, res) => {

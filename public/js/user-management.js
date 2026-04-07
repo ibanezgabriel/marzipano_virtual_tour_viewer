@@ -31,32 +31,15 @@ const settingsBtn = document.getElementById('settings-btn');
 const editModalContent = document.getElementById('edit-admin-modal-content');
 const editTitle = document.getElementById('edit-admin-title');
 
+let admins = [];
+let currentUser = null;
 let currentEditId = null;
 let currentDeleteId = null;
+let currentEditMode = 'admin';
 
-const admins = [
-  {
-    id: 'ADM-001',
-    username: 'admin.qcde',
-    name: 'QCDE Main Admin',
-    email: 'admin@qcde.gov',
-    status: 'Active'
-  },
-  {
-    id: 'ADM-002',
-    username: 'admin.projects',
-    name: 'Projects Admin',
-    email: 'projects@qcde.gov',
-    status: 'Active'
-  },
-  {
-    id: 'ADM-003',
-    username: 'admin.support',
-    name: 'Support Admin',
-    email: 'support@qcde.gov',
-    status: 'Suspended'
-  }
-];
+function formatAdminId(id) {
+  return `ADM-${String(id).padStart(3, '0')}`;
+}
 
 function openModal(modal) {
   if (!modal) return;
@@ -92,11 +75,10 @@ function matchesSearch(admin, query) {
   if (!query) return true;
   const q = query.toLowerCase();
   return (
-    admin.id.toLowerCase().includes(q) ||
+    formatAdminId(admin.id).toLowerCase().includes(q) ||
     admin.username.toLowerCase().includes(q) ||
     admin.name.toLowerCase().includes(q) ||
-    admin.email.toLowerCase().includes(q) ||
-    admin.status.toLowerCase().includes(q)
+    admin.statusLabel.toLowerCase().includes(q)
   );
 }
 
@@ -121,6 +103,7 @@ function createActionButton(className, title, iconSrc) {
   } else {
     btn.textContent = title;
   }
+
   return btn;
 }
 
@@ -131,13 +114,13 @@ function renderAdminList(list) {
   list.forEach((admin) => {
     const row = document.createElement('section');
     row.className = 'project-row';
-    row.dataset.adminId = admin.id;
+    row.dataset.adminId = String(admin.id);
 
     const idCell = document.createElement('div');
     idCell.className = 'project-number-cell';
     const idDisplay = document.createElement('div');
     idDisplay.className = 'project-number-display';
-    idDisplay.textContent = admin.id;
+    idDisplay.textContent = formatAdminId(admin.id);
     idCell.appendChild(idDisplay);
 
     const userCell = document.createElement('div');
@@ -151,7 +134,7 @@ function renderAdminList(list) {
     statusCell.className = 'project-status-cell';
     const statusDisplay = document.createElement('div');
     statusDisplay.className = 'project-status-display';
-    statusDisplay.textContent = admin.status;
+    statusDisplay.textContent = admin.statusLabel;
     statusCell.appendChild(statusDisplay);
 
     const actionsCell = document.createElement('div');
@@ -162,7 +145,13 @@ function renderAdminList(list) {
       openEditModal(admin.id);
     });
 
+    const deleteBtn = createActionButton('btn-delete', 'Delete Account');
+    deleteBtn.addEventListener('click', () => {
+      openDeleteModal(admin.id);
+    });
+
     actionsCell.appendChild(editBtn);
+    actionsCell.appendChild(deleteBtn);
 
     row.appendChild(idCell);
     row.appendChild(userCell);
@@ -179,24 +168,32 @@ function refreshList() {
   renderAdminList(getFilteredAdmins());
 }
 
-function generateAdminId() {
-  const numericIds = admins
-    .map((admin) => parseInt(admin.id.replace('ADM-', ''), 10))
-    .filter((value) => !Number.isNaN(value));
-  const next = numericIds.length ? Math.max(...numericIds) + 1 : 1;
-  return `ADM-${String(next).padStart(3, '0')}`;
-}
-
 function findAdminById(id) {
   return admins.find((admin) => admin.id === id);
 }
 
-function isDuplicate(field, value, excludeId = null) {
-  const normalized = value.trim().toLowerCase();
-  return admins.some((admin) => {
-    if (excludeId && admin.id === excludeId) return false;
-    return admin[field].toLowerCase() === normalized;
-  });
+async function requestJson(url, options) {
+  const response = await fetch(url, options);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || 'Request failed.');
+  }
+  return data;
+}
+
+async function loadCurrentUser() {
+  const data = await requestJson('/api/auth/me', { cache: 'no-store' });
+  currentUser = data.user || null;
+  const roleLabel = document.querySelector('.user-role-label');
+  if (roleLabel && currentUser) {
+    roleLabel.textContent = currentUser.roleLabel || 'SuperAdmin';
+  }
+}
+
+async function loadAdmins() {
+  const data = await requestJson('/api/users?role=admin', { cache: 'no-store' });
+  admins = Array.isArray(data) ? data : [];
+  refreshList();
 }
 
 function openCreateModal() {
@@ -207,31 +204,29 @@ function openCreateModal() {
 function openEditModal(id) {
   const admin = findAdminById(id);
   if (!admin) return;
+  currentEditMode = 'admin';
+  currentEditId = id;
   if (editModalContent) editModalContent.classList.remove('settings-mode');
   if (editTitle) editTitle.textContent = 'UPDATE ADMIN ACCOUNT';
-  currentEditId = id;
   editUsername.value = admin.username;
   editName.value = admin.name;
-  if (editStatus) editStatus.value = admin.status || 'Active';
+  if (editStatus) editStatus.value = admin.isActive ? 'Active' : 'Suspended';
   editPassword.value = '';
   editError.textContent = '';
   openModal(editModal);
 }
 
 function openSettingsEditModal() {
+  if (!currentUser) return;
+  currentEditMode = 'self';
+  currentEditId = currentUser.id;
   if (editModalContent) editModalContent.classList.add('settings-mode');
   if (editTitle) editTitle.textContent = 'EDIT USERNAME & PASSWORD';
-
-  if (admins.length) {
-    openEditModal(admins[0].id);
-    if (editModalContent) editModalContent.classList.add('settings-mode');
-    if (editTitle) editTitle.textContent = 'EDIT USERNAME & PASSWORD';
-    return;
-  }
-
-  currentEditId = null;
-  resetEditForm();
-  if (editStatus) editStatus.value = 'Active';
+  editUsername.value = currentUser.username;
+  editName.value = currentUser.name || '';
+  if (editStatus) editStatus.value = currentUser.isActive ? 'Active' : 'Suspended';
+  editPassword.value = '';
+  editError.textContent = '';
   openModal(editModal);
 }
 
@@ -240,79 +235,108 @@ function openDeleteModal(id) {
   openModal(deleteModal);
 }
 
-function handleCreateSubmit() {
+async function handleCreateSubmit() {
   createError.textContent = '';
 
   const username = createUsername.value.trim();
   const name = createName.value.trim();
-  const password = createPassword.value.trim();
+  const password = createPassword.value;
 
   if (!username || !name || !password) {
     createError.textContent = 'Please complete all fields.';
     return;
   }
 
-  if (isDuplicate('username', username)) {
-    createError.textContent = 'Username is already in use.';
-    return;
+  try {
+    await requestJson('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username,
+        name,
+        password,
+        role: 'admin',
+      }),
+    });
+    closeModal(createModal);
+    resetCreateForm();
+    await loadAdmins();
+  } catch (error) {
+    createError.textContent = error.message || 'Unable to create the admin account.';
   }
-
-  admins.unshift({
-    id: generateAdminId(),
-    username,
-    name,
-    email: '',
-    status: 'Active',
-    password
-  });
-
-  closeModal(createModal);
-  resetCreateForm();
-  refreshList();
 }
 
-function handleEditSave() {
+async function handleEditSave() {
   editError.textContent = '';
   if (!currentEditId) return;
-  const admin = findAdminById(currentEditId);
-  if (!admin) return;
 
   const username = editUsername.value.trim();
-  const name = editName.value.trim();
-  const status = editStatus ? editStatus.value : admin.status;
-  const password = editPassword.value.trim();
+  const name = currentEditMode === 'self' ? (currentUser ? currentUser.name : editName.value.trim()) : editName.value.trim();
+  const status = editStatus ? editStatus.value : 'Active';
+  const password = editPassword.value;
 
   if (!username || !name) {
     editError.textContent = 'Username and name are required.';
     return;
   }
 
-  if (isDuplicate('username', username, currentEditId)) {
-    editError.textContent = 'Username is already in use.';
-    return;
-  }
+  try {
+    const data = await requestJson(`/api/users/${encodeURIComponent(currentEditId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username,
+        name,
+        isActive: currentEditMode === 'self' ? true : status === 'Active',
+        password: password || undefined,
+      }),
+    });
 
-  admin.username = username;
-  admin.name = name;
-  admin.status = status;
-  if (password) {
-    admin.password = password;
-  }
+    if (currentUser && currentUser.id === currentEditId) {
+      currentUser = data.user;
+      const roleLabel = document.querySelector('.user-role-label');
+      if (roleLabel && currentUser) {
+        roleLabel.textContent = currentUser.roleLabel || 'SuperAdmin';
+      }
+    }
 
-  closeModal(editModal);
-  resetEditForm();
-  refreshList();
+    closeModal(editModal);
+    resetEditForm();
+    await loadAdmins();
+  } catch (error) {
+    editError.textContent = error.message || 'Unable to update the account.';
+  }
 }
 
-function handleDeleteConfirm() {
+async function handleDeleteConfirm() {
   if (!currentDeleteId) return;
-  const index = admins.findIndex((admin) => admin.id === currentDeleteId);
-  if (index !== -1) {
-    admins.splice(index, 1);
+  try {
+    await requestJson(`/api/users/${encodeURIComponent(currentDeleteId)}`, {
+      method: 'DELETE',
+    });
+    currentDeleteId = null;
+    closeModal(deleteModal);
+    await loadAdmins();
+  } catch (error) {
+    closeModal(deleteModal);
+    currentDeleteId = null;
+    alert(error.message || 'Unable to delete the account.');
   }
-  currentDeleteId = null;
-  closeModal(deleteModal);
-  refreshList();
+}
+
+async function initializePage() {
+  try {
+    await loadCurrentUser();
+    await loadAdmins();
+  } catch (error) {
+    if (adminListEl) {
+      adminListEl.innerHTML = '';
+    }
+    if (emptyStateEl) {
+      emptyStateEl.style.display = 'block';
+      emptyStateEl.textContent = error.message || 'Unable to load users.';
+    }
+  }
 }
 
 if (createBtn) {
@@ -351,4 +375,4 @@ if (settingsBtn) {
   settingsBtn.addEventListener('click', openSettingsEditModal);
 }
 
-refreshList();
+initializePage();
