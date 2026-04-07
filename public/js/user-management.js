@@ -27,6 +27,10 @@ const editName = document.getElementById('edit-admin-name');
 const editStatus = document.getElementById('edit-admin-status');
 const editPassword = document.getElementById('edit-admin-password');
 
+const settingsBtn = document.getElementById('settings-btn');
+const editModalContent = document.getElementById('edit-admin-modal-content');
+const editTitle = document.getElementById('edit-admin-title');
+
 let currentEditId = null;
 let currentDeleteId = null;
 
@@ -203,12 +207,31 @@ function openCreateModal() {
 function openEditModal(id) {
   const admin = findAdminById(id);
   if (!admin) return;
+  if (editModalContent) editModalContent.classList.remove('settings-mode');
+  if (editTitle) editTitle.textContent = 'UPDATE ADMIN ACCOUNT';
   currentEditId = id;
   editUsername.value = admin.username;
   editName.value = admin.name;
   if (editStatus) editStatus.value = admin.status || 'Active';
   editPassword.value = '';
   editError.textContent = '';
+  openModal(editModal);
+}
+
+function openSettingsEditModal() {
+  if (editModalContent) editModalContent.classList.add('settings-mode');
+  if (editTitle) editTitle.textContent = 'EDIT USERNAME & PASSWORD';
+
+  if (admins.length) {
+    openEditModal(admins[0].id);
+    if (editModalContent) editModalContent.classList.add('settings-mode');
+    if (editTitle) editTitle.textContent = 'EDIT USERNAME & PASSWORD';
+    return;
+  }
+
+  currentEditId = null;
+  resetEditForm();
+  if (editStatus) editStatus.value = 'Active';
   openModal(editModal);
 }
 
@@ -322,6 +345,10 @@ if (deleteConfirm) {
 
 if (searchInput) {
   searchInput.addEventListener('input', refreshList);
+}
+
+if (settingsBtn) {
+  settingsBtn.addEventListener('click', openSettingsEditModal);
 }
 
 refreshList();

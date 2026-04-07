@@ -12,9 +12,15 @@
         <section id="dashboard-title">
             <img src="assets/icons/NEW-LOGO-QCDE.png">
             <h1>QCDE - IPVT (User Management)</h1>
-            <button id="logout-btn" class="logout-btn" data-logout-message="Are you sure you want to log out?">
-                <img src="assets/icons/log-out.png" class="icons">
-            </button>
+            <div class="user-role-wrap">
+                <span class="user-role-label">SuperAdmin</span>
+                <button type="button" class="settings-btn settings-icon-btn" id="settings-btn" aria-label="Edit username and password">
+                    <img src="assets/icons/setting.png" class="icons">
+                </button>
+                <button id="logout-btn" class="logout-btn" data-logout-message="Are you sure you want to log out?">
+                    <img src="assets/icons/log-out.png" class="icons">
+                </button>
+            </div>
         </section>
 
         <div id="project-container">
@@ -70,17 +76,17 @@
     </div>
 
     <div class="modal-overlay" id="edit-admin-modal">
-        <div class="modal">
-            <h2>UPDATE ADMIN ACCOUNT</h2>
+        <div class="modal" id="edit-admin-modal-content">
+            <h2 id="edit-admin-title">UPDATE ADMIN ACCOUNT</h2>
             <div class="form-group">
                 <label for="edit-admin-username">Username</label>
                 <input type="text" id="edit-admin-username" placeholder="Username" maxlength="40">
             </div>
-            <div class="form-group">
+            <div class="form-group" id="edit-admin-name-group">
                 <label for="edit-admin-name">Name</label>
                 <input type="text" id="edit-admin-name" placeholder="Full Name" maxlength="80">
             </div>
-            <div class="form-group">
+            <div class="form-group" id="edit-admin-status-group">
                 <label for="edit-admin-status">Status</label>
                 <select id="edit-admin-status">
                     <option value="Active">Active</option>
