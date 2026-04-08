@@ -3,7 +3,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { getPool } = require('./pool');
-const { ensureBootstrapSuperAdmin } = require('./users');
+const { ensureBootstrapSuperAdmin, formatUserId } = require('./users');
 
 const projectRoot = path.join(__dirname, '..');
 const projectsDir = path.join(projectRoot, 'projects');
@@ -75,7 +75,7 @@ function getAuditEntries(projectPath, kind, fallbackUserId) {
       const metadata = entry && entry.meta && typeof entry.meta === 'object'
         ? { ...entry.meta, kind, filename: decodedName }
         : { kind, filename: decodedName };
-      const createdByUserId = Number(metadata.createdByUserId) || Number(fallbackUserId);
+      const createdByUserId = formatUserId(metadata.createdByUserId || fallbackUserId || '');
 
       return {
         kind,
@@ -162,7 +162,7 @@ async function upsertProjectRow(client, { legacyId, projectNumber, projectName, 
     `SELECT id
        FROM projects
       WHERE legacy_id = $1
-         OR (legacy_id IS NULL AND project_number = $2)
+         OR project_number = $2
       ORDER BY CASE WHEN legacy_id = $1 THEN 0 ELSE 1 END
       LIMIT 1`,
     [legacyId, projectNumber]
@@ -201,10 +201,10 @@ async function syncProjectWithClient(client, project, { createdByUserId } = {}) 
     throw new Error(`Project manifest entry is incomplete: ${JSON.stringify(project)}`);
   }
 
-  let ownerUserId = Number(createdByUserId) || 0;
+  let ownerUserId = String(createdByUserId || '').trim();
   if (!ownerUserId) {
     const bootstrapUser = await ensureBootstrapSuperAdmin();
-    ownerUserId = Number(bootstrapUser.id);
+    ownerUserId = String(bootstrapUser.id || '').trim();
   }
 
   const projectPath = path.join(projectsDir, legacyId);
@@ -331,7 +331,7 @@ async function syncProjectWithClient(client, project, { createdByUserId } = {}) 
         projectId,
         projectNumber,
         projectName,
-        Number(entry.createdByUserId) || ownerUserId,
+        formatUserId(entry.createdByUserId || ownerUserId),
         entry.action,
         entry.message,
         JSON.stringify(entry.metadata || {}),

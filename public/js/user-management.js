@@ -4,7 +4,6 @@ const searchInput = document.getElementById('admin-search-input');
 
 const createModal = document.getElementById('create-admin-modal');
 const editModal = document.getElementById('edit-admin-modal');
-const deleteModal = document.getElementById('delete-admin-modal');
 
 const createBtn = document.getElementById('btn-create-admin');
 const createCancel = document.getElementById('create-admin-cancel');
@@ -14,9 +13,6 @@ const createError = document.getElementById('create-admin-error');
 const editCancel = document.getElementById('edit-admin-cancel');
 const editSave = document.getElementById('edit-admin-save');
 const editError = document.getElementById('edit-admin-error');
-
-const deleteCancel = document.getElementById('delete-admin-cancel');
-const deleteConfirm = document.getElementById('delete-admin-confirm');
 
 const createUsername = document.getElementById('create-admin-username');
 const createName = document.getElementById('create-admin-name');
@@ -32,13 +28,20 @@ const editModalContent = document.getElementById('edit-admin-modal-content');
 const editTitle = document.getElementById('edit-admin-title');
 
 let admins = [];
-let currentUser = null;
+let currentPageUser = null;
 let currentEditId = null;
-let currentDeleteId = null;
 let currentEditMode = 'admin';
 
 function formatAdminId(id) {
-  return `ADM-${String(id).padStart(3, '0')}`;
+  const normalized = String(id || '').trim();
+  if (/^ADM-\d+$/i.test(normalized)) {
+    const digits = normalized.match(/\d+$/);
+    return digits ? `ADM-${digits[0].padStart(3, '0')}` : normalized.toUpperCase();
+  }
+  if (/^\d+$/.test(normalized)) {
+    return `ADM-${normalized.padStart(3, '0')}`;
+  }
+  return normalized;
 }
 
 function openModal(modal) {
@@ -145,13 +148,7 @@ function renderAdminList(list) {
       openEditModal(admin.id);
     });
 
-    const deleteBtn = createActionButton('btn-delete', 'Delete Account');
-    deleteBtn.addEventListener('click', () => {
-      openDeleteModal(admin.id);
-    });
-
     actionsCell.appendChild(editBtn);
-    actionsCell.appendChild(deleteBtn);
 
     row.appendChild(idCell);
     row.appendChild(userCell);
@@ -183,10 +180,10 @@ async function requestJson(url, options) {
 
 async function loadCurrentUser() {
   const data = await requestJson('/api/auth/me', { cache: 'no-store' });
-  currentUser = data.user || null;
+  currentPageUser = data.user || null;
   const roleLabel = document.querySelector('.user-role-label');
-  if (roleLabel && currentUser) {
-    roleLabel.textContent = currentUser.roleLabel || 'SuperAdmin';
+  if (roleLabel && currentPageUser) {
+    roleLabel.textContent = currentPageUser.username || '';
   }
 }
 
@@ -217,22 +214,17 @@ function openEditModal(id) {
 }
 
 function openSettingsEditModal() {
-  if (!currentUser) return;
+  if (!currentPageUser) return;
   currentEditMode = 'self';
-  currentEditId = currentUser.id;
+  currentEditId = currentPageUser.id;
   if (editModalContent) editModalContent.classList.add('settings-mode');
   if (editTitle) editTitle.textContent = 'EDIT USERNAME & PASSWORD';
-  editUsername.value = currentUser.username;
-  editName.value = currentUser.name || '';
-  if (editStatus) editStatus.value = currentUser.isActive ? 'Active' : 'Suspended';
+  editUsername.value = currentPageUser.username;
+  editName.value = currentPageUser.name || '';
+  if (editStatus) editStatus.value = currentPageUser.isActive ? 'Active' : 'Suspended';
   editPassword.value = '';
   editError.textContent = '';
   openModal(editModal);
-}
-
-function openDeleteModal(id) {
-  currentDeleteId = id;
-  openModal(deleteModal);
 }
 
 async function handleCreateSubmit() {
@@ -271,7 +263,7 @@ async function handleEditSave() {
   if (!currentEditId) return;
 
   const username = editUsername.value.trim();
-  const name = currentEditMode === 'self' ? (currentUser ? currentUser.name : editName.value.trim()) : editName.value.trim();
+  const name = currentEditMode === 'self' ? (currentPageUser ? currentPageUser.name : editName.value.trim()) : editName.value.trim();
   const status = editStatus ? editStatus.value : 'Active';
   const password = editPassword.value;
 
@@ -292,11 +284,11 @@ async function handleEditSave() {
       }),
     });
 
-    if (currentUser && currentUser.id === currentEditId) {
-      currentUser = data.user;
+    if (currentPageUser && currentPageUser.id === currentEditId) {
+      currentPageUser = data.user;
       const roleLabel = document.querySelector('.user-role-label');
-      if (roleLabel && currentUser) {
-        roleLabel.textContent = currentUser.roleLabel || 'SuperAdmin';
+      if (roleLabel && currentPageUser) {
+        roleLabel.textContent = currentPageUser.username || '';
       }
     }
 
@@ -305,22 +297,6 @@ async function handleEditSave() {
     await loadAdmins();
   } catch (error) {
     editError.textContent = error.message || 'Unable to update the account.';
-  }
-}
-
-async function handleDeleteConfirm() {
-  if (!currentDeleteId) return;
-  try {
-    await requestJson(`/api/users/${encodeURIComponent(currentDeleteId)}`, {
-      method: 'DELETE',
-    });
-    currentDeleteId = null;
-    closeModal(deleteModal);
-    await loadAdmins();
-  } catch (error) {
-    closeModal(deleteModal);
-    currentDeleteId = null;
-    alert(error.message || 'Unable to delete the account.');
   }
 }
 
@@ -357,14 +333,6 @@ if (editCancel) {
 
 if (editSave) {
   editSave.addEventListener('click', handleEditSave);
-}
-
-if (deleteCancel) {
-  deleteCancel.addEventListener('click', () => closeModal(deleteModal));
-}
-
-if (deleteConfirm) {
-  deleteConfirm.addEventListener('click', handleDeleteConfirm);
 }
 
 if (searchInput) {

@@ -1,6 +1,6 @@
 -- USERS
 CREATE TABLE IF NOT EXISTS users (
-  id BIGSERIAL PRIMARY KEY,
+  id VARCHAR(20) PRIMARY KEY,
   username TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   role TEXT NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS layouts (
   id BIGSERIAL PRIMARY KEY,
   project_id BIGINT NOT NULL REFERENCES projects(id),
   layout_filename TEXT NOT NULL,
-  created_by BIGINT NOT NULL REFERENCES users(id),
+  created_by VARCHAR(20) NOT NULL REFERENCES users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   project_id BIGINT NOT NULL REFERENCES projects(id),
   project_number TEXT NOT NULL,
   project_name TEXT NOT NULL,
-  created_by BIGINT NOT NULL REFERENCES users(id),
+  created_by VARCHAR(20) NOT NULL REFERENCES users(id),
   action TEXT NOT NULL,
   message TEXT NOT NULL,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,

@@ -4,12 +4,13 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const {
+  clearAllSessions,
   clearSessionForUser,
   createSessionForUser,
   createUser,
-  deleteUser,
   findUserBySession,
   findUserByUsername,
+  hasActiveSession,
   listUsers,
   mapUserRow,
   normalizeRole,
@@ -436,7 +437,7 @@ function appendAuditEntry(paths, kind, filename, { action, message, meta } = {},
 
 function buildAuditMeta(meta, user) {
   const nextMeta = meta && typeof meta === 'object' ? { ...meta } : {};
-  const userId = user && Number(user.id);
+  const userId = user && String(user.id || '').trim();
   if (userId) {
     nextMeta.createdByUserId = userId;
   }
@@ -702,6 +703,10 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid username or password.' });
     }
 
+    if (hasActiveSession(user)) {
+      return res.status(409).json({ message: 'This account is already signed in on another device.' });
+    }
+
     const session = await createSessionForUser(user.id);
     setSessionCookie(res, session.sessionId, session.expiresAt);
     return res.json({ success: true, user: serializeUserForClient(user) });
@@ -709,6 +714,13 @@ app.post('/api/auth/login', async (req, res) => {
     console.error('Login failed:', error);
     return res.status(500).json({ message: 'Unable to sign in right now.' });
   }
+});
+
+app.get('/api/auth/status', attachAuthenticatedUser, (req, res) => {
+  return res.json({
+    authenticated: Boolean(req.authUser),
+    user: req.authUser ? serializeUserForClient(req.authUser) : null,
+  });
 });
 
 app.get('/api/auth/me', attachAuthenticatedUser, (req, res) => {
@@ -762,8 +774,8 @@ app.post('/api/users', attachAuthenticatedUser, requireSuperAdminApi, async (req
 
 app.put('/api/users/:id', attachAuthenticatedUser, requireSuperAdminApi, async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = String(req.params.id || '').trim();
+    if (!id) {
       return res.status(400).json({ message: 'Invalid user id.' });
     }
 
@@ -790,24 +802,7 @@ app.put('/api/users/:id', attachAuthenticatedUser, requireSuperAdminApi, async (
 });
 
 app.delete('/api/users/:id', attachAuthenticatedUser, requireSuperAdminApi, async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
-      return res.status(400).json({ message: 'Invalid user id.' });
-    }
-
-    const deleted = await deleteUser(id);
-    if (!deleted) {
-      return res.status(404).json({ message: 'User not found.' });
-    }
-
-    return res.json({ success: true });
-  } catch (error) {
-    if (error && error.code === 'LAST_SUPERADMIN') {
-      return res.status(400).json({ message: error.message });
-    }
-    return res.status(500).json({ message: 'Unable to delete user.' });
-  }
+  return res.status(403).json({ message: 'Account deletion is disabled.' });
 });
 
 // Serve static files
@@ -1300,8 +1295,8 @@ app.post('/api/projects', async (req, res) => {
 });
 
 app.put('/api/projects/:id', async (req, res) => {
-  const oldId = req.params.id;
-  if (oldId.includes('..') || oldId.includes('/') || oldId.includes('\\')) {
+  const projectToken = String(req.params.id || '').trim();
+  if (!projectToken || projectToken.includes('..') || projectToken.includes('/') || projectToken.includes('\\')) {
     return res.status(400).json({ success: false, message: 'Invalid project id' });
   }
   const { name, number, status } = req.body || {};
@@ -1312,8 +1307,12 @@ app.put('/api/projects/:id', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Project name is required' });
   }
   const projects = getProjectsManifest();
-  const idx = projects.findIndex(p => p.id === oldId);
+  const idx = projects.findIndex((project) => (
+    String(project && project.id || '').trim() === projectToken ||
+    String(project && project.number || '').trim() === projectToken
+  ));
   if (idx === -1) return res.status(404).json({ success: false, message: 'Project not found' });
+  const oldId = String(projects[idx].id || '').trim();
   const trimmedName = name.trim();
   const trimmedNumber = String(number).trim();
   if (!/^[A-Za-z0-9-]+$/.test(trimmedNumber)) {
@@ -2154,6 +2153,7 @@ app.post('/api/blur-masks', async (req, res) => {
         if (!fs.existsSync(img)) return;
         const beforeCount = getArrayCountByKey(before, filename);
         const afterCount = getArrayCountByKey(normalizedBody, filename);
+        if (beforeCount === afterCount) return;
         const message = buildCollectionChangeMessage('Blur mask', 'blur masks', beforeCount, afterCount);
         appendAuditEntry(
           paths,
@@ -2285,5 +2285,14 @@ app.delete('/upload/:filename', (req, res) => {
   res.status(403).json({ success: false, message: 'Panorama deletion is disabled.' });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-console.log(`Server running at https://localhost:${PORT}`);});
+async function startServer() {
+  await clearAllSessions();
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running at https://localhost:${PORT}`);
+  });
+}
+
+startServer().catch((error) => {
+  console.error('Server startup failed:', error);
+  process.exit(1);
+});
