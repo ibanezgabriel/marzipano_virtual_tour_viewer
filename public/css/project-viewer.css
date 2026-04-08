@@ -27,7 +27,7 @@
 .floorplan-modal-overlay-client .floorplan-modal-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   padding: 10px 16px 6px;
 }
@@ -48,21 +48,42 @@
 }
 
 .floorplan-modal-overlay-client .floorplan-nav-btn {
-  min-width: 78px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 2px solid rgba(255, 255, 255, 0.85);
-  background: #115272;
-  color: #ffffff;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
   font-weight: 600;
   font-size: 0.85rem;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease;
+  box-shadow: none;
+  transition: transform 140ms ease, opacity 140ms ease;
+}
+
+.floorplan-modal-overlay-client .floorplan-nav-btn img {
+  width: 28px;
+  height: 28px;
+  display: block;
+  box-shadow: none;
+  filter: none;
+}
+
+.floorplan-modal-overlay-client .floorplan-modal-body .floorplan-image-wrap {
+  gap: 12px;
+}
+
+.floorplan-modal-overlay-client .floorplan-modal-body .floorplan-image-stage {
+  flex: 1 1 auto;
+}
+
+.floorplan-modal-overlay-client .floorplan-modal-body .floorplan-nav-btn {
+  flex: 0 0 auto;
 }
 
 .floorplan-modal-overlay-client .floorplan-nav-btn:hover {
   transform: translateY(-1px);
+  opacity: 0.85;
 }
 
 .floorplan-modal-overlay-client .floorplan-nav-btn:disabled {
