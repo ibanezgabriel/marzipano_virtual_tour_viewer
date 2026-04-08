@@ -128,8 +128,8 @@ function updateFloorplanNav() {
   const hasNext = idx >= 0 && idx < floorplanFiles.length - 1;
   floorplanPrevBtn.disabled = !hasPrev;
   floorplanNextBtn.disabled = !hasNext;
-  floorplanPrevBtn.style.display = hasPrev ? 'inline-flex' : 'none';
-  floorplanNextBtn.style.display = hasNext ? 'inline-flex' : 'none';
+  floorplanPrevBtn.style.display = 'inline-flex';
+  floorplanNextBtn.style.display = 'inline-flex';
 }
 
 function setActiveFloorplan(filename) {
@@ -324,19 +324,20 @@ function ensureModalElements() {
       </div>
       <div class="floorplan-modal-body">
         <div class="floorplan-image-wrap">
+          <button type="button" id="floorplan-prev" class="floorplan-nav-btn" aria-label="Previous floor plan">
+            <img src="assets/icons/left-arrow.png" alt="" aria-hidden="true">
+          </button>
           <div class="floorplan-image-stage">
             <img id="floorplan-modal-img" alt="Floor plan expanded">
             <div class="floorplan-hotspot-layer" data-layer="expanded"></div>
           </div>
+          <button type="button" id="floorplan-next" class="floorplan-nav-btn" aria-label="Next floor plan">
+            <img src="assets/icons/right-arrow.png" alt="" aria-hidden="true">
+          </button>
           <div class="floorplan-magnifier-lens" aria-hidden="true"></div>
         </div>
       </div>
       <div class="floorplan-modal-actions">
-        <div class="floorplan-modal-spacer" aria-hidden="true"></div>
-        <div class="floorplan-nav" aria-label="Floor plan navigation">
-          <button type="button" id="floorplan-prev" class="floorplan-nav-btn" aria-label="Previous floor plan">Prev</button>
-          <button type="button" id="floorplan-next" class="floorplan-nav-btn" aria-label="Next floor plan">Next</button>
-        </div>
         <div class="floorplan-magnifier-controls" aria-label="Floor plan magnifier controls">
           <div id="floorplan-magnifier-levels" class="floorplan-magnifier-levels" role="group" aria-label="Magnification level">
             <button type="button" data-magnifier-level="2">2x</button>
