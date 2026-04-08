@@ -7,6 +7,9 @@ const NAME_MAX_LENGTH = 80;
 const MIN_PASSWORD_LENGTH = 8;
 const SESSION_TTL_HOURS = 12;
 const VALID_ROLES = new Set(['admin', 'superadmin']);
+const USER_ID_PREFIX = 'ADM-';
+const USER_ID_PAD = 3;
+const USER_ID_PATTERN = /^ADM-(\d+)$/i;
 
 function normalizeUsername(value) {
   return String(value || '').trim().toLowerCase();
@@ -53,10 +56,32 @@ function validatePassword(password) {
   return null;
 }
 
+function extractUserNumber(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  const admMatch = normalized.match(USER_ID_PATTERN);
+  if (admMatch) return Number(admMatch[1]);
+  if (/^\d+$/.test(normalized)) return Number(normalized);
+  return null;
+}
+
+function formatUserId(value) {
+  const number = extractUserNumber(value);
+  if (!Number.isInteger(number) || number <= 0) {
+    return String(value || '').trim();
+  }
+  return `${USER_ID_PREFIX}${String(number).padStart(USER_ID_PAD, '0')}`;
+}
+
+function hasActiveSession(user) {
+  if (!user || !user.active_session_id || !user.active_session_expires_at) return false;
+  return new Date(user.active_session_expires_at).getTime() > Date.now();
+}
+
 function mapUserRow(row) {
   if (!row) return null;
   return {
-    id: Number(row.id),
+    id: formatUserId(row.id),
     username: row.username,
     name: row.name,
     role: row.role,
@@ -112,6 +137,23 @@ async function countActiveSuperAdmins() {
   return Number(result.rows[0] && result.rows[0].total) || 0;
 }
 
+async function getNextUserId() {
+  const result = await query(
+    `SELECT id
+       FROM users
+      ORDER BY CASE
+        WHEN id ~ '^ADM-[0-9]+$' THEN substring(id from '[0-9]+$')::int
+        WHEN id ~ '^[0-9]+$' THEN id::int
+        ELSE 0
+      END DESC,
+      created_at DESC,
+      id DESC
+      LIMIT 1`
+  );
+  const lastNumber = extractUserNumber(result.rows[0] && result.rows[0].id);
+  return formatUserId((lastNumber || 0) + 1);
+}
+
 async function createUser({ username, name, role = 'admin', password }) {
   const normalizedUsername = normalizeUsername(username);
   const normalizedName = normalizeName(name);
@@ -125,11 +167,12 @@ async function createUser({ username, name, role = 'admin', password }) {
   if (passwordError) throw new Error(passwordError);
 
   const passwordHash = await hashPassword(password);
+  const nextUserId = await getNextUserId();
   const result = await query(
-    `INSERT INTO users (username, name, role, password_hash, is_active)
-     VALUES ($1, $2, $3, $4, TRUE)
+    `INSERT INTO users (id, username, name, role, password_hash, is_active)
+     VALUES ($1, $2, $3, $4, $5, TRUE)
      RETURNING id, username, name, role, is_active, created_at`,
-    [normalizedUsername, normalizedName, normalizedRole, passwordHash]
+    [nextUserId, normalizedUsername, normalizedName, normalizedRole, passwordHash]
   );
   return mapUserRow(result.rows[0]);
 }
@@ -231,6 +274,14 @@ async function clearSessionForUser(userId) {
   );
 }
 
+async function clearAllSessions() {
+  await query(
+    `UPDATE users
+        SET active_session_id = NULL,
+            active_session_expires_at = NULL`
+  );
+}
+
 async function findUserBySession(sessionId) {
   if (!sessionId) return null;
   const result = await query(
@@ -258,17 +309,27 @@ async function ensureBootstrapSuperAdmin() {
   if (passwordError) throw new Error(`Bootstrap super admin password invalid: ${passwordError}`);
 
   const passwordHash = await hashPassword(password);
+  const existing = await findUserByUsername(username);
+  if (existing) {
+    const result = await query(
+      `UPDATE users
+          SET name = $2,
+              role = 'superadmin',
+              password_hash = $3,
+              is_active = TRUE
+        WHERE username = $1
+        RETURNING id, username, name, role, is_active, created_at`,
+      [username, name, passwordHash]
+    );
+    return mapUserRow(result.rows[0]);
+  }
+
+  const nextUserId = await getNextUserId();
   const result = await query(
-    `INSERT INTO users (username, name, role, password_hash, is_active)
-     VALUES ($1, $2, 'superadmin', $3, TRUE)
-     ON CONFLICT (username)
-     DO UPDATE SET
-       name = EXCLUDED.name,
-       role = 'superadmin',
-       password_hash = EXCLUDED.password_hash,
-       is_active = TRUE
+    `INSERT INTO users (id, username, name, role, password_hash, is_active)
+     VALUES ($1, $2, $3, 'superadmin', $4, TRUE)
      RETURNING id, username, name, role, is_active, created_at`,
-    [username, name, passwordHash]
+    [nextUserId, username, name, passwordHash]
   );
 
   return mapUserRow(result.rows[0]);
@@ -280,13 +341,17 @@ module.exports = {
   USERNAME_MAX_LENGTH,
   countActiveSuperAdmins,
   clearSessionForUser,
+  clearAllSessions,
   createSessionForUser,
   createUser,
   deleteUser,
   ensureBootstrapSuperAdmin,
+  extractUserNumber,
   findUserById,
   findUserBySession,
   findUserByUsername,
+  formatUserId,
+  hasActiveSession,
   listUsers,
   mapUserRow,
   normalizeBootstrapPassword,

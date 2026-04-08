@@ -41,8 +41,8 @@ function getStoredRedirect() {
 
 function updateCurrentUserUi(user) {
   const roleLabel = document.querySelector('.user-role-label');
-  if (roleLabel && user) {
-    roleLabel.textContent = user.roleLabel || (user.role === 'superadmin' ? 'SuperAdmin' : 'Admin');
+  if (roleLabel) {
+    roleLabel.textContent = user && user.username ? user.username : '';
   }
   document.body.dataset.authRole = user && user.role ? user.role : '';
 }
@@ -60,6 +60,15 @@ async function fetchCurrentUser() {
   }
   const data = await response.json();
   return data && data.user ? data.user : null;
+}
+
+async function fetchAuthStatus() {
+  const response = await fetch('/api/auth/status', { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error('Unable to read auth status');
+  }
+  const data = await response.json();
+  return data || { authenticated: false, user: null };
 }
 
 async function getCurrentUser() {
@@ -308,8 +317,11 @@ document.addEventListener('DOMContentLoaded', async function() {
   }
 
   if (currentPage === 'login.html') {
-    const user = await getCurrentUser();
+    const status = await fetchAuthStatus().catch(() => ({ authenticated: false, user: null }));
+    const user = status && status.authenticated ? status.user : null;
     if (user) {
+      currentUser = user;
+      updateCurrentUserUi(user);
       await redirectToStoredPage();
     }
     return;
