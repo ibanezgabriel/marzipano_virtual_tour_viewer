@@ -1,10 +1,15 @@
 const express = require('express');
 const path = require('path');
 const {
+  attachAuthenticatedUser,
   protectHtmlPages,
   protectMutationRequests,
 } = require('./middleware/auth.middleware');
 const { guardProjectPages } = require('./middleware/project-page.middleware');
+const {
+  clearSessionCookie,
+  getHomePathForUser,
+} = require('./services/auth.service');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const projectRoutes = require('./routes/project.routes');
@@ -21,6 +26,14 @@ function createApp() {
   app.use(express.json());
   app.use(protectHtmlPages);
   app.use(protectMutationRequests);
+
+  app.get('/', attachAuthenticatedUser, (req, res) => {
+    if (!req.authUser) {
+      clearSessionCookie(res);
+      return res.redirect('/login.html');
+    }
+    return res.redirect(getHomePathForUser(req.authUser));
+  });
 
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
