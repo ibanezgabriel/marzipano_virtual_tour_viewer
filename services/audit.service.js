@@ -10,6 +10,7 @@ function getAuditDirs(paths) {
     base,
     panos: path.join(base, 'panos'),
     floorplans: path.join(base, 'floorplans'),
+    projects: path.join(base, 'projects'),
     imagesBase: path.join(base, 'images'),
     panoImages: path.join(base, 'images', 'panos'),
     floorplanImages: path.join(base, 'images', 'floorplans'),
@@ -23,7 +24,12 @@ function ensureDirSync(dirPath) {
 function auditLogPath(paths, kind, filename) {
   const dirs = getAuditDirs(paths);
   const safe = encodeURIComponent(String(filename || ''));
-  const baseDir = kind === 'floorplan' ? dirs.floorplans : dirs.panos;
+  const baseDir =
+    kind === 'project'
+      ? dirs.projects
+      : kind === 'floorplan'
+        ? dirs.floorplans
+        : dirs.panos;
   return path.join(baseDir, `${safe}.json`);
 }
 
@@ -115,7 +121,13 @@ function readAuditEntries(paths, kind, filename) {
 function writeAuditEntries(paths, kind, filename, entries) {
   const dirs = getAuditDirs(paths);
   ensureDirSync(dirs.base);
-  ensureDirSync(kind === 'floorplan' ? dirs.floorplans : dirs.panos);
+  ensureDirSync(
+    kind === 'project'
+      ? dirs.projects
+      : kind === 'floorplan'
+        ? dirs.floorplans
+        : dirs.panos
+  );
   const filePath = auditLogPath(paths, kind, filename);
   fs.writeFileSync(filePath, JSON.stringify(entries, null, 2), 'utf8');
 }

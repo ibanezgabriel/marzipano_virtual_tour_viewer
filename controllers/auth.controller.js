@@ -13,7 +13,7 @@ const {
 
 async function login(req, res) {
   try {
-    const username = String((req.body && req.body.username) || '').trim().toLowerCase();
+    const username = String((req.body && req.body.username) || '').trim();
     const password = String((req.body && req.body.password) || '');
 
     if (!username || !password) {

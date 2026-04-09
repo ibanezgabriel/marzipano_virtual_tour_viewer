@@ -28,6 +28,175 @@ async function getColumnType(client, tableName, columnName) {
   return result.rows[0] ? result.rows[0].data_type : null;
 }
 
+async function tableExists(client, tableName) {
+  const result = await client.query(
+    `SELECT 1
+       FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = $1
+      LIMIT 1`,
+    [tableName]
+  );
+  return result.rowCount > 0;
+}
+
+async function columnExists(client, tableName, columnName) {
+  const result = await client.query(
+    `SELECT 1
+       FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = $1
+        AND column_name = $2
+      LIMIT 1`,
+    [tableName, columnName]
+  );
+  return result.rowCount > 0;
+}
+
+async function getColumnPosition(client, tableName, columnName) {
+  const result = await client.query(
+    `SELECT ordinal_position
+       FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = $1
+        AND column_name = $2`,
+    [tableName, columnName]
+  );
+  return result.rows[0] ? Number(result.rows[0].ordinal_position) : null;
+}
+
+async function resetSerialSequence(client, tableName, columnName = "id") {
+  await client.query(
+    `SELECT setval(
+       pg_get_serial_sequence($1, $2),
+       COALESCE((SELECT MAX(id) FROM ${tableName}), 0),
+       (SELECT COUNT(*) > 0 FROM ${tableName})
+     )`,
+    [tableName, columnName]
+  );
+}
+
+async function recreatePanoramaHotspotsTable(client) {
+  if (!(await tableExists(client, "panorama_hotspots"))) return;
+
+  const projectIdPosition = await getColumnPosition(client, "panorama_hotspots", "project_id");
+  const panoramaIdPosition = await getColumnPosition(client, "panorama_hotspots", "panorama_id");
+  if (projectIdPosition === 2 && panoramaIdPosition === 3) {
+    await client.query("CREATE INDEX IF NOT EXISTS idx_panorama_hotspots_project_id ON panorama_hotspots(project_id)");
+    return;
+  }
+
+  await client.query("DROP INDEX IF EXISTS idx_panorama_hotspots_project_id");
+  await client.query("DROP INDEX IF EXISTS idx_panorama_hotspots_panorama_id");
+  await client.query("DROP INDEX IF EXISTS idx_panorama_hotspots_target_panorama_id");
+  await client.query("ALTER TABLE panorama_hotspots RENAME TO panorama_hotspots_old");
+  await client.query(`
+    CREATE TABLE panorama_hotspots (
+      id BIGSERIAL PRIMARY KEY,
+      project_id BIGINT NOT NULL REFERENCES projects(id),
+      panorama_id BIGINT NOT NULL REFERENCES panoramas(id),
+      target_panorama_id BIGINT NOT NULL REFERENCES panoramas(id),
+      yaw DOUBLE PRECISION NOT NULL,
+      pitch DOUBLE PRECISION NOT NULL,
+      label TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await client.query(`
+    INSERT INTO panorama_hotspots (id, project_id, panorama_id, target_panorama_id, yaw, pitch, label, created_at)
+    SELECT pho.id, pa.project_id, pho.panorama_id, pho.target_panorama_id, pho.yaw, pho.pitch, pho.label, pho.created_at
+      FROM panorama_hotspots_old AS pho
+      JOIN panoramas AS pa ON pa.id = pho.panorama_id
+  `);
+  await client.query("DROP TABLE panorama_hotspots_old");
+  await client.query("CREATE INDEX IF NOT EXISTS idx_panorama_hotspots_project_id ON panorama_hotspots(project_id)");
+  await client.query("CREATE INDEX IF NOT EXISTS idx_panorama_hotspots_panorama_id ON panorama_hotspots(panorama_id)");
+  await client.query("CREATE INDEX IF NOT EXISTS idx_panorama_hotspots_target_panorama_id ON panorama_hotspots(target_panorama_id)");
+  await resetSerialSequence(client, "panorama_hotspots");
+}
+
+async function recreateLayoutHotspotsTable(client) {
+  if (!(await tableExists(client, "layout_hotspots"))) return;
+
+  const projectIdPosition = await getColumnPosition(client, "layout_hotspots", "project_id");
+  const layoutIdPosition = await getColumnPosition(client, "layout_hotspots", "layout_id");
+  if (projectIdPosition === 2 && layoutIdPosition === 3) {
+    await client.query("CREATE INDEX IF NOT EXISTS idx_layout_hotspots_project_id ON layout_hotspots(project_id)");
+    return;
+  }
+
+  await client.query("DROP INDEX IF EXISTS idx_layout_hotspots_project_id");
+  await client.query("DROP INDEX IF EXISTS idx_layout_hotspots_layout_id");
+  await client.query("DROP INDEX IF EXISTS idx_layout_hotspots_target_panorama_id");
+  await client.query("ALTER TABLE layout_hotspots RENAME TO layout_hotspots_old");
+  await client.query(`
+    CREATE TABLE layout_hotspots (
+      id BIGSERIAL PRIMARY KEY,
+      project_id BIGINT NOT NULL REFERENCES projects(id),
+      layout_id BIGINT NOT NULL REFERENCES layouts(id),
+      target_panorama_id BIGINT NOT NULL REFERENCES panoramas(id),
+      x DOUBLE PRECISION NOT NULL,
+      y DOUBLE PRECISION NOT NULL,
+      label TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await client.query(`
+    INSERT INTO layout_hotspots (id, project_id, layout_id, target_panorama_id, x, y, label, created_at)
+    SELECT lho.id, l.project_id, lho.layout_id, lho.target_panorama_id, lho.x, lho.y, lho.label, lho.created_at
+      FROM layout_hotspots_old AS lho
+      JOIN layouts AS l ON l.id = lho.layout_id
+  `);
+  await client.query("DROP TABLE layout_hotspots_old");
+  await client.query("CREATE INDEX IF NOT EXISTS idx_layout_hotspots_project_id ON layout_hotspots(project_id)");
+  await client.query("CREATE INDEX IF NOT EXISTS idx_layout_hotspots_layout_id ON layout_hotspots(layout_id)");
+  await client.query("CREATE INDEX IF NOT EXISTS idx_layout_hotspots_target_panorama_id ON layout_hotspots(target_panorama_id)");
+  await resetSerialSequence(client, "layout_hotspots");
+}
+
+async function recreateBlurMasksTable(client) {
+  if (!(await tableExists(client, "blur_masks"))) return;
+
+  const projectIdPosition = await getColumnPosition(client, "blur_masks", "project_id");
+  const panoramaIdPosition = await getColumnPosition(client, "blur_masks", "panorama_id");
+  if (projectIdPosition === 2 && panoramaIdPosition === 3) {
+    await client.query("CREATE INDEX IF NOT EXISTS idx_blur_masks_project_id ON blur_masks(project_id)");
+    return;
+  }
+
+  await client.query("DROP INDEX IF EXISTS idx_blur_masks_project_id");
+  await client.query("DROP INDEX IF EXISTS idx_blur_masks_panorama_id");
+  await client.query("ALTER TABLE blur_masks RENAME TO blur_masks_old");
+  await client.query(`
+    CREATE TABLE blur_masks (
+      id BIGSERIAL PRIMARY KEY,
+      project_id BIGINT NOT NULL REFERENCES projects(id),
+      panorama_id BIGINT NOT NULL REFERENCES panoramas(id),
+      yaw DOUBLE PRECISION NOT NULL,
+      pitch DOUBLE PRECISION NOT NULL,
+      radius DOUBLE PRECISION NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await client.query(`
+    INSERT INTO blur_masks (id, project_id, panorama_id, yaw, pitch, radius, created_at)
+    SELECT bm.id, pa.project_id, bm.panorama_id, bm.yaw, bm.pitch, bm.radius, bm.created_at
+      FROM blur_masks_old AS bm
+      JOIN panoramas AS pa ON pa.id = bm.panorama_id
+  `);
+  await client.query("DROP TABLE blur_masks_old");
+  await client.query("CREATE INDEX IF NOT EXISTS idx_blur_masks_project_id ON blur_masks(project_id)");
+  await client.query("CREATE INDEX IF NOT EXISTS idx_blur_masks_panorama_id ON blur_masks(panorama_id)");
+  await resetSerialSequence(client, "blur_masks");
+}
+
+async function dropProjectsLegacyIdColumnIfExists(client) {
+  if (await columnExists(client, "projects", "legacy_id")) {
+    await client.query("DROP INDEX IF EXISTS idx_projects_legacy_id");
+    await client.query("ALTER TABLE projects DROP COLUMN legacy_id");
+  }
+}
+
 async function migrateUserIdsToVarchar(client) {
   await client.query("ALTER TABLE layouts DROP CONSTRAINT IF EXISTS layouts_created_by_fkey");
   await client.query("ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_created_by_fkey");
@@ -101,11 +270,20 @@ async function main() {
 
   const client = await getPool().connect();
   try {
+    await client.query("BEGIN");
     for (const statement of statements) {
       await client.query(statement);
     }
+    await dropProjectsLegacyIdColumnIfExists(client);
+    await recreatePanoramaHotspotsTable(client);
+    await recreateLayoutHotspotsTable(client);
+    await recreateBlurMasksTable(client);
     await migrateUserIdsToVarchar(client);
+    await client.query("COMMIT");
     console.log(`OK: created/verified ${statements.length} statements from db/schema.sql`);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
   } finally {
     client.release();
   }

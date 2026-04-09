@@ -26,6 +26,11 @@ function formatTimestamp(value) {
   return date.toLocaleString();
 }
 
+function formatActor(entry) {
+  const userId = entry && entry.meta && entry.meta.createdByUserId ? String(entry.meta.createdByUserId).trim() : '';
+  return userId ? userId : '';
+}
+
 function getActiveFloorplanFromDom() {
   const li = document.querySelector('#pano-floorplan-list li.active[data-filename]');
   return li && li.dataset ? li.dataset.filename : null;
@@ -401,6 +406,7 @@ export function initArchive() {
   const archivePanel = selectEl('pano-archive-panel');
   const targetEl = selectEl('pano-archive-target');
   const listEl = selectEl('pano-archive-list');
+  const projectListEl = selectEl('pano-archive-project-list');
 
   if (!archiveTab || !archivePanel || !targetEl || !listEl) return;
 
@@ -425,6 +431,14 @@ export function initArchive() {
     listEl.appendChild(li);
   }
 
+  function renderProjectEmpty(message) {
+    if (!projectListEl) return;
+    projectListEl.innerHTML = '';
+    const li = document.createElement('li');
+    li.textContent = message;
+    projectListEl.appendChild(li);
+  }
+
   function updateTargetLabel() {
     if (!currentFilename) {
       targetEl.textContent = 'Select a panorama or floor plan to view its archive.';
@@ -440,6 +454,16 @@ export function initArchive() {
         ? `/api/archive/floorplans/${encodeURIComponent(filename)}`
         : `/api/archive/panos/${encodeURIComponent(filename)}`;
     const res = await fetch(appendProjectParams(endpoint), { cache: 'no-store' });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(parseArchiveFetchError(res, text));
+    }
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }
+
+  async function fetchProjectArchive() {
+    const res = await fetch(appendProjectParams('/api/archive/project'), { cache: 'no-store' });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new Error(parseArchiveFetchError(res, text));
@@ -577,6 +601,31 @@ export function initArchive() {
     return msg;
   }
 
+  function renderActorLine(entry) {
+    const actor = formatActor(entry);
+    if (!actor) return null;
+    const by = document.createElement('span');
+    by.className = 'archive-entry-by';
+    by.textContent = `Created by ${actor}`;
+    return by;
+  }
+
+  function renderProjectEntry(entry) {
+    const li = document.createElement('li');
+    const ts = document.createElement('span');
+    ts.className = 'archive-entry-ts';
+    ts.textContent = formatTimestamp(entry && entry.ts ? entry.ts : '');
+
+    const msg = document.createElement('span');
+    msg.className = 'archive-entry-msg';
+    msg.textContent = entry && entry.message ? String(entry.message) : String(entry && entry.action ? entry.action : 'Update');
+
+    const by = renderActorLine(entry);
+    if (by) li.append(ts, msg, by);
+    else li.append(ts, msg);
+    return li;
+  }
+
   async function refreshNow() {
     // If we don't have a filename yet, try to infer it from the UI state.
     if (!currentFilename) {
@@ -600,6 +649,26 @@ export function initArchive() {
     }
 
     updateTargetLabel();
+
+    if (projectListEl) {
+      try {
+        renderProjectEmpty('Loading project activity...');
+        const projectEntries = await fetchProjectArchive();
+        projectListEl.innerHTML = '';
+        const visible = projectEntries.filter((entry) => entry && entry.action !== 'processed');
+        if (!visible.length) {
+          renderProjectEmpty('No project activity yet.');
+        } else {
+          visible
+            .slice()
+            .sort((a, b) => new Date(b.ts || 0).getTime() - new Date(a.ts || 0).getTime())
+            .forEach((entry) => projectListEl.appendChild(renderProjectEntry(entry)));
+        }
+      } catch (e) {
+        renderProjectEmpty(`Could not load project activity: ${e.message || e}`);
+      }
+    }
+
     if (!currentFilename) {
       renderEmpty('Select a panorama or floor plan to view its archive.');
       return;
@@ -633,8 +702,10 @@ export function initArchive() {
         ts.textContent = formatTimestamp(entry.ts);
 
         const msg = renderArchiveMessage(entry, resolveLiveFilename, resolveArchivedImage);
+        const by = renderActorLine(entry);
 
-        li.append(ts, msg);
+        if (by) li.append(ts, msg, by);
+        else li.append(ts, msg);
         listEl.appendChild(li);
       });
     } catch (e) {
