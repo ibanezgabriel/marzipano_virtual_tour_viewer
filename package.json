@@ -7,7 +7,7 @@
     "start": "node server.js",
     "db:init": "node db/init-db.js",
     "db:test": "node db/test-db.js",
-    "seed:users": "node db/seed-users.js",
+    "seed:user": "node db/seed-user.js",
     "migrate:data": "node db/migrate-data.js"
   },
   "keywords": [],
