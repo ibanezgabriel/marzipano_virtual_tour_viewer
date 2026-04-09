@@ -10,6 +10,15 @@ const {
 
 const router = express.Router();
 
+router.get('/api/archive/project', (req, res) => {
+  const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ error: 'Project required' });
+  const filename = 'project';
+  initAuditLogIfMissing(paths, 'project', filename);
+  const entries = readAndRepairAuditEntries(paths, 'project', filename);
+  return res.json(entries);
+});
+
 router.get('/api/archive/panos/:filename', (req, res) => {
   const filename = req.params.filename;
   if (!filename) return res.status(400).json({ error: 'filename required' });

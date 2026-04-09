@@ -132,66 +132,73 @@ function gatherLayoutFilenames(projectPath) {
 
 async function clearProjectData(client, projectId) {
   await client.query('DELETE FROM audit_logs WHERE project_id = $1', [projectId]);
-  await client.query(
-    `DELETE FROM layout_hotspots
-      WHERE layout_id IN (
-        SELECT id FROM layouts WHERE project_id = $1
-      )`,
-    [projectId]
-  );
-  await client.query(
-    `DELETE FROM panorama_hotspots
-      WHERE panorama_id IN (
-        SELECT id FROM panoramas WHERE project_id = $1
-      )`,
-    [projectId]
-  );
-  await client.query(
-    `DELETE FROM blur_masks
-      WHERE panorama_id IN (
-        SELECT id FROM panoramas WHERE project_id = $1
-      )`,
-    [projectId]
-  );
+  await client.query('DELETE FROM layout_hotspots WHERE project_id = $1', [projectId]);
+  await client.query('DELETE FROM panorama_hotspots WHERE project_id = $1', [projectId]);
+  await client.query('DELETE FROM blur_masks WHERE project_id = $1', [projectId]);
   await client.query('DELETE FROM layouts WHERE project_id = $1', [projectId]);
   await client.query('DELETE FROM panoramas WHERE project_id = $1', [projectId]);
 }
 
-async function upsertProjectRow(client, { legacyId, projectNumber, projectName, status }) {
-  const existing = await client.query(
-    `SELECT id
-       FROM projects
-      WHERE legacy_id = $1
-         OR project_number = $2
-      ORDER BY CASE WHEN legacy_id = $1 THEN 0 ELSE 1 END
-      LIMIT 1`,
-    [legacyId, projectNumber]
-  );
+async function upsertProjectRow(client, { legacyId, projectNumber, projectName, status }, opts = {}) {
+  let existingProjectId = null;
 
-  if (existing.rowCount > 0) {
-    const result = await client.query(
-      `UPDATE projects
-          SET legacy_id = $2,
-              project_number = $3,
-              project_name = $4,
-              status = $5
-        WHERE id = $1
-        RETURNING id`,
-      [existing.rows[0].id, legacyId, projectNumber, projectName, status]
-    );
-    return result.rows[0].id;
+  const previousProjectNumber = opts && opts.previousProjectNumber ? String(opts.previousProjectNumber).trim() : '';
+
+  if (!existingProjectId) {
+    const byOldNumber = previousProjectNumber
+      ? await client.query(
+          `SELECT id
+             FROM projects
+            WHERE project_number = $1
+            LIMIT 1`,
+          [previousProjectNumber]
+        )
+      : null;
+    if (byOldNumber && byOldNumber.rowCount > 0) {
+      existingProjectId = byOldNumber.rows[0].id;
+    }
   }
 
-  const result = await client.query(
-    `INSERT INTO projects (legacy_id, project_number, project_name, status)
-     VALUES ($1, $2, $3, $4)
-     RETURNING id`,
-    [legacyId, projectNumber, projectName, status]
-  );
-  return result.rows[0].id;
+  if (!existingProjectId) {
+    const existing = await client.query(
+      `SELECT id
+         FROM projects
+        WHERE project_number = $1
+        LIMIT 1`,
+      [projectNumber]
+    );
+    if (existing.rowCount > 0) {
+      existingProjectId = existing.rows[0].id;
+    }
+  }
+
+  let projectId = existingProjectId;
+
+  if (projectId) {
+    const result = await client.query(
+      `UPDATE projects
+          SET project_number = $2,
+              project_name = $3,
+              status = $4
+        WHERE id = $1
+        RETURNING id`,
+      [projectId, projectNumber, projectName, status]
+    );
+    projectId = result.rows[0].id;
+  } else {
+    const result = await client.query(
+      `INSERT INTO projects (project_number, project_name, status)
+       VALUES ($1, $2, $3)
+       RETURNING id`,
+      [projectNumber, projectName, status]
+    );
+    projectId = result.rows[0].id;
+  }
+
+  return projectId;
 }
 
-async function syncProjectWithClient(client, project, { createdByUserId } = {}) {
+async function syncProjectWithClient(client, project, { createdByUserId, previousProjectToken, previousProjectNumber } = {}) {
   const legacyId = String(project && project.id || '').trim();
   const projectName = String(project && project.name || '').trim();
   const projectNumber = String(project && project.number || '').trim();
@@ -213,12 +220,18 @@ async function syncProjectWithClient(client, project, { createdByUserId } = {}) 
   const blurMasks = readJson(path.join(projectPath, 'data', 'blur-masks.json'), {});
   const floorplanHotspots = readJson(path.join(projectPath, 'data', 'floorplan-hotspots.json'), {});
 
-  const projectId = await upsertProjectRow(client, {
+  const projectId = await upsertProjectRow(
+    client,
+    {
     legacyId,
     projectNumber,
     projectName,
     status,
-  });
+    },
+    {
+      previousProjectNumber,
+    }
+  );
 
   await clearProjectData(client, projectId);
 
@@ -260,9 +273,10 @@ async function syncProjectWithClient(client, project, { createdByUserId } = {}) 
       const targetPanoramaId = panoramaMap.get(entry && entry.linkTo ? String(entry.linkTo) : '');
       if (!targetPanoramaId) continue;
       await client.query(
-        `INSERT INTO panorama_hotspots (panorama_id, target_panorama_id, yaw, pitch, label)
-         VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO panorama_hotspots (project_id, panorama_id, target_panorama_id, yaw, pitch, label)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
         [
+          projectId,
           panoramaId,
           targetPanoramaId,
           Number(entry.yaw),
@@ -278,9 +292,10 @@ async function syncProjectWithClient(client, project, { createdByUserId } = {}) 
     if (!panoramaId || !Array.isArray(entries)) continue;
     for (const entry of entries) {
       await client.query(
-        `INSERT INTO blur_masks (panorama_id, yaw, pitch, radius)
-         VALUES ($1, $2, $3, $4)`,
+        `INSERT INTO blur_masks (project_id, panorama_id, yaw, pitch, radius)
+         VALUES ($1, $2, $3, $4, $5)`,
         [
+          projectId,
           panoramaId,
           Number(entry.yaw),
           Number(entry.pitch),
@@ -297,9 +312,10 @@ async function syncProjectWithClient(client, project, { createdByUserId } = {}) 
       const targetPanoramaId = panoramaMap.get(entry && entry.linkTo ? String(entry.linkTo) : '');
       if (!targetPanoramaId) continue;
       await client.query(
-        `INSERT INTO layout_hotspots (layout_id, target_panorama_id, x, y, label)
-         VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO layout_hotspots (project_id, layout_id, target_panorama_id, x, y, label)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
         [
+          projectId,
           layoutId,
           targetPanoramaId,
           Number(entry.x),
@@ -311,6 +327,7 @@ async function syncProjectWithClient(client, project, { createdByUserId } = {}) 
   }
 
   const auditEntries = [
+    ...getAuditEntries(projectPath, 'projects', ownerUserId),
     ...getAuditEntries(projectPath, 'panos', ownerUserId),
     ...getAuditEntries(projectPath, 'floorplans', ownerUserId),
   ];
@@ -374,6 +391,30 @@ async function syncProjectByToken(token, { createdByUserId } = {}) {
   }
 }
 
+async function syncProjectByTokenWithPrevious(token, { createdByUserId, previousProjectToken, previousProjectNumber } = {}) {
+  const project = findManifestProjectByToken(token);
+  if (!project) {
+    throw new Error(`Project not found in manifest for token "${token}"`);
+  }
+
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const summary = await syncProjectWithClient(client, project, {
+      createdByUserId,
+      previousProjectToken,
+      previousProjectNumber,
+    });
+    await client.query('COMMIT');
+    return summary;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function syncAllProjects({ createdByUserId } = {}) {
   const manifest = getProjectsManifest();
   const client = await getPool().connect();
@@ -399,5 +440,6 @@ module.exports = {
   normalizeProjectStatus,
   syncAllProjects,
   syncProjectByToken,
+  syncProjectByTokenWithPrevious,
   syncProjectWithClient,
 };

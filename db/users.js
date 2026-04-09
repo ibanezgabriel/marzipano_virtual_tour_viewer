@@ -12,7 +12,8 @@ const USER_ID_PAD = 3;
 const USER_ID_PATTERN = /^ADM-(\d+)$/i;
 
 function normalizeUsername(value) {
-  return String(value || '').trim().toLowerCase();
+  // Preserve exact casing as entered; use lower(...) only for comparisons.
+  return String(value || '').trim();
 }
 
 function normalizeName(value) {
@@ -34,8 +35,8 @@ function validateUsername(username) {
   if (normalized.length > USERNAME_MAX_LENGTH) {
     return `Username must be ${USERNAME_MAX_LENGTH} characters or less.`;
   }
-  if (!/^[a-z0-9._-]+$/.test(normalized)) {
-    return 'Username can only contain lowercase letters, numbers, ".", "_" and "-".';
+  if (!/^[A-Za-z0-9._-]+$/.test(normalized)) {
+    return 'Username can only contain letters, numbers, ".", "_" and "-".';
   }
   return null;
 }
@@ -91,13 +92,14 @@ function mapUserRow(row) {
 }
 
 async function findUserByUsername(username) {
-  const normalized = normalizeUsername(username);
-  if (!normalized) return null;
+  const raw = normalizeUsername(username);
+  if (!raw) return null;
   const result = await query(
     `SELECT id, username, name, role, password_hash, active_session_id, active_session_expires_at, is_active, created_at
        FROM users
-      WHERE username = $1`,
-    [normalized]
+      WHERE lower(username) = lower($1)
+      LIMIT 1`,
+    [raw]
   );
   return result.rows[0] || null;
 }

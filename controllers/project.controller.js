@@ -12,6 +12,15 @@ const {
 } = require('../services/project-paths.service');
 const { emitProjectsChanged } = require('../services/project-events.service');
 const { syncProjectToDatabaseOrThrow } = require('../services/project-sync.service');
+const { appendAuditEntry, buildAuditMeta } = require('../services/audit.service');
+
+function makeAuditPathsForProject(projectId) {
+  const projectPaths = getProjectPaths(projectId);
+  if (!projectPaths) return null;
+  return {
+    hotspotsPath: require('path').join(projectPaths.data, 'hotspots.json'),
+  };
+}
 
 function list(_req, res) {
   const projects = getProjectsManifest();
@@ -62,6 +71,32 @@ async function create(req, res) {
   writeProjectsManifest(projects);
 
   try {
+    const auditPaths = makeAuditPathsForProject(id);
+    if (auditPaths) {
+      appendAuditEntry(
+        auditPaths,
+        'project',
+        'project',
+        {
+          action: 'Project-Create',
+          message: `Project created: [${trimmedNumber}] — [${trimmedName}].`,
+          meta: buildAuditMeta(
+            {
+              project: {
+                id,
+                number: trimmedNumber,
+                name: trimmedName,
+                status: project.status,
+              },
+            },
+            req.authUser
+          ),
+        }
+      );
+    }
+  } catch (_error) {}
+
+  try {
     await syncProjectToDatabaseOrThrow(id, req.authUser && req.authUser.id);
   } catch (error) {
     console.error('Project database sync failed after create:', error);
@@ -96,6 +131,9 @@ async function update(req, res) {
   }
 
   const oldId = String(projects[index].id || '').trim();
+  const oldName = String(projects[index].name || '').trim();
+  const oldNumber = String(projects[index].number || '').trim();
+  const oldStatus = normalizeProjectStatus(projects[index].status);
   const trimmedName = name.trim();
   const trimmedNumber = String(number).trim();
   if (!/^[A-Za-z0-9-]+$/.test(trimmedNumber)) {
@@ -143,7 +181,55 @@ async function update(req, res) {
   writeProjectsManifest(projects);
 
   try {
-    await syncProjectToDatabaseOrThrow(projects[index].id, req.authUser && req.authUser.id);
+    const auditPaths = makeAuditPathsForProject(projects[index].id);
+    if (auditPaths) {
+      const nextStatus = normalizeProjectStatus(projects[index].status);
+
+      const commonMeta = buildAuditMeta(
+        {
+          before: { id: oldId, number: oldNumber, name: oldName, status: oldStatus },
+          after: {
+            id: projects[index].id,
+            number: trimmedNumber,
+            name: trimmedName,
+            status: nextStatus,
+          },
+        },
+        req.authUser
+      );
+
+      // Atomic logging: one audit entry per changed property.
+      if (oldStatus && nextStatus && oldStatus !== nextStatus) {
+        appendAuditEntry(auditPaths, 'project', 'project', {
+          action: 'Project_Status_Update',
+          message: `Project Status: Update ('[${oldStatus}]' to '[${nextStatus}]')`,
+          meta: commonMeta,
+        });
+      }
+
+      if (oldName && trimmedName && oldName !== trimmedName) {
+        appendAuditEntry(auditPaths, 'project', 'project', {
+          action: 'Project_Name_Update',
+          message: `Project Name: Update ('[${oldName}]' to '[${trimmedName}]')`,
+          meta: commonMeta,
+        });
+      }
+
+      if (oldNumber && trimmedNumber && oldNumber !== trimmedNumber) {
+        appendAuditEntry(auditPaths, 'project', 'project', {
+          action: 'Project_Number_Update',
+          message: `Project Number: Update ('[${oldNumber}]' to '[${trimmedNumber}]')`,
+          meta: commonMeta,
+        });
+      }
+    }
+  } catch (_error) {}
+
+  try {
+    await syncProjectToDatabaseOrThrow(projects[index].id, req.authUser && req.authUser.id, {
+      previousProjectToken: oldId,
+      previousProjectNumber: oldNumber,
+    });
   } catch (error) {
     console.error('Project database sync failed after update:', error);
     return res.status(500).json({ success: false, message: 'Project updated, but database sync failed.' });
