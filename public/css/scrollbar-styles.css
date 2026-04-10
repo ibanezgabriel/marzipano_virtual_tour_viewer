@@ -3,14 +3,14 @@
 #project-list::-webkit-scrollbar,
 .project-table-scroll::-webkit-scrollbar,
 .project-list::-webkit-scrollbar,
-#pano-floorplan-list::-webkit-scrollbar {
+#pano-layout-list::-webkit-scrollbar {
     width: 8px;
 }
 #pano-image-list::-webkit-scrollbar-track,
 #project-list::-webkit-scrollbar-track,
 .project-table-scroll::-webkit-scrollbar-track,
 .project-list::-webkit-scrollbar-track,
-#pano-floorplan-list::-webkit-scrollbar-track {
+#pano-layout-list::-webkit-scrollbar-track {
     background: #c7c7c7;
     border-radius: 4px;
 }
@@ -18,7 +18,7 @@
 #project-list::-webkit-scrollbar-thumb,
 .project-table-scroll::-webkit-scrollbar-thumb,
 .project-list::-webkit-scrollbar-thumb,
-#pano-floorplan-list::-webkit-scrollbar-thumb {
+#pano-layout-list::-webkit-scrollbar-thumb {
     background: #176383;
     border-radius: 4px;
 }
@@ -26,6 +26,6 @@
 #project-list::-webkit-scrollbar-thumb:hover,
 .project-table-scroll::-webkit-scrollbar-thumb:hover,
 .project-list::-webkit-scrollbar-thumb:hover,
-#pano-floorplan-list::-webkit-scrollbar-thumb:hover {
+#pano-layout-list::-webkit-scrollbar-thumb:hover {
     background: #0d3d52;
 }

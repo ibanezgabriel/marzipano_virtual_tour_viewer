@@ -25,11 +25,11 @@ const panoramaUpload = multer({
   storage: createProjectStorage('upload'),
 });
 
-const floorplanUpload = multer({
-  storage: createProjectStorage('floorplans'),
+const layoutUpload = multer({
+  storage: createProjectStorage('layouts'),
 });
 
 module.exports = {
   panoramaUpload,
-  floorplanUpload,
+  layoutUpload,
 };

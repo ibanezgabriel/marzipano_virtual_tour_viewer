@@ -131,9 +131,9 @@ async function deleteImages(imageNames, title) {
 
   if (deletedNames.length > 0) {
     try {
-      const { floorplanApi } = await import('./floorplans.js');
-      if (floorplanApi && typeof floorplanApi.cleanupForDeletedPano === 'function') {
-        deletedNames.forEach((name) => floorplanApi.cleanupForDeletedPano(name));
+      const { layoutApi } = await import('./layouts.js');
+      if (layoutApi && typeof layoutApi.cleanupForDeletedPano === 'function') {
+        deletedNames.forEach((name) => layoutApi.cleanupForDeletedPano(name));
       }
     } catch (e) {
       // ignore

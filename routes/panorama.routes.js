@@ -284,7 +284,7 @@ router.put('/upload/update', panoramaUpload.single('panorama'), (req, res) => {
       try {
         archivedImage = storeReplacedImageInAudit(paths, 'pano', oldFilename, oldFilePath);
       } catch (archiveError) {
-        throw new Error(`Could not archive replaced panorama: ${archiveError.message || archiveError}`);
+        throw new Error(`Could not store replaced panorama in audit logs: ${archiveError.message || archiveError}`);
       }
       await fs.promises.unlink(oldFilePath).catch((error) => {
         console.error('Error deleting old file:', error);

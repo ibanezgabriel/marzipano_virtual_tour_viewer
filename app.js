@@ -15,9 +15,9 @@ const userRoutes = require('./routes/user.routes');
 const projectRoutes = require('./routes/project.routes');
 const createProjectAssetsRouter = require('./routes/project-assets.routes');
 const jobRoutes = require('./routes/job.routes');
-const archiveRoutes = require('./routes/archive.routes');
+const auditLogsRoutes = require('./routes/audit-logs.routes');
 const panoramaRoutes = require('./routes/panorama.routes');
-const floorplanRoutes = require('./routes/floorplan.routes');
+const layoutRoutes = require('./routes/layout.routes');
 const editorRoutes = require('./routes/editor.routes');
 
 function createApp() {
@@ -39,9 +39,9 @@ function createApp() {
   app.use('/api/users', userRoutes);
   app.use('/api/projects', projectRoutes);
   app.use('/api/jobs', jobRoutes);
-  app.use(archiveRoutes);
+  app.use(auditLogsRoutes);
   app.use(panoramaRoutes);
-  app.use(floorplanRoutes);
+  app.use(layoutRoutes);
   app.use(editorRoutes);
 
   app.use(guardProjectPages);

@@ -9,12 +9,17 @@ function getAuditDirs(paths) {
   return {
     base,
     panos: path.join(base, 'panos'),
-    floorplans: path.join(base, 'floorplans'),
+    layouts: path.join(base, 'layouts'),
     projects: path.join(base, 'projects'),
     imagesBase: path.join(base, 'images'),
     panoImages: path.join(base, 'images', 'panos'),
-    floorplanImages: path.join(base, 'images', 'floorplans'),
+    layoutImages: path.join(base, 'images', 'layouts'),
   };
+}
+
+/** Legacy audit entries used kind "floorplan"; normalize to "layout" for paths. */
+function normalizeAuditKind(kind) {
+  return kind === 'floorplan' ? 'layout' : kind;
 }
 
 function ensureDirSync(dirPath) {
@@ -24,18 +29,20 @@ function ensureDirSync(dirPath) {
 function auditLogPath(paths, kind, filename) {
   const dirs = getAuditDirs(paths);
   const safe = encodeURIComponent(String(filename || ''));
+  const k = normalizeAuditKind(kind);
   const baseDir =
-    kind === 'project'
+    k === 'project'
       ? dirs.projects
-      : kind === 'floorplan'
-        ? dirs.floorplans
+      : k === 'layout'
+        ? dirs.layouts
         : dirs.panos;
   return path.join(baseDir, `${safe}.json`);
 }
 
 function auditImagePath(paths, kind, storedFilename) {
   const dirs = getAuditDirs(paths);
-  const baseDir = kind === 'floorplan' ? dirs.floorplanImages : dirs.panoImages;
+  const k = normalizeAuditKind(kind);
+  const baseDir = k === 'layout' ? dirs.layoutImages : dirs.panoImages;
   return path.join(baseDir, storedFilename);
 }
 
@@ -49,7 +56,8 @@ function safeDecodeURIComponent(value) {
 
 function resolveArchiveImagePath(paths, kind, storedFilename) {
   const dirs = getAuditDirs(paths);
-  const baseDir = kind === 'floorplan' ? dirs.floorplanImages : dirs.panoImages;
+  const k = normalizeAuditKind(kind);
+  const baseDir = k === 'layout' ? dirs.layoutImages : dirs.panoImages;
   const candidates = new Set();
   const raw = String(storedFilename || '');
   const dec1 = safeDecodeURIComponent(raw);
@@ -89,7 +97,7 @@ function storeReplacedImageInAudit(paths, kind, originalFilename, sourcePath) {
   const dirs = getAuditDirs(paths);
   ensureDirSync(dirs.base);
   ensureDirSync(dirs.imagesBase);
-  ensureDirSync(kind === 'floorplan' ? dirs.floorplanImages : dirs.panoImages);
+  ensureDirSync(normalizeAuditKind(kind) === 'layout' ? dirs.layoutImages : dirs.panoImages);
   const storedFilename = createAuditImageStoredFilename(originalFilename);
   const targetPath = auditImagePath(paths, kind, storedFilename);
   fs.copyFileSync(sourcePath, targetPath);
@@ -121,11 +129,12 @@ function readAuditEntries(paths, kind, filename) {
 function writeAuditEntries(paths, kind, filename, entries) {
   const dirs = getAuditDirs(paths);
   ensureDirSync(dirs.base);
+  const k = normalizeAuditKind(kind);
   ensureDirSync(
-    kind === 'project'
+    k === 'project'
       ? dirs.projects
-      : kind === 'floorplan'
-        ? dirs.floorplans
+      : k === 'layout'
+        ? dirs.layouts
         : dirs.panos
   );
   const filePath = auditLogPath(paths, kind, filename);
@@ -174,7 +183,7 @@ function initAuditLogIfMissing(paths, kind, filename) {
   const baseline = [
     {
       ts: new Date().toISOString(),
-      action: 'archive-enabled',
+      action: 'audit-log-enabled',
       message: 'No previous records are available.',
     },
   ];
@@ -204,7 +213,9 @@ function repairArchiveMetaInEntry(paths, kind, entry) {
   const currentArchived = currentMeta.archivedImage && typeof currentMeta.archivedImage === 'object'
     ? currentMeta.archivedImage
     : null;
-  const metaKind = currentArchived && currentArchived.kind === 'floorplan' ? 'floorplan' : kind;
+  const archivedKind = currentArchived && currentArchived.kind;
+  const metaKind =
+    archivedKind === 'floorplan' || archivedKind === 'layout' ? normalizeAuditKind(archivedKind) : kind;
   const originalFilename = currentArchived && currentArchived.originalFilename
     ? String(currentArchived.originalFilename)
     : replaced.oldFilename;
@@ -272,7 +283,7 @@ function renameAuditLog(paths, kind, oldFilename, newFilename) {
     if (!fs.existsSync(oldPath)) return;
     const dirs = getAuditDirs(paths);
     ensureDirSync(dirs.base);
-    ensureDirSync(kind === 'floorplan' ? dirs.floorplans : dirs.panos);
+    ensureDirSync(normalizeAuditKind(kind) === 'layout' ? dirs.layouts : dirs.panos);
     const newPath = auditLogPath(paths, kind, newFilename);
     if (!fs.existsSync(newPath)) {
       fs.renameSync(oldPath, newPath);

@@ -1,4 +1,4 @@
-import { appendProjectParams, getFloorplanBase, getProjectId } from '../project-context.js';
+import { appendProjectParams, getLayoutBase, getProjectId } from '../project-context.js';
 import {
   showAlert,
   showConfirm,
@@ -15,48 +15,50 @@ function selectEl(id) {
   return document.getElementById(id);
 }
 
-/** Called when a panorama is renamed; updates floor plan hotspot linkTo and persists. */
-export const floorplanApi = {
+/** Called when a panorama is renamed; updates layout hotspot linkTo and persists. */
+export const layoutApi = {
   updateForRenamedPano(_oldName, _newName) {},
   cleanupForDeletedPano(_deletedName) {},
   reloadList() {},
 };
 
-export function initFloorplans() {
+export function initLayouts() {
   const panoTab = selectEl('pano-scenes');
-  const floorTab = selectEl('pano-floorplan');
-  const archiveTab = selectEl('pano-archive');
+  const floorTab = selectEl('pano-layout');
+  const auditLogsTab = selectEl('pano-audit-logs');
   const panoList = selectEl('pano-image-list');
-  const floorList = selectEl('pano-floorplan-list');
-  const archivePanel = selectEl('pano-archive-panel');
+  const floorList = selectEl('pano-layout-list');
+  const auditLogsPanel = selectEl('pano-audit-logs-panel');
   const addPlanBtn = selectEl('add-plan-btn');
-  const addFloorInput = selectEl('add-floorplan');
+  const addFloorInput = selectEl('add-layout');
 
   if (!panoTab || !floorTab || !panoList || !floorList) return;
 
-  let selectedFloorplan = null;
-  let lastSidebarKind = 'pano'; // 'pano' | 'floorplan'
+  let selectedLayout = null;
+  let lastSidebarKind = 'pano'; // 'pano' | 'layout'
 
-  // In-memory + persisted floor plan hotspots:
+  // In-memory + persisted layout hotspots:
   // filename -> Array<{ id, x, y, linkTo }>
-  const FLOORPLAN_HOTSPOTS_KEY = 'floorplan-hotspots';
-  const LAST_FLOORPLAN_KEY_PREFIX = 'marzipano-last-floorplan-';
-  const floorplanHotspotsByFile = new Map();
-  let nextFloorplanHotspotId = 0;
+  const LAYOUT_HOTSPOTS_KEY = 'layout-hotspots';
+  const LEGACY_LAYOUT_HOTSPOTS_KEY = 'floorplan-hotspots';
+  const LAST_LAYOUT_KEY_PREFIX = 'marzipano-last-layout-';
+  const LEGACY_LAST_LAYOUT_KEY_PREFIX = 'marzipano-last-floorplan-';
+  const layoutHotspotsByFile = new Map();
+  let nextLayoutHotspotId = 0;
   let selectedHotspotId = null;
 
-  function saveLastFloorplan(filename) {
+  function saveLastLayout(filename) {
     const pid = getProjectId();
     if (pid) {
       try {
-        localStorage.setItem(LAST_FLOORPLAN_KEY_PREFIX + pid, filename);
+        localStorage.setItem(LAST_LAYOUT_KEY_PREFIX + pid, filename);
       } catch (e) {}
     }
   }
 
-  function loadFloorplanHotspotsFromStorage() {
+  function loadLayoutHotspotsFromStorage() {
     try {
-      const raw = localStorage.getItem(FLOORPLAN_HOTSPOTS_KEY);
+      const raw = localStorage.getItem(LAYOUT_HOTSPOTS_KEY) || localStorage.getItem(LEGACY_LAYOUT_HOTSPOTS_KEY);
       if (!raw) return;
       const obj = JSON.parse(raw);
       if (typeof obj !== 'object' || obj === null) return;
@@ -73,17 +75,17 @@ export function initFloorplans() {
             linkTo: entry.linkTo || undefined,
           };
         });
-        floorplanHotspotsByFile.set(filename, entries);
+        layoutHotspotsByFile.set(filename, entries);
       });
-      if (maxId >= 0) nextFloorplanHotspotId = maxId + 1;
+      if (maxId >= 0) nextLayoutHotspotId = maxId + 1;
     } catch (e) {
-      console.warn('Could not load floorplan hotspots from localStorage', e);
+      console.warn('Could not load layout hotspots from localStorage', e);
     }
   }
 
-  function serializeFloorplanHotspots() {
+  function serializeLayoutHotspots() {
     const obj = {};
-    floorplanHotspotsByFile.forEach((list, filename) => {
+    layoutHotspotsByFile.forEach((list, filename) => {
       obj[filename] = list.map((entry) => ({
         id: entry.id,
         x: entry.x,
@@ -94,24 +96,24 @@ export function initFloorplans() {
     return obj;
   }
 
-  function saveFloorplanHotspotsToStorage() {
-    const payload = serializeFloorplanHotspots();
+  function saveLayoutHotspotsToStorage() {
+    const payload = serializeLayoutHotspots();
     try {
-      localStorage.setItem(FLOORPLAN_HOTSPOTS_KEY, JSON.stringify(payload));
+      localStorage.setItem(LAYOUT_HOTSPOTS_KEY, JSON.stringify(payload));
     } catch (e) {
-      console.warn('Could not save floorplan hotspots to localStorage', e);
+      console.warn('Could not save layout hotspots to localStorage', e);
     }
     // Persist to server so hotspots follow the project
-    fetch(appendProjectParams('/api/floorplan-hotspots'), {
+    fetch(appendProjectParams('/api/layout-hotspots'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-    }).catch((err) => console.warn('Could not save floorplan hotspots to server', err));
+    }).catch((err) => console.warn('Could not save layout hotspots to server', err));
   }
 
-  floorplanApi.updateForRenamedPano = function (oldName, newName) {
+  layoutApi.updateForRenamedPano = function (oldName, newName) {
     let changed = false;
-    floorplanHotspotsByFile.forEach((list) => {
+    layoutHotspotsByFile.forEach((list) => {
       list.forEach((entry) => {
         if (entry.linkTo === oldName) {
           entry.linkTo = newName;
@@ -120,40 +122,40 @@ export function initFloorplans() {
       });
     });
     if (changed) {
-      saveFloorplanHotspotsToStorage();
-      renderFloorplanHotspots();
+      saveLayoutHotspotsToStorage();
+      renderLayoutHotspots();
       renderRenderedHotspots();
     }
   };
 
-  floorplanApi.cleanupForDeletedPano = function (deletedName) {
+  layoutApi.cleanupForDeletedPano = function (deletedName) {
     let changed = false;
-    floorplanHotspotsByFile.forEach((list, filename) => {
+    layoutHotspotsByFile.forEach((list, filename) => {
       const originalLen = list.length;
       const filtered = list.filter((entry) => entry.linkTo !== deletedName);
       if (filtered.length !== originalLen) {
         changed = true;
         if (filtered.length > 0) {
-          floorplanHotspotsByFile.set(filename, filtered);
+          layoutHotspotsByFile.set(filename, filtered);
         } else {
-          floorplanHotspotsByFile.delete(filename);
+          layoutHotspotsByFile.delete(filename);
         }
       }
     });
     if (changed) {
-      saveFloorplanHotspotsToStorage();
-      renderFloorplanHotspots();
+      saveLayoutHotspotsToStorage();
+      renderLayoutHotspots();
       renderRenderedHotspots();
     }
   };
 
   const previewContainer = document.createElement('div');
-  previewContainer.id = 'floorplan-preview';
-  previewContainer.className = 'floorplan-preview';
+  previewContainer.id = 'layout-preview';
+  previewContainer.className = 'layout-preview';
   previewContainer.innerHTML = `
-    <div class="floorplan-image-wrap">
-      <img id="floorplan-preview-img" alt="Floor plan">
-      <div class="floorplan-hotspot-layer" data-layer="rendered"></div>
+    <div class="layout-image-wrap">
+      <img id="layout-preview-img" alt="Layout">
+      <div class="layout-hotspot-layer" data-layer="rendered"></div>
     </div>
   `;
   const viewerWrap = document.getElementById('pano-viewer-wrap');
@@ -161,104 +163,104 @@ export function initFloorplans() {
     viewerWrap.appendChild(previewContainer);
   }
   const previewImg = previewContainer.querySelector('img');
-  const previewHotspotLayer = previewContainer.querySelector('.floorplan-hotspot-layer');
+  const previewHotspotLayer = previewContainer.querySelector('.layout-hotspot-layer');
 
-  // Modal elements for full-screen floor plan view
+  // Modal elements for full-screen layout view
   const modalOverlay = document.createElement('div');
-  modalOverlay.id = 'floorplan-modal-overlay';
-  modalOverlay.className = 'floorplan-modal-overlay';
+  modalOverlay.id = 'layout-modal-overlay';
+  modalOverlay.className = 'layout-modal-overlay';
   modalOverlay.innerHTML = `
-    <div class="floorplan-modal" role="dialog" aria-modal="true">
-      <div class="floorplan-modal-header">
-        <div class="floorplan-modal-title" id="floorplan-modal-title"></div>
+    <div class="layout-modal" role="dialog" aria-modal="true">
+      <div class="layout-modal-header">
+        <div class="layout-modal-title" id="layout-modal-title"></div>
       </div>
-      <div class="floorplan-modal-body">
-        <div class="floorplan-image-wrap">
-          <div class="floorplan-image-stage">
-            <img id="floorplan-modal-img" alt="Floor plan expanded">
-            <div class="floorplan-hotspot-layer" data-layer="expanded"></div>
+      <div class="layout-modal-body">
+        <div class="layout-image-wrap">
+          <div class="layout-image-stage">
+            <img id="layout-modal-img" alt="Expanded layout">
+            <div class="layout-hotspot-layer" data-layer="expanded"></div>
           </div>
         </div>
       </div>
-      <div class="floorplan-modal-actions">
-        <button type="button" id="floorplan-hotspot-btn" class="floorplan-action-btn floorplan-hotspot">Hotspot</button>
+      <div class="layout-modal-actions">
+        <button type="button" id="layout-hotspot-btn" class="layout-action-btn layout-hotspot">Hotspot</button>
       </div>
     </div>
   `;
   document.body.appendChild(modalOverlay);
 
-  const modalImg = modalOverlay.querySelector('#floorplan-modal-img');
-  const modalEl = modalOverlay.querySelector('.floorplan-modal');
-  const modalTitleEl = modalOverlay.querySelector('#floorplan-modal-title');
-  const modalHotspotLayer = modalOverlay.querySelector('.floorplan-hotspot-layer[data-layer="expanded"]');
-  const modalStageEl = modalOverlay.querySelector('.floorplan-image-stage');
-  const modalImageWrapEl = modalOverlay.querySelector('.floorplan-modal-body .floorplan-image-wrap');
-  const hotspotBtn = modalOverlay.querySelector('#floorplan-hotspot-btn');
+  const modalImg = modalOverlay.querySelector('#layout-modal-img');
+  const modalEl = modalOverlay.querySelector('.layout-modal');
+  const modalTitleEl = modalOverlay.querySelector('#layout-modal-title');
+  const modalHotspotLayer = modalOverlay.querySelector('.layout-hotspot-layer[data-layer="expanded"]');
+  const modalStageEl = modalOverlay.querySelector('.layout-image-stage');
+  const modalImageWrapEl = modalOverlay.querySelector('.layout-modal-body .layout-image-wrap');
+  const hotspotBtn = modalOverlay.querySelector('#layout-hotspot-btn');
 
   let hotspotPlaceMode = false;
-  const floorplanCacheBustByFile = new Map();
+  const layoutCacheBustByFile = new Map();
 
   function setPreviewVisible(visible) {
     if (!previewContainer) return;
     previewContainer.classList.toggle('visible', Boolean(visible));
   }
 
-  function updateFloorplanListItemActionIcons(li) {
+  function updateLayoutListItemActionIcons(li) {
     if (!li) return;
     const isActive = li.classList.contains('active');
     const iconByAction = {
       update: isActive ? 'assets/icons/update-w.png' : 'assets/icons/update.png',
       rename: isActive ? 'assets/icons/rename-w.png' : 'assets/icons/rename.png',
     };
-    li.querySelectorAll('.floorplan-item-action-btn').forEach((btn) => {
-      const action = btn.dataset.floorplanAction;
+    li.querySelectorAll('.layout-item-action-btn').forEach((btn) => {
+      const action = btn.dataset.layoutAction;
       const img = btn.querySelector('img');
       if (!img || !iconByAction[action]) return;
       img.src = iconByAction[action];
     });
   }
 
-  function refreshAllFloorplanListActionIcons() {
-    floorList.querySelectorAll('li[data-filename]').forEach((li) => updateFloorplanListItemActionIcons(li));
+  function refreshAllLayoutListActionIcons() {
+    floorList.querySelectorAll('li[data-filename]').forEach((li) => updateLayoutListItemActionIcons(li));
   }
 
-  function getFloorplanTitleFromList(filename) {
+  function getLayoutTitleFromList(filename) {
     if (!floorList || !filename) return '';
     const items = Array.from(floorList.querySelectorAll('li[data-filename]'));
     const match = items.find((li) => li.dataset && li.dataset.filename === filename);
     if (!match) return '';
-    const nameEl = match.querySelector('.floorplan-item-name');
+    const nameEl = match.querySelector('.layout-item-name');
     return (nameEl ? nameEl.textContent : match.textContent || '').trim();
   }
 
-  function getFloorplanImageSrc(filename) {
-    const base = getFloorplanBase();
+  function getLayoutImageSrc(filename) {
+    const base = getLayoutBase();
     const encoded = encodeURIComponent(filename);
-    const token = floorplanCacheBustByFile.get(filename);
+    const token = layoutCacheBustByFile.get(filename);
     if (token === undefined || token === null) return `${base}/${encoded}`;
     return `${base}/${encoded}?v=${encodeURIComponent(String(token))}`;
   }
 
-  function bumpFloorplanImageCache(filename) {
+  function bumpLayoutImageCache(filename) {
     if (!filename) return;
-    floorplanCacheBustByFile.set(filename, Date.now());
+    layoutCacheBustByFile.set(filename, Date.now());
   }
 
-  function moveFloorplanImageCache(oldFilename, newFilename) {
+  function moveLayoutImageCache(oldFilename, newFilename) {
     if (!oldFilename || !newFilename || oldFilename === newFilename) return;
-    if (!floorplanCacheBustByFile.has(oldFilename)) return;
-    const token = floorplanCacheBustByFile.get(oldFilename);
-    floorplanCacheBustByFile.delete(oldFilename);
-    floorplanCacheBustByFile.set(newFilename, token);
+    if (!layoutCacheBustByFile.has(oldFilename)) return;
+    const token = layoutCacheBustByFile.get(oldFilename);
+    layoutCacheBustByFile.delete(oldFilename);
+    layoutCacheBustByFile.set(newFilename, token);
   }
 
   function closeModal() {
     modalOverlay.classList.remove('visible');
-    document.body.classList.remove('floorplan-modal-open');
+    document.body.classList.remove('layout-modal-open');
     hotspotPlaceMode = false;
     if (hotspotBtn) hotspotBtn.classList.remove('active');
-    // When leaving Expanded Display, return to Rendered Display if a floor plan is selected.
-    setPreviewVisible(selectedFloorplan && isFloorTabActive());
+    // When leaving Expanded Display, return to Rendered Display if a layout is selected.
+    setPreviewVisible(selectedLayout && isFloorTabActive());
   }
 
   function syncStageContain(imgEl, stageEl, containerEl) {
@@ -288,7 +290,7 @@ export function initFloorplans() {
     try {
       if (modalOverlay.classList.contains('visible')) {
         syncModalStageSize();
-        renderFloorplanHotspots();
+        renderLayoutHotspots();
       }
     } catch (e) {}
     try {
@@ -304,11 +306,11 @@ export function initFloorplans() {
 
   function openModalFor(filename) {
     if (!filename || !previewImg || !modalImg) return;
-    const src = getFloorplanImageSrc(filename);
+    const src = getLayoutImageSrc(filename);
     modalImg.src = src;
     modalImg.alt = filename;
     if (modalTitleEl) {
-      const listTitle = getFloorplanTitleFromList(filename);
+      const listTitle = getLayoutTitleFromList(filename);
       if (listTitle) {
         modalTitleEl.textContent = listTitle;
       } else {
@@ -320,9 +322,9 @@ export function initFloorplans() {
     // When entering Expanded Display, hide the Rendered Display (minimized preview).
     setPreviewVisible(false);
     modalOverlay.classList.add('visible');
-    document.body.classList.add('floorplan-modal-open');
+    document.body.classList.add('layout-modal-open');
     // Re-render hotspots whenever modal opens
-    renderFloorplanHotspots();
+    renderLayoutHotspots();
   }
 
   if (previewImg) previewImg.addEventListener('load', rerenderHotspotsForLayout);
@@ -333,40 +335,40 @@ export function initFloorplans() {
     lastSidebarKind = 'pano';
     panoTab.classList.add('active-tab');
     floorTab.classList.remove('active-tab');
-    if (archiveTab) archiveTab.classList.remove('active-tab');
+    if (auditLogsTab) auditLogsTab.classList.remove('active-tab');
     panoList.style.display = 'block';
     floorList.style.display = 'none';
-    if (archivePanel) archivePanel.style.display = 'none';
-    // Hide floorplan preview when switching back to panoramic scenes
+    if (auditLogsPanel) auditLogsPanel.style.display = 'none';
+    // Hide layout preview when switching back to panoramic scenes
     setPreviewVisible(false);
   }
 
-  function showFloorplans() {
-    lastSidebarKind = 'floorplan';
+  function showLayouts() {
+    lastSidebarKind = 'layout';
     panoTab.classList.remove('active-tab');
     floorTab.classList.add('active-tab');
-    if (archiveTab) archiveTab.classList.remove('active-tab');
+    if (auditLogsTab) auditLogsTab.classList.remove('active-tab');
     panoList.style.display = 'none';
     floorList.style.display = 'block';
-    if (archivePanel) archivePanel.style.display = 'none';
-    setPreviewVisible(Boolean(selectedFloorplan));
+    if (auditLogsPanel) auditLogsPanel.style.display = 'none';
+    setPreviewVisible(Boolean(selectedLayout));
   }
 
-  function showArchive() {
-    if (!archiveTab || !archivePanel) return;
+  function showAuditLogs() {
+    if (!auditLogsTab || !auditLogsPanel) return;
     panoTab.classList.remove('active-tab');
     floorTab.classList.remove('active-tab');
-    archiveTab.classList.add('active-tab');
+    auditLogsTab.classList.add('active-tab');
     panoList.style.display = 'none';
     floorList.style.display = 'none';
-    archivePanel.style.display = 'block';
+    auditLogsPanel.style.display = 'block';
     setPreviewVisible(false);
-    document.dispatchEvent(new CustomEvent('archive:shown', { detail: { kind: lastSidebarKind } }));
+    document.dispatchEvent(new CustomEvent('audit-logs:shown', { detail: { kind: lastSidebarKind } }));
   }
 
   panoTab.addEventListener('click', showPanos);
-  floorTab.addEventListener('click', showFloorplans);
-  if (archiveTab && archivePanel) archiveTab.addEventListener('click', showArchive);
+  floorTab.addEventListener('click', showLayouts);
+  if (auditLogsTab && auditLogsPanel) auditLogsTab.addEventListener('click', showAuditLogs);
 
   // Default state
   showPanos();
@@ -377,12 +379,12 @@ export function initFloorplans() {
 
   function showPreview(filename) {
     if (!previewImg) return;
-    previewImg.src = getFloorplanImageSrc(filename);
+    previewImg.src = getLayoutImageSrc(filename);
     setPreviewVisible(isFloorTabActive());
     renderRenderedHotspots();
   }
 
-  function setActiveFloorplanLi(filename) {
+  function setActiveLayoutLi(filename) {
     const items = Array.from(floorList.querySelectorAll('li'));
     items.forEach((li) => {
       if (li.dataset && li.dataset.filename === filename) {
@@ -390,36 +392,39 @@ export function initFloorplans() {
       } else {
         li.classList.remove('active');
       }
-      updateFloorplanListItemActionIcons(li);
+      updateLayoutListItemActionIcons(li);
     });
   }
 
-  function onFloorplanClick(filename) {
-    selectedFloorplan = filename;
-    saveLastFloorplan(filename);
-    setActiveFloorplanLi(filename);
+  function onLayoutClick(filename) {
+    selectedLayout = filename;
+    saveLastLayout(filename);
+    setActiveLayoutLi(filename);
     showPreview(filename);
-    document.dispatchEvent(new CustomEvent('floorplan:selected', { detail: { filename } }));
+    document.dispatchEvent(new CustomEvent('layout:selected', { detail: { filename } }));
   }
 
-  function clearFloorplanItems() {
-    // Remove all existing floor plan list items; keep the "+" button (which is a <button>, not <li>)
+  function clearLayoutItems() {
+    // Remove all existing layout list items; keep the "+" button (which is a <button>, not <li>)
     const items = Array.from(floorList.querySelectorAll('li'));
     items.forEach((li) => li.remove());
   }
 
-  async function loadFloorplans() {
+  async function loadLayouts() {
     try {
-      const res = await fetch(appendProjectParams('/api/floorplans'), { cache: 'no-store' });
+      const res = await fetch(appendProjectParams('/api/layouts'), { cache: 'no-store' });
       if (!res.ok) return;
       const files = await res.json();
-      clearFloorplanItems();
+      clearLayoutItems();
       const addBtn = document.getElementById('add-plan-btn');
       const lastSaved = (() => {
         const pid = getProjectId();
         if (!pid) return null;
         try {
-          return localStorage.getItem(LAST_FLOORPLAN_KEY_PREFIX + pid);
+          return (
+            localStorage.getItem(LAST_LAYOUT_KEY_PREFIX + pid) ||
+            localStorage.getItem(LEGACY_LAST_LAYOUT_KEY_PREFIX + pid)
+          );
         } catch (e) {
           return null;
         }
@@ -427,23 +432,23 @@ export function initFloorplans() {
       files.forEach((filename) => {
         const li = document.createElement('li');
         const nameEl = document.createElement('span');
-        nameEl.className = 'floorplan-item-name';
+        nameEl.className = 'layout-item-name';
         nameEl.textContent = filename;
         nameEl.title = filename;
 
         const actionsEl = document.createElement('div');
-        actionsEl.className = 'floorplan-item-actions';
+        actionsEl.className = 'layout-item-actions';
 
         const actionConfigs = [
-          { action: 'update', icon: 'assets/icons/update.png', label: 'Update floor plan' },
-          { action: 'rename', icon: 'assets/icons/rename.png', label: 'Rename floor plan' },
+          { action: 'update', icon: 'assets/icons/update.png', label: 'Update layout' },
+          { action: 'rename', icon: 'assets/icons/rename.png', label: 'Rename layout' },
         ];
 
         actionConfigs.forEach(({ action, icon, label }) => {
           const button = document.createElement('button');
           button.type = 'button';
-          button.className = `floorplan-item-action-btn floorplan-item-action-${action}`;
-          button.dataset.floorplanAction = action;
+          button.className = `layout-item-action-btn layout-item-action-${action}`;
+          button.dataset.layoutAction = action;
           button.setAttribute('aria-label', label);
           button.title = label;
 
@@ -454,13 +459,13 @@ export function initFloorplans() {
 
           button.addEventListener('click', (ev) => {
             ev.stopPropagation();
-            onFloorplanClick(filename);
+            onLayoutClick(filename);
             if (action === 'update') {
-              handleUpdateFloorplan();
+              handleUpdateLayout();
               return;
             }
             if (action === 'rename') {
-              handleRenameFloorplan();
+              handleRenameLayout();
               return;
             }
           });
@@ -472,7 +477,7 @@ export function initFloorplans() {
         li.dataset.filename = filename;
         li.title = filename;
         li.draggable = true;
-        li.addEventListener('click', () => onFloorplanClick(filename));
+        li.addEventListener('click', () => onLayoutClick(filename));
         li.addEventListener('dragstart', (ev) => {
           ev.dataTransfer.setData('text/plain', li.dataset.filename);
           ev.dataTransfer.effectAllowed = 'move';
@@ -502,17 +507,17 @@ export function initFloorplans() {
           const [removed] = reordered.splice(srcIdx, 1);
           reordered.splice(tgtIdx, 0, removed);
           try {
-            const orderRes = await fetch(appendProjectParams('/api/floorplans/order'), {
+            const orderRes = await fetch(appendProjectParams('/api/layouts/order'), {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ order: reordered }),
             });
-            if (orderRes.ok) await loadFloorplans();
+            if (orderRes.ok) await loadLayouts();
           } catch (e) {
-            console.warn('Failed to save floor plan order', e);
+            console.warn('Failed to save layout order', e);
           }
         });
-        updateFloorplanListItemActionIcons(li);
+        updateLayoutListItemActionIcons(li);
         if (addBtn && addBtn.parentElement === floorList) {
           floorList.insertBefore(li, addBtn);
         } else {
@@ -520,13 +525,13 @@ export function initFloorplans() {
         }
       });
       if (!files || files.length === 0) {
-        selectedFloorplan = null;
-        document.dispatchEvent(new CustomEvent('floorplan:selected', { detail: { filename: null } }));
+        selectedLayout = null;
+        document.dispatchEvent(new CustomEvent('layout:selected', { detail: { filename: null } }));
         setPreviewVisible(false);
         const emptyLi = document.createElement('li');
         emptyLi.className = 'active';
         emptyLi.style.textAlign = 'center';
-        emptyLi.textContent = 'No floor plan uploaded';
+        emptyLi.textContent = 'No layout uploaded';
         if (addBtn && addBtn.parentElement === floorList) {
           floorList.insertBefore(emptyLi, addBtn);
         } else {
@@ -534,28 +539,28 @@ export function initFloorplans() {
         }
       }
       if (files.length > 0 && lastSaved && files.includes(lastSaved)) {
-        onFloorplanClick(lastSaved);
+        onLayoutClick(lastSaved);
       } else {
-        refreshAllFloorplanListActionIcons();
+        refreshAllLayoutListActionIcons();
       }
     } catch (e) {
-      console.error('Error loading floorplans', e);
+      console.error('Error loading layouts', e);
     }
   }
 
-  floorplanApi.reloadList = function () {
-    return loadFloorplans();
+  layoutApi.reloadList = function () {
+    return loadLayouts();
   };
 
   // Highlight hotspot when panorama loads in viewer (admin)
   try {
     registerOnSceneLoad(() => {
       const current = getSelectedImageName();
-      if (!current || !selectedFloorplan) return;
-      const list = floorplanHotspotsByFile.get(selectedFloorplan) || [];
+      if (!current || !selectedLayout) return;
+      const list = layoutHotspotsByFile.get(selectedLayout) || [];
       const match = list.find((e) => e.linkTo === current);
       selectedHotspotId = match ? match.id : null;
-      renderFloorplanHotspots();
+      renderLayoutHotspots();
       renderRenderedHotspots();
     });
   } catch (e) {}
@@ -566,12 +571,12 @@ export function initFloorplans() {
       const files = Array.from(addFloorInput.files || []);
       if (!files.length) return;
       const formData = new FormData();
-      files.forEach((file) => formData.append('floorplan', file));
-      showProgressDialog('Uploading Floor Plan images(s)');
+      files.forEach((file) => formData.append('layout', file));
+      showProgressDialog('Uploading layout image(s)');
       try {
         const data = await new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
-          xhr.open('POST', appendProjectParams('/upload-floorplan'));
+          xhr.open('POST', appendProjectParams('/upload-layout'));
           xhr.upload.onprogress = (e) => {
             if (!e.lengthComputable || e.total <= 0) return;
             const percent = Math.round((e.loaded / e.total) * 100);
@@ -592,39 +597,39 @@ export function initFloorplans() {
         hideProgressDialog();
         if (!data.ok || !data.json || !data.json.success) {
           await showAlert(
-            (data.json && data.json.message) || 'Failed to upload floor plans.',
-            'Upload floor plan'
+            (data.json && data.json.message) || 'Failed to upload layouts.',
+            'Upload layout'
           );
         } else {
-          await loadFloorplans();
+          await loadLayouts();
         }
       } catch (e) {
         hideProgressDialog();
-        console.error('Error uploading floorplans', e);
-        await showAlert('Error uploading floor plans: ' + e, 'Upload floor plan');
+        console.error('Error uploading layouts', e);
+        await showAlert('Error uploading layouts: ' + e, 'Upload layout');
       } finally {
         addFloorInput.value = '';
       }
     });
   }
 
-  // Floor plan hotspot rendering inside the modal
+  // Layout hotspot rendering inside the modal
   function renderHotspotsToLayer(layerEl, { allowDelete, showTitle }) {
-    if (!layerEl || !selectedFloorplan) return;
+    if (!layerEl || !selectedLayout) return;
     layerEl.innerHTML = '';
-    const list = floorplanHotspotsByFile.get(selectedFloorplan) || [];
+    const list = layoutHotspotsByFile.get(selectedLayout) || [];
 
     list.forEach((entry) => {
       const wrapper = document.createElement('div');
-      wrapper.className = 'floorplan-hotspot-pin';
+      wrapper.className = 'layout-hotspot-pin';
       wrapper.style.left = `${entry.x * 100}%`;
       wrapper.style.top = `${entry.y * 100}%`;
-      wrapper.setAttribute('data-floorplan-hotspot-id', String(entry.id));
+      wrapper.setAttribute('data-layout-hotspot-id', String(entry.id));
 
       const dot = document.createElement('button');
       dot.type = 'button';
       const sizeClass = allowDelete ? ' hotspot-modal' : ' hotspot-preview';
-      dot.className = `floorplan-hotspot-pin-dot${sizeClass}${selectedHotspotId === entry.id ? ' selected' : ''}`;
+      dot.className = `layout-hotspot-pin-dot${sizeClass}${selectedHotspotId === entry.id ? ' selected' : ''}`;
       if (showTitle) {
         dot.title = entry.linkTo ? `Links to ${entry.linkTo}` : 'Unlinked hotspot';
       }
@@ -632,7 +637,7 @@ export function initFloorplans() {
         e.stopPropagation();
         e.preventDefault();
         selectedHotspotId = entry.id;
-        renderFloorplanHotspots();
+        renderLayoutHotspots();
         renderRenderedHotspots();
         if (!entry.linkTo) return;
         await loadPanorama(entry.linkTo);
@@ -643,17 +648,17 @@ export function initFloorplans() {
       if (allowDelete) {
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
-        removeBtn.className = 'floorplan-hotspot-pin-remove';
+        removeBtn.className = 'layout-hotspot-pin-remove';
         removeBtn.setAttribute('aria-label', 'Remove hotspot');
         removeBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           e.preventDefault();
-          const list = floorplanHotspotsByFile.get(selectedFloorplan) || [];
+          const list = layoutHotspotsByFile.get(selectedLayout) || [];
           const idx = list.findIndex((x) => x.id === entry.id);
           if (idx !== -1) list.splice(idx, 1);
-          if (list.length === 0) floorplanHotspotsByFile.delete(selectedFloorplan);
-          saveFloorplanHotspotsToStorage();
-          renderFloorplanHotspots();
+          if (list.length === 0) layoutHotspotsByFile.delete(selectedLayout);
+          saveLayoutHotspotsToStorage();
+          renderLayoutHotspots();
           renderRenderedHotspots();
           if (selectedHotspotId === entry.id) selectedHotspotId = null;
         });
@@ -664,7 +669,7 @@ export function initFloorplans() {
     });
   }
 
-  function renderFloorplanHotspots() {
+  function renderLayoutHotspots() {
     renderHotspotsToLayer(modalHotspotLayer, { allowDelete: true, showTitle: true });
   }
 
@@ -672,8 +677,8 @@ export function initFloorplans() {
     renderHotspotsToLayer(previewHotspotLayer, { allowDelete: false, showTitle: false });
   }
 
-  async function addFloorplanHotspotAt(clientX, clientY) {
-    if (!modalImg || !selectedFloorplan) return;
+  async function addLayoutHotspotAt(clientX, clientY) {
+    if (!modalImg || !selectedLayout) return;
     syncModalStageSize();
     const rect = modalImg.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
@@ -682,13 +687,13 @@ export function initFloorplans() {
     if (x < 0 || x > 1 || y < 0 || y > 1) return;
 
     let linkTo = null;
-    const originalSelection = selectedFloorplan;
+    const originalSelection = selectedLayout;
     try {
       const images = await getImageList();
-      // Disallow binding the same panoramic image to multiple floorplan hotspots.
-      // Build a set of all pano filenames already used as linkTo in any floorplan hotspot.
+      // Disallow binding the same panoramic image to multiple layout hotspots.
+      // Build a set of all pano filenames already used as linkTo in any layout hotspot.
       const usedLinks = new Set();
-      floorplanHotspotsByFile.forEach((list) => {
+      layoutHotspotsByFile.forEach((list) => {
         list.forEach((entry) => {
           if (entry.linkTo) usedLinks.add(entry.linkTo);
         });
@@ -696,7 +701,7 @@ export function initFloorplans() {
       const options = images.filter((name) => !usedLinks.has(name));
       if (!options || options.length === 0) {
         await showAlert(
-          'All panoramic scenes are already linked to floor plan hotspots. Delete an existing floor plan hotspot or upload a new panorama to create another link.',
+          'All panoramic scenes are already linked to layout hotspots. Delete an existing layout hotspot or upload a new panorama to create another link.',
           'Hotspot'
         );
         return;
@@ -705,12 +710,12 @@ export function initFloorplans() {
         'Bind hotspot to panoramic scene',
         options,
         (val) => {
-          // When previewing a panorama, revert floorplan back to Rendered Display.
+          // When previewing a panorama, revert layout back to Rendered Display.
           closeModal();
           loadPanorama(val);
         }
       );
-      // When the preview flow ends (OK/Cancel), revert floorplan back to Expanded Display.
+      // When the preview flow ends (OK/Cancel), revert layout back to Expanded Display.
       openModalFor(originalSelection);
       if (selected === null) {
         // User cancelled; nothing to do
@@ -719,22 +724,22 @@ export function initFloorplans() {
       linkTo = selected;
       // Restore any previous pano view if needed; the admin UI already manages the viewer
     } catch (e) {
-      console.warn('Error selecting pano for floorplan hotspot', e);
+      console.warn('Error selecting pano for layout hotspot', e);
       linkTo = undefined;
       // If the modal was closed for preview, restore it on error as well.
       openModalFor(originalSelection);
     }
 
-    const id = nextFloorplanHotspotId++;
+    const id = nextLayoutHotspotId++;
     const entry = { id, x, y, linkTo: linkTo || undefined };
-    let list = floorplanHotspotsByFile.get(originalSelection);
+    let list = layoutHotspotsByFile.get(originalSelection);
     if (!list) {
       list = [];
-      floorplanHotspotsByFile.set(originalSelection, list);
+      layoutHotspotsByFile.set(originalSelection, list);
     }
     list.push(entry);
-    saveFloorplanHotspotsToStorage();
-    renderFloorplanHotspots();
+    saveLayoutHotspotsToStorage();
+    renderLayoutHotspots();
     renderRenderedHotspots();
     // After placing one hotspot, require the user to click the Hotspot button again
     hotspotPlaceMode = false;
@@ -745,7 +750,7 @@ export function initFloorplans() {
     modalImg.addEventListener('click', (e) => {
       if (!hotspotPlaceMode) return;
       e.stopPropagation();
-      addFloorplanHotspotAt(e.clientX, e.clientY);
+      addLayoutHotspotAt(e.clientX, e.clientY);
     });
   }
 
@@ -756,12 +761,12 @@ export function initFloorplans() {
     });
   }
 
-  async function handleUpdateFloorplan() {
-    if (!selectedFloorplan) {
-      await showAlert('Please select a floor plan to update.', 'Update floor plan');
+  async function handleUpdateLayout() {
+    if (!selectedLayout) {
+      await showAlert('Please select a layout to update.', 'Update layout');
       return;
     }
-    const floorplanToUpdate = selectedFloorplan;
+    const layoutToUpdate = selectedLayout;
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -773,21 +778,21 @@ export function initFloorplans() {
         return;
       }
       const confirmed = await showConfirm(
-        `Are you sure you want to update "${floorplanToUpdate}"?`,
-        'Update floor plan'
+        `Are you sure you want to update "${layoutToUpdate}"?`,
+        'Update layout'
       );
       if (!confirmed) {
         document.body.removeChild(input);
         return;
       }
       const formData = new FormData();
-      formData.append('floorplan', file);
-      formData.append('oldFilename', floorplanToUpdate);
-      showProgressDialog('Updating floor plan image...');
+      formData.append('layout', file);
+      formData.append('oldFilename', layoutToUpdate);
+      showProgressDialog('Updating layout image...');
       try {
         const response = await new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
-          xhr.open('PUT', appendProjectParams('/upload-floorplan/update'));
+          xhr.open('PUT', appendProjectParams('/upload-layout/update'));
           xhr.upload.onprogress = (e) => {
             if (!e.lengthComputable || e.total <= 0) return;
             const percent = Math.round((e.loaded / e.total) * 100);
@@ -808,41 +813,41 @@ export function initFloorplans() {
         hideProgressDialog();
         const data = response.json;
         if (!response.ok || !data.success) {
-          await showAlert('Error updating floor plan: ' + (data && data.message ? data.message : response.status), 'Update floor plan');
+          await showAlert('Error updating layout: ' + (data && data.message ? data.message : response.status), 'Update layout');
         } else {
           const updatedFilename = (() => {
             const fromNew = data && typeof data.newFilename === 'string' ? data.newFilename.trim() : '';
             if (fromNew) return fromNew;
             const fromAlias = data && typeof data.filename === 'string' ? data.filename.trim() : '';
             if (fromAlias) return fromAlias;
-            return floorplanToUpdate;
+            return layoutToUpdate;
           })();
 
           let hotspotsChanged = false;
-          if (floorplanHotspotsByFile.has(floorplanToUpdate)) {
-            floorplanHotspotsByFile.delete(floorplanToUpdate);
+          if (layoutHotspotsByFile.has(layoutToUpdate)) {
+            layoutHotspotsByFile.delete(layoutToUpdate);
             hotspotsChanged = true;
           }
-          if (updatedFilename !== floorplanToUpdate && floorplanHotspotsByFile.has(updatedFilename)) {
-            floorplanHotspotsByFile.delete(updatedFilename);
+          if (updatedFilename !== layoutToUpdate && layoutHotspotsByFile.has(updatedFilename)) {
+            layoutHotspotsByFile.delete(updatedFilename);
             hotspotsChanged = true;
           }
           if (hotspotsChanged) {
             selectedHotspotId = null;
-            saveFloorplanHotspotsToStorage();
-            renderFloorplanHotspots();
+            saveLayoutHotspotsToStorage();
+            renderLayoutHotspots();
             renderRenderedHotspots();
           }
-          moveFloorplanImageCache(floorplanToUpdate, updatedFilename);
-          bumpFloorplanImageCache(updatedFilename);
-          selectedFloorplan = updatedFilename;
-          await loadFloorplans();
-          onFloorplanClick(updatedFilename);
-          await showTimedAlert('Floor plan updated successfully.', 'Update floor plan', 500);
+          moveLayoutImageCache(layoutToUpdate, updatedFilename);
+          bumpLayoutImageCache(updatedFilename);
+          selectedLayout = updatedFilename;
+          await loadLayouts();
+          onLayoutClick(updatedFilename);
+          await showTimedAlert('Layout updated successfully.', 'Update layout', 500);
         }
       } catch (e) {
         hideProgressDialog();
-        await showAlert('Error updating floor plan: ' + e, 'Update floor plan');
+        await showAlert('Error updating layout: ' + e, 'Update layout');
       } finally {
         document.body.removeChild(input);
       }
@@ -851,66 +856,66 @@ export function initFloorplans() {
     input.click();
   }
 
-  async function handleRenameFloorplan() {
-    if (!selectedFloorplan) {
-      await showAlert('Please select a floor plan to rename.', 'Rename floor plan');
+  async function handleRenameLayout() {
+    if (!selectedLayout) {
+      await showAlert('Please select a layout to rename.', 'Rename layout');
       return;
     }
-    const lastDotIndex = selectedFloorplan.lastIndexOf('.');
-    const extension = lastDotIndex > -1 ? selectedFloorplan.substring(lastDotIndex) : '';
-    const nameWithoutExt = lastDotIndex > -1 ? selectedFloorplan.substring(0, lastDotIndex) : selectedFloorplan;
-    const newName = await showPrompt(`Enter new name for "${selectedFloorplan}":`, nameWithoutExt, 'Rename floor plan');
+    const lastDotIndex = selectedLayout.lastIndexOf('.');
+    const extension = lastDotIndex > -1 ? selectedLayout.substring(lastDotIndex) : '';
+    const nameWithoutExt = lastDotIndex > -1 ? selectedLayout.substring(0, lastDotIndex) : selectedLayout;
+    const newName = await showPrompt(`Enter new name for "${selectedLayout}":`, nameWithoutExt, 'Rename layout');
     if (newName === null || newName === '') return;
     const newFileName = newName.includes('.') ? newName : newName + extension;
     if (newFileName.includes('/') || newFileName.includes('\\') || newFileName.includes('..')) {
-      await showAlert('Invalid filename. Please avoid special characters like / \\ ..', 'Rename floor plan');
+      await showAlert('Invalid filename. Please avoid special characters like / \\ ..', 'Rename layout');
       return;
     }
     try {
-      const res = await fetch(appendProjectParams('/api/floorplans/rename'), {
+      const res = await fetch(appendProjectParams('/api/layouts/rename'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oldFilename: selectedFloorplan, newFilename: newFileName }),
+        body: JSON.stringify({ oldFilename: selectedLayout, newFilename: newFileName }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        await showAlert('Error renaming floor plan: ' + (data && data.message ? data.message : res.status), 'Rename floor plan');
+        await showAlert('Error renaming layout: ' + (data && data.message ? data.message : res.status), 'Rename layout');
       } else {
-        if (floorplanHotspotsByFile.has(selectedFloorplan)) {
-          const list = floorplanHotspotsByFile.get(selectedFloorplan);
-          floorplanHotspotsByFile.delete(selectedFloorplan);
-          floorplanHotspotsByFile.set(newFileName, list);
-          saveFloorplanHotspotsToStorage();
+        if (layoutHotspotsByFile.has(selectedLayout)) {
+          const list = layoutHotspotsByFile.get(selectedLayout);
+          layoutHotspotsByFile.delete(selectedLayout);
+          layoutHotspotsByFile.set(newFileName, list);
+          saveLayoutHotspotsToStorage();
         }
-        moveFloorplanImageCache(selectedFloorplan, newFileName);
-        selectedFloorplan = newFileName;
-        await loadFloorplans();
-        onFloorplanClick(selectedFloorplan);
-        await showTimedAlert('Floor plan renamed successfully.', 'Rename floor plan', 500);
+        moveLayoutImageCache(selectedLayout, newFileName);
+        selectedLayout = newFileName;
+        await loadLayouts();
+        onLayoutClick(selectedLayout);
+        await showTimedAlert('Layout renamed successfully.', 'Rename layout', 500);
       }
     } catch (e) {
-      await showAlert('Error renaming floor plan: ' + e, 'Rename floor plan');
+        await showAlert('Error renaming layout: ' + e, 'Rename layout');
     }
   }
 
   // Open modal when clicking the small preview
   previewContainer.addEventListener('click', (e) => {
     // If user clicked a hotspot in the rendered display, do NOT open modal.
-    if (e.target && e.target.closest && e.target.closest('.floorplan-hotspot-pin')) {
+    if (e.target && e.target.closest && e.target.closest('.layout-hotspot-pin')) {
       return;
     }
-    if (selectedFloorplan) openModalFor(selectedFloorplan);
+    if (selectedLayout) openModalFor(selectedLayout);
   });
 
-  // Initial load: hotspots then floorplans
+  // Initial load: hotspots then layouts
   (async () => {
-    loadFloorplanHotspotsFromStorage();
+    loadLayoutHotspotsFromStorage();
     try {
-      const res = await fetch(appendProjectParams('/api/floorplan-hotspots'), { cache: 'no-store' });
+      const res = await fetch(appendProjectParams('/api/layout-hotspots'), { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (data && typeof data === 'object') {
-          floorplanHotspotsByFile.clear();
+          layoutHotspotsByFile.clear();
           let maxId = -1;
           Object.entries(data).forEach(([filename, list]) => {
             if (!Array.isArray(list)) return;
@@ -924,14 +929,14 @@ export function initFloorplans() {
                 linkTo: entry.linkTo || undefined,
               };
             });
-            floorplanHotspotsByFile.set(filename, entries);
+            layoutHotspotsByFile.set(filename, entries);
           });
-          if (maxId >= 0) nextFloorplanHotspotId = maxId + 1;
+          if (maxId >= 0) nextLayoutHotspotId = maxId + 1;
         }
       }
     } catch (e) {
-      console.warn('Could not load floorplan hotspots from server', e);
+      console.warn('Could not load layout hotspots from server', e);
     }
-    loadFloorplans();
+    loadLayouts();
   })();
 }
