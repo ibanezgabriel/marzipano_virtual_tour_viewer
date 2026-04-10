@@ -29,10 +29,10 @@ function getUploadBase() {
   return id ? `/projects/${encodeURIComponent(id)}/upload` : '/upload';
 }
 
-/** Base path for floor plan image assets (project-scoped or legacy). */
-function getFloorplanBase() {
+/** Base path for layout image assets (project-scoped or legacy). */
+function getLayoutBase() {
   const id = getProjectId();
-  return id ? `/projects/${encodeURIComponent(id)}/floorplans` : '/floorplans';
+  return id ? `/projects/${encodeURIComponent(id)}/layouts` : '/layouts';
 }
 
 /** Base path for tile assets (project-scoped or legacy). */
@@ -41,4 +41,4 @@ function getTilesBase() {
   return id ? `/projects/${encodeURIComponent(id)}/tiles` : '/tiles';
 }
 
-export { getProjectId, appendProjectParams, getUploadBase, getFloorplanBase, getTilesBase };
+export { getProjectId, appendProjectParams, getUploadBase, getLayoutBase, getTilesBase };

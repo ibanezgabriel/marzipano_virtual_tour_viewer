@@ -78,7 +78,7 @@ async function create(req, res) {
         'project',
         'project',
         {
-          action: 'Project-Create',
+          action: 'Project_Create',
           message: `Project created: [${trimmedNumber}] — [${trimmedName}].`,
           meta: buildAuditMeta(
             {

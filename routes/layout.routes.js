@@ -1,7 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { floorplanUpload } = require('../middleware/upload.middleware');
+const { layoutUpload } = require('../middleware/upload.middleware');
 const { resolvePaths } = require('../services/project-paths.service');
 const { syncProjectToDatabaseOrThrow } = require('../services/project-sync.service');
 const { emitToProject } = require('../services/project-events.service');
@@ -12,17 +12,17 @@ const {
   storeReplacedImageInAudit,
 } = require('../services/audit.service');
 const {
-  clearFloorplanHotspotsForFilenames,
-  floorplanOrderAppend,
-  floorplanOrderReplace,
-  getOrderedFloorplanFilenames,
-  readFloorplanOrder,
-  writeFloorplanOrder,
+  clearLayoutHotspotsForFilenames,
+  layoutOrderAppend,
+  layoutOrderReplace,
+  getOrderedLayoutFilenames,
+  readLayoutOrder,
+  writeLayoutOrder,
 } = require('../services/project-media.service');
 
 const router = express.Router();
 
-router.post('/upload-floorplan', floorplanUpload.array('floorplan', 20), async (req, res) => {
+router.post('/upload-layout', layoutUpload.array('layout', 20), async (req, res) => {
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ success: false, message: 'no file uploaded' });
   }
@@ -33,9 +33,9 @@ router.post('/upload-floorplan', floorplanUpload.array('floorplan', 20), async (
   const filenames = req.files.map((file) => file.filename);
   try {
     filenames.forEach((name) => {
-      appendAuditEntry(paths, 'floorplan', name, {
+      appendAuditEntry(paths, 'layout', name, {
         action: 'upload',
-        message: 'Floor plan uploaded.',
+        message: 'Layout uploaded.',
         meta: buildAuditMeta(undefined, req.authUser),
       });
     });
@@ -43,25 +43,25 @@ router.post('/upload-floorplan', floorplanUpload.array('floorplan', 20), async (
 
   let updatedOrder = null;
   try {
-    updatedOrder = floorplanOrderAppend(paths, filenames);
+    updatedOrder = layoutOrderAppend(paths, filenames);
   } catch (error) {
-    console.error('Error updating floor plan order on upload:', error);
+    console.error('Error updating layout order on upload:', error);
   }
 
   if (updatedOrder) {
-    emitToProject(req.app, paths.projectId, 'floorplans:order', { order: updatedOrder });
+    emitToProject(req.app, paths.projectId, 'layouts:order', { order: updatedOrder });
   }
 
   try {
     await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
   } catch (error) {
-    console.error('Project database sync failed after floor plan upload:', error);
-    return res.status(500).json({ success: false, message: 'Floor plan uploaded, but database sync failed.' });
+    console.error('Project database sync failed after layout upload:', error);
+    return res.status(500).json({ success: false, message: 'Layout uploaded, but database sync failed.' });
   }
   return res.json({ success: true, uploaded: filenames });
 });
 
-router.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), async (req, res) => {
+router.put('/upload-layout/update', layoutUpload.single('layout'), async (req, res) => {
   const cleanupUploadedFile = async () => {
     if (!req.file || !req.file.path) return;
     try {
@@ -87,36 +87,36 @@ router.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), asyn
     await cleanupUploadedFile();
     return res.status(400).json({ success: false, message: 'Project required' });
   }
-  const oldFilePath = path.join(paths.floorplansDir, oldFilename);
+  const oldFilePath = path.join(paths.layoutsDir, oldFilename);
   if (!fs.existsSync(oldFilePath)) {
     await cleanupUploadedFile();
-    return res.status(404).json({ success: false, message: 'Old floor plan not found' });
+    return res.status(404).json({ success: false, message: 'Old layout not found' });
   }
   const newFilename = req.file.filename;
 
   try {
-    const hotspotCleanup = clearFloorplanHotspotsForFilenames(paths, [oldFilename, newFilename]);
+    const hotspotCleanup = clearLayoutHotspotsForFilenames(paths, [oldFilename, newFilename]);
     if (hotspotCleanup.changed) {
-      emitToProject(req.app, paths.projectId, 'floorplan-hotspots:changed', hotspotCleanup.hotspots);
+      emitToProject(req.app, paths.projectId, 'layout-hotspots:changed', hotspotCleanup.hotspots);
     }
 
     if (oldFilename === newFilename) {
       try {
-        appendAuditEntry(paths, 'floorplan', newFilename, {
+        appendAuditEntry(paths, 'layout', newFilename, {
           action: 'update',
-          message: 'Floor plan updated.',
+          message: 'Layout updated.',
           meta: buildAuditMeta(undefined, req.authUser),
         });
       } catch (_error) {}
       try {
         await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
       } catch (error) {
-        console.error('Project database sync failed after floor plan update:', error);
-        return res.status(500).json({ success: false, message: 'Floor plan updated, but database sync failed.' });
+        console.error('Project database sync failed after layout update:', error);
+        return res.status(500).json({ success: false, message: 'Layout updated, but database sync failed.' });
       }
       return res.json({
         success: true,
-        message: 'Floor plan updated successfully',
+        message: 'Layout updated successfully',
         oldFilename,
         newFilename,
         filename: newFilename,
@@ -125,23 +125,23 @@ router.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), asyn
 
     let archivedImage = null;
     try {
-      archivedImage = storeReplacedImageInAudit(paths, 'floorplan', oldFilename, oldFilePath);
+      archivedImage = storeReplacedImageInAudit(paths, 'layout', oldFilename, oldFilePath);
     } catch (archiveError) {
-      throw new Error(`Could not archive replaced floor plan: ${archiveError.message || archiveError}`);
+      throw new Error(`Could not store replaced layout in audit logs: ${archiveError.message || archiveError}`);
     }
 
     await fs.promises.unlink(oldFilePath);
 
     try {
-      renameAuditLog(paths, 'floorplan', oldFilename, newFilename);
-      appendAuditEntry(paths, 'floorplan', newFilename, {
+      renameAuditLog(paths, 'layout', oldFilename, newFilename);
+      appendAuditEntry(paths, 'layout', newFilename, {
         action: 'update',
-        message: `Floor plan updated (replaced "${oldFilename}" with "${newFilename}").`,
+        message: `Layout updated (replaced "${oldFilename}" with "${newFilename}").`,
         meta: buildAuditMeta(
           archivedImage
             ? {
                 archivedImage: {
-                  kind: 'floorplan',
+                  kind: 'layout',
                   originalFilename: archivedImage.originalFilename,
                   storedFilename: archivedImage.storedFilename,
                 },
@@ -154,35 +154,35 @@ router.put('/upload-floorplan/update', floorplanUpload.single('floorplan'), asyn
 
     let updatedOrder = null;
     try {
-      updatedOrder = floorplanOrderReplace(paths, oldFilename, newFilename);
+      updatedOrder = layoutOrderReplace(paths, oldFilename, newFilename);
     } catch (error) {
-      console.error('Error updating floor plan order:', error);
+      console.error('Error updating layout order:', error);
     }
 
-    emitToProject(req.app, paths.projectId, 'floorplans:order', { order: updatedOrder });
+    emitToProject(req.app, paths.projectId, 'layouts:order', { order: updatedOrder });
 
     try {
       await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
     } catch (error) {
-      console.error('Project database sync failed after floor plan replace:', error);
-      return res.status(500).json({ success: false, message: 'Floor plan updated, but database sync failed.' });
+      console.error('Project database sync failed after layout replace:', error);
+      return res.status(500).json({ success: false, message: 'Layout updated, but database sync failed.' });
     }
 
     return res.json({
       success: true,
-      message: 'Floor plan updated successfully',
+      message: 'Layout updated successfully',
       oldFilename,
       newFilename,
       filename: newFilename,
     });
   } catch (error) {
-    console.error('Error updating floor plan:', error);
+    console.error('Error updating layout:', error);
     await cleanupUploadedFile();
-    return res.status(500).json({ success: false, message: 'Error updating floor plan' });
+    return res.status(500).json({ success: false, message: 'Error updating layout' });
   }
 });
 
-router.put('/api/floorplans/rename', async (req, res) => {
+router.put('/api/layouts/rename', async (req, res) => {
   const { oldFilename, newFilename } = req.body || {};
   if (!oldFilename || !newFilename) {
     return res.status(400).json({ success: false, message: 'Both old and new filenames are required' });
@@ -198,8 +198,8 @@ router.put('/api/floorplans/rename', async (req, res) => {
   if (!paths) {
     return res.status(400).json({ success: false, message: 'Project required' });
   }
-  const oldPath = path.join(paths.floorplansDir, oldFilename);
-  const newPath = path.join(paths.floorplansDir, newFilename);
+  const oldPath = path.join(paths.layoutsDir, oldFilename);
+  const newPath = path.join(paths.layoutsDir, newFilename);
   if (!fs.existsSync(oldPath)) {
     return res.status(404).json({ success: false, message: 'File not found' });
   }
@@ -210,50 +210,50 @@ router.put('/api/floorplans/rename', async (req, res) => {
   try {
     await fs.promises.rename(oldPath, newPath);
     try {
-      const order = readFloorplanOrder(paths.floorplanOrderPath);
+      const order = readLayoutOrder(paths.layoutOrderPath);
       const newOrder = order.map((filename) => (filename === oldFilename ? newFilename : filename));
-      writeFloorplanOrder(paths.floorplanOrderPath, newOrder);
+      writeLayoutOrder(paths.layoutOrderPath, newOrder);
     } catch (_error) {}
     try {
-      renameAuditLog(paths, 'floorplan', oldFilename, newFilename);
-      appendAuditEntry(paths, 'floorplan', newFilename, {
+      renameAuditLog(paths, 'layout', oldFilename, newFilename);
+      appendAuditEntry(paths, 'layout', newFilename, {
         action: 'rename',
-        message: `Floor plan renamed from "${oldFilename}" to "${newFilename}".`,
+        message: `Layout renamed from "${oldFilename}" to "${newFilename}".`,
         meta: buildAuditMeta(undefined, req.authUser),
       });
     } catch (_error) {}
     try {
       await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
     } catch (error) {
-      console.error('Project database sync failed after floor plan rename:', error);
-      return res.status(500).json({ success: false, message: 'Floor plan renamed, but database sync failed.' });
+      console.error('Project database sync failed after layout rename:', error);
+      return res.status(500).json({ success: false, message: 'Layout renamed, but database sync failed.' });
     }
-    return res.json({ success: true, message: 'Floor plan renamed successfully', oldFilename, newFilename });
+    return res.json({ success: true, message: 'Layout renamed successfully', oldFilename, newFilename });
   } catch (error) {
-    console.error('Error renaming floor plan:', error);
+    console.error('Error renaming layout:', error);
     return res.status(500).json({ success: false, message: 'Error renaming file' });
   }
 });
 
-router.delete('/api/floorplans/:filename', (_req, res) => {
-  return res.status(403).json({ success: false, message: 'Floor plan deletion is disabled.' });
+router.delete('/api/layouts/:filename', (_req, res) => {
+  return res.status(403).json({ success: false, message: 'Layout deletion is disabled.' });
 });
 
-router.get('/api/floorplans', async (req, res) => {
+router.get('/api/layouts', async (req, res) => {
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
   try {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.set('Pragma', 'no-cache');
     res.set('Expires', '0');
-    const files = await getOrderedFloorplanFilenames(paths);
+    const files = await getOrderedLayoutFilenames(paths);
     return res.json(files);
   } catch (_error) {
-    return res.status(500).json({ error: 'Unable to list floor plans' });
+    return res.status(500).json({ error: 'Unable to list layouts' });
   }
 });
 
-router.put('/api/floorplans/order', (req, res) => {
+router.put('/api/layouts/order', (req, res) => {
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
   const body = req.body;
@@ -261,11 +261,11 @@ router.put('/api/floorplans/order', (req, res) => {
   const ok = body.order.every((filename) => typeof filename === 'string' && filename.length > 0 && !filename.includes('..') && !/[\\\/]/.test(filename));
   if (!ok) return res.status(400).json({ error: 'Invalid filenames in order' });
   try {
-    writeFloorplanOrder(paths.floorplanOrderPath, body.order);
+    writeLayoutOrder(paths.layoutOrderPath, body.order);
     res.json({ success: true });
-    emitToProject(req.app, paths.projectId, 'floorplans:order', { order: body.order });
+    emitToProject(req.app, paths.projectId, 'layouts:order', { order: body.order });
   } catch (error) {
-    console.error('Error writing floorplan order:', error);
+    console.error('Error writing layout order:', error);
     return res.status(500).json({ error: 'Unable to save order' });
   }
 });

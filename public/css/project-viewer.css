@@ -4,7 +4,7 @@
   position: absolute;
   right: 25px;
 }
-#pano-floorplan-toggle {
+#pano-layout-toggle {
   height: 43px;
   color: white;
   font-weight: 600;
@@ -12,11 +12,11 @@
   cursor: pointer;
 }
 
-.floorplan-modal-overlay-client .floorplan-modal {
+.layout-modal-overlay-client .layout-modal {
   position: relative;
 }
 
-.floorplan-modal-overlay-client .floorplan-magnifier-controls {
+.layout-modal-overlay-client .layout-magnifier-controls {
   display: flex;
   flex-direction: row;
   justify-content: flex-end;
@@ -24,7 +24,7 @@
   gap: 10px;
 }
 
-.floorplan-modal-overlay-client .floorplan-modal-actions {
+.layout-modal-overlay-client .layout-modal-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -32,22 +32,22 @@
   padding: 10px 16px 6px;
 }
 
-.floorplan-modal-overlay-client .floorplan-modal-spacer {
+.layout-modal-overlay-client .layout-modal-spacer {
   flex: 1;
 }
 
-.floorplan-modal-overlay-client .floorplan-nav {
+.layout-modal-overlay-client .layout-nav {
   display: flex;
   align-items: center;
   gap: 8px;
   justify-content: center;
 }
 
-.floorplan-modal-overlay-client .floorplan-magnifier-controls {
+.layout-modal-overlay-client .layout-magnifier-controls {
   flex: 1;
 }
 
-.floorplan-modal-overlay-client .floorplan-nav-btn {
+.layout-modal-overlay-client .layout-nav-btn {
   min-width: 0;
   padding: 0;
   border-radius: 0;
@@ -61,7 +61,7 @@
   transition: transform 140ms ease, opacity 140ms ease;
 }
 
-.floorplan-modal-overlay-client .floorplan-nav-btn img {
+.layout-modal-overlay-client .layout-nav-btn img {
   width: 28px;
   height: 28px;
   display: block;
@@ -69,30 +69,30 @@
   filter: none;
 }
 
-.floorplan-modal-overlay-client .floorplan-modal-body .floorplan-image-wrap {
+.layout-modal-overlay-client .layout-modal-body .layout-image-wrap {
   gap: 12px;
 }
 
-.floorplan-modal-overlay-client .floorplan-modal-body .floorplan-image-stage {
+.layout-modal-overlay-client .layout-modal-body .layout-image-stage {
   flex: 1 1 auto;
 }
 
-.floorplan-modal-overlay-client .floorplan-modal-body .floorplan-nav-btn {
+.layout-modal-overlay-client .layout-modal-body .layout-nav-btn {
   flex: 0 0 auto;
 }
 
-.floorplan-modal-overlay-client .floorplan-nav-btn:hover {
+.layout-modal-overlay-client .layout-nav-btn:hover {
   transform: translateY(-1px);
   opacity: 0.85;
 }
 
-.floorplan-modal-overlay-client .floorplan-nav-btn:disabled {
+.layout-modal-overlay-client .layout-nav-btn:disabled {
   cursor: default;
   opacity: 0.5;
   transform: none;
 }
 
-.floorplan-modal-overlay-client .floorplan-magnifier-levels {
+.layout-modal-overlay-client .layout-magnifier-levels {
   display: none;
   flex-direction: row;
   align-items: center;
@@ -103,11 +103,11 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
-.floorplan-modal-overlay-client .floorplan-magnifier-levels.enabled {
+.layout-modal-overlay-client .layout-magnifier-levels.enabled {
   display: flex;
 }
 
-.floorplan-modal-overlay-client .floorplan-magnifier-levels button {
+.layout-modal-overlay-client .layout-magnifier-levels button {
   min-width: 46px;
   padding: 6px 10px;
   border-radius: 999px;
@@ -120,17 +120,17 @@
   transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
 }
 
-.floorplan-modal-overlay-client .floorplan-magnifier-levels button:disabled {
+.layout-modal-overlay-client .layout-magnifier-levels button:disabled {
   cursor: default;
 }
 
-.floorplan-modal-overlay-client .floorplan-magnifier-levels button.active {
+.layout-modal-overlay-client .layout-magnifier-levels button.active {
   background: #ffffff;
   color: #115272;
   border-color: #ffffff;
 }
 
-.floorplan-modal-overlay-client .floorplan-magnifier-toggle {
+.layout-modal-overlay-client .layout-magnifier-toggle {
   width: 48px;
   height: 48px;
   border-radius: 50%;
@@ -145,36 +145,36 @@
   transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease;
 }
 
-.floorplan-modal-overlay-client .floorplan-magnifier-toggle:hover {
+.layout-modal-overlay-client .layout-magnifier-toggle:hover {
   transform: scale(1.05);
 }
 
-.floorplan-modal-overlay-client .floorplan-magnifier-toggle img {
+.layout-modal-overlay-client .layout-magnifier-toggle img {
   width: 22px;
   height: 22px;
   display: block;
 }
 
-.floorplan-modal-overlay-client .floorplan-magnifier-toggle.active {
+.layout-modal-overlay-client .layout-magnifier-toggle.active {
   background: #ffffff;
   border-color: #0d3d52;
 }
 
-.floorplan-modal-overlay-client .floorplan-hotspot-layer[data-layer='expanded'] {
+.layout-modal-overlay-client .layout-hotspot-layer[data-layer='expanded'] {
   transition: opacity 150ms ease, visibility 0s linear 150ms;
 }
 
-.floorplan-modal-overlay-client .floorplan-hotspot-layer[data-layer='expanded'].floorplan-hotspots-hidden {
+.layout-modal-overlay-client .layout-hotspot-layer[data-layer='expanded'].layout-hotspots-hidden {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
 }
 
-.floorplan-modal-overlay-client #floorplan-modal-img.magnifier-active {
+.layout-modal-overlay-client #layout-modal-img.magnifier-active {
   cursor: none;
 }
 
-.floorplan-modal-overlay-client .floorplan-magnifier-lens {
+.layout-modal-overlay-client .layout-magnifier-lens {
   position: absolute;
   left: 0;
   top: 0;
@@ -193,7 +193,7 @@
   transition: opacity 100ms ease;
 }
 
-.floorplan-modal-overlay-client .floorplan-magnifier-lens.visible {
+.layout-modal-overlay-client .layout-magnifier-lens.visible {
   opacity: 1;
   visibility: visible;
 }

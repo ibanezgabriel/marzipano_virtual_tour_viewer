@@ -43,38 +43,38 @@ router.get('/api/blur-masks', (req, res) => {
   return readObjectFile(res, paths.blurMasksPath, 'Unable to read blur masks');
 });
 
-router.get('/api/floorplan-hotspots', (req, res) => {
+router.get('/api/layout-hotspots', (req, res) => {
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  return readObjectFile(res, paths.floorplanHotspotsPath, 'Unable to read floor plan hotspots');
+  return readObjectFile(res, paths.layoutHotspotsPath, 'Unable to read layout hotspots');
 });
 
-router.post('/api/floorplan-hotspots', async (req, res) => {
+router.post('/api/layout-hotspots', async (req, res) => {
   const body = req.body;
   if (typeof body !== 'object' || body === null) {
     return res.status(400).json({ error: 'Invalid payload' });
   }
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  const beforeRaw = readJsonFileOrDefault(paths.floorplanHotspotsPath, {});
+  const beforeRaw = readJsonFileOrDefault(paths.layoutHotspotsPath, {});
   const before = normalizeTopLevelArrayMap(beforeRaw);
   const normalizedBody = normalizeTopLevelArrayMap(body);
   const changed = diffChangedTopLevelKeys(before, normalizedBody);
   const json = JSON.stringify(normalizedBody, null, 2);
-  const dir = path.dirname(paths.floorplanHotspotsPath);
+  const dir = path.dirname(paths.layoutHotspotsPath);
   try {
     await fs.promises.mkdir(dir, { recursive: true });
-    await fs.promises.writeFile(paths.floorplanHotspotsPath, json, 'utf8');
+    await fs.promises.writeFile(paths.layoutHotspotsPath, json, 'utf8');
     try {
       changed.forEach((filename) => {
-        const floorplanPath = path.join(paths.floorplansDir, filename);
-        if (!fs.existsSync(floorplanPath)) return;
+        const layoutImagePath = path.join(paths.layoutsDir, filename);
+        if (!fs.existsSync(layoutImagePath)) return;
         const beforeCount = getArrayCountByKey(before, filename);
         const afterCount = getArrayCountByKey(normalizedBody, filename);
-        const message = buildCollectionChangeMessage('Floor plan hotspot', 'floor plan hotspots', beforeCount, afterCount);
+        const message = buildCollectionChangeMessage('Layout hotspot', 'layout hotspots', beforeCount, afterCount);
         appendAuditEntry(
           paths,
-          'floorplan',
+          'layout',
           filename,
           {
             action: 'hotspots',
@@ -88,10 +88,10 @@ router.post('/api/floorplan-hotspots', async (req, res) => {
     await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
     res.json({ success: true, unchanged: changed.length === 0 });
     if (changed.length === 0) return;
-    emitToProject(req.app, paths.projectId, 'floorplan-hotspots:changed', normalizedBody);
+    emitToProject(req.app, paths.projectId, 'layout-hotspots:changed', normalizedBody);
   } catch (error) {
-    console.error('Floor plan hotspot save failed:', error);
-    return res.status(500).json({ error: 'Unable to save floor plan hotspots' });
+    console.error('Layout hotspot save failed:', error);
+    return res.status(500).json({ error: 'Unable to save layout hotspots' });
   }
 });
 

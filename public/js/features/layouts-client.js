@@ -1,13 +1,15 @@
-import { appendProjectParams, getFloorplanBase, getProjectId } from '../project-context.js';
+import { appendProjectParams, getLayoutBase, getProjectId } from '../project-context.js';
 import { loadPanorama, registerOnSceneLoad, getSelectedImageName } from '../marzipano-viewer.js';
 
-const FLOORPLAN_HOTSPOTS_KEY = 'floorplan-hotspots';
-const LAST_FLOORPLAN_KEY_PREFIX = 'marzipano-last-floorplan-';
+const LAYOUT_HOTSPOTS_KEY = 'layout-hotspots';
+const LEGACY_LAYOUT_HOTSPOTS_KEY = 'floorplan-hotspots';
+const LAST_LAYOUT_KEY_PREFIX = 'marzipano-last-layout-';
+const LEGACY_LAST_LAYOUT_KEY_PREFIX = 'marzipano-last-floorplan-';
 
 // filename -> Array<{ id, x, y, linkTo }>
-const floorplanHotspotsByFile = new Map();
-let nextFloorplanHotspotId = 0;
-let selectedFloorplan = null;
+const layoutHotspotsByFile = new Map();
+let nextLayoutHotspotId = 0;
+let selectedLayout = null;
 let selectedHotspotId = null;
 
 let previewContainer = null;
@@ -26,9 +28,9 @@ let magnifierLevelsEl = null;
 let magnifierLevelBtns = [];
 let magnifierLens = null;
 let floorList = null;
-let floorplanFiles = [];
-let floorplanPrevBtn = null;
-let floorplanNextBtn = null;
+let layoutFiles = [];
+let layoutPrevBtn = null;
+let layoutNextBtn = null;
 
 const MAGNIFIER_DEFAULT_LEVEL = 2;
 const MAGNIFIER_LEVEL_OPTIONS = [2, 2.5];
@@ -93,7 +95,7 @@ function setMagnifierEnabled(enabled) {
     modalImg.classList.toggle('magnifier-active', magnifierEnabled);
   }
   if (modalHotspotLayer) {
-    modalHotspotLayer.classList.toggle('floorplan-hotspots-hidden', magnifierEnabled);
+    modalHotspotLayer.classList.toggle('layout-hotspots-hidden', magnifierEnabled);
   }
   if (!magnifierEnabled) {
     if (modalImg && activeMagnifierPointerId !== null) {
@@ -116,32 +118,32 @@ function resetMagnifierState() {
   setMagnifierEnabled(false);
 }
 
-function getFloorplanIndex(name) {
+function getLayoutIndex(name) {
   if (!name) return -1;
-  return floorplanFiles.indexOf(name);
+  return layoutFiles.indexOf(name);
 }
 
-function updateFloorplanNav() {
-  if (!floorplanPrevBtn || !floorplanNextBtn) return;
-  const idx = getFloorplanIndex(selectedFloorplan);
+function updateLayoutNav() {
+  if (!layoutPrevBtn || !layoutNextBtn) return;
+  const idx = getLayoutIndex(selectedLayout);
   const hasPrev = idx > 0;
-  const hasNext = idx >= 0 && idx < floorplanFiles.length - 1;
-  floorplanPrevBtn.disabled = !hasPrev;
-  floorplanNextBtn.disabled = !hasNext;
-  floorplanPrevBtn.style.display = 'inline-flex';
-  floorplanNextBtn.style.display = 'inline-flex';
+  const hasNext = idx >= 0 && idx < layoutFiles.length - 1;
+  layoutPrevBtn.disabled = !hasPrev;
+  layoutNextBtn.disabled = !hasNext;
+  layoutPrevBtn.style.display = 'inline-flex';
+  layoutNextBtn.style.display = 'inline-flex';
 }
 
-function setActiveFloorplan(filename) {
+function setActiveLayout(filename) {
   if (!filename) return;
-  selectedFloorplan = filename;
+  selectedLayout = filename;
   if (floorList) {
     Array.from(floorList.querySelectorAll('li')).forEach((node) => {
       node.classList.toggle('active', node.dataset.filename === filename);
     });
   }
   showPreview(filename);
-  updateFloorplanNav();
+  updateLayoutNav();
 }
 
 function updateMagnifierLens(clientX, clientY, { forceVisible = false } = {}) {
@@ -213,7 +215,7 @@ function rerenderHotspotsForLayout() {
   try {
     if (modalOverlay && modalOverlay.classList.contains('visible')) {
       syncModalStageSize();
-      renderFloorplanHotspots();
+      renderLayoutHotspots();
     }
   } catch (e) {}
   try {
@@ -221,9 +223,9 @@ function rerenderHotspotsForLayout() {
   } catch (e) {}
 }
 
-function loadFloorplanHotspotsFromStorage() {
+function loadLayoutHotspotsFromStorage() {
   try {
-    const raw = localStorage.getItem(FLOORPLAN_HOTSPOTS_KEY);
+    const raw = localStorage.getItem(LAYOUT_HOTSPOTS_KEY) || localStorage.getItem(LEGACY_LAYOUT_HOTSPOTS_KEY);
     if (!raw) return;
     const obj = JSON.parse(raw);
     if (typeof obj !== 'object' || obj === null) return;
@@ -240,17 +242,17 @@ function loadFloorplanHotspotsFromStorage() {
           linkTo: entry.linkTo || undefined,
         };
       });
-      floorplanHotspotsByFile.set(filename, entries);
+      layoutHotspotsByFile.set(filename, entries);
     });
-    if (maxId >= 0) nextFloorplanHotspotId = maxId + 1;
+    if (maxId >= 0) nextLayoutHotspotId = maxId + 1;
   } catch (e) {
-    console.warn('Could not load floorplan hotspots from localStorage', e);
+    console.warn('Could not load layout hotspots from localStorage', e);
   }
 }
 
-function applyServerFloorplanHotspots(data) {
+function applyServerLayoutHotspots(data) {
   if (!data || typeof data !== 'object') return;
-  floorplanHotspotsByFile.clear();
+  layoutHotspotsByFile.clear();
   let maxId = -1;
   Object.entries(data).forEach(([filename, list]) => {
     if (!Array.isArray(list)) return;
@@ -264,31 +266,31 @@ function applyServerFloorplanHotspots(data) {
         linkTo: entry.linkTo || undefined,
       };
     });
-    floorplanHotspotsByFile.set(filename, entries);
+    layoutHotspotsByFile.set(filename, entries);
   });
-  if (maxId >= 0) nextFloorplanHotspotId = maxId + 1;
+  if (maxId >= 0) nextLayoutHotspotId = maxId + 1;
 }
 
-async function loadFloorplanHotspotsFromServer() {
+async function loadLayoutHotspotsFromServer() {
   try {
-    const res = await fetch(appendProjectParams('/api/floorplan-hotspots'), { cache: 'no-store' });
+    const res = await fetch(appendProjectParams('/api/layout-hotspots'), { cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
-    applyServerFloorplanHotspots(data);
+    applyServerLayoutHotspots(data);
   } catch (e) {
-    console.warn('Could not load floorplan hotspots from server', e);
+    console.warn('Could not load layout hotspots from server', e);
   }
 }
 
 function ensurePreviewElements() {
   if (previewContainer) return;
   previewContainer = document.createElement('div');
-  previewContainer.id = 'floorplan-preview';
-  previewContainer.className = 'floorplan-preview';
+  previewContainer.id = 'layout-preview';
+  previewContainer.className = 'layout-preview';
   previewContainer.innerHTML = `
-    <div class="floorplan-image-wrap">
-      <img id="floorplan-preview-img" alt="Floor plan">
-      <div class="floorplan-hotspot-layer" data-layer="rendered"></div>
+    <div class="layout-image-wrap">
+      <img id="layout-preview-img" alt="Layout">
+      <div class="layout-hotspot-layer" data-layer="rendered"></div>
     </div>
   `;
   const viewerWrap = document.getElementById('pano-viewer-wrap') || document.getElementById('pano-panel');
@@ -298,16 +300,16 @@ function ensurePreviewElements() {
     document.body.appendChild(previewContainer);
   }
   previewImg = previewContainer.querySelector('img');
-  previewHotspotLayer = previewContainer.querySelector('.floorplan-hotspot-layer');
+  previewHotspotLayer = previewContainer.querySelector('.layout-hotspot-layer');
 
   setPreviewVisible(false);
 
   previewContainer.addEventListener('click', (e) => {
-    if (e.target && e.target.closest && e.target.closest('.floorplan-hotspot-pin')) {
+    if (e.target && e.target.closest && e.target.closest('.layout-hotspot-pin')) {
       return;
     }
-    if (selectedFloorplan) {
-      openModalFor(selectedFloorplan);
+    if (selectedLayout) {
+      openModalFor(selectedLayout);
     }
   });
 }
@@ -315,35 +317,35 @@ function ensurePreviewElements() {
 function ensureModalElements() {
   if (modalOverlay) return;
   modalOverlay = document.createElement('div');
-  modalOverlay.id = 'floorplan-modal-overlay';
-  modalOverlay.className = 'floorplan-modal-overlay floorplan-modal-overlay-client';
+  modalOverlay.id = 'layout-modal-overlay';
+  modalOverlay.className = 'layout-modal-overlay layout-modal-overlay-client';
   modalOverlay.innerHTML = `
-    <div class="floorplan-modal" role="dialog" aria-modal="true">
-      <div class="floorplan-modal-header">
-        <div class="floorplan-modal-title" id="floorplan-modal-title"></div>
+    <div class="layout-modal" role="dialog" aria-modal="true">
+      <div class="layout-modal-header">
+        <div class="layout-modal-title" id="layout-modal-title"></div>
       </div>
-      <div class="floorplan-modal-body">
-        <div class="floorplan-image-wrap">
-          <button type="button" id="floorplan-prev" class="floorplan-nav-btn" aria-label="Previous floor plan">
+      <div class="layout-modal-body">
+        <div class="layout-image-wrap">
+          <button type="button" id="layout-prev" class="layout-nav-btn" aria-label="Previous layout">
             <img src="assets/icons/left-arrow.png" alt="" aria-hidden="true">
           </button>
-          <div class="floorplan-image-stage">
-            <img id="floorplan-modal-img" alt="Floor plan expanded">
-            <div class="floorplan-hotspot-layer" data-layer="expanded"></div>
+          <div class="layout-image-stage">
+            <img id="layout-modal-img" alt="Expanded layout">
+            <div class="layout-hotspot-layer" data-layer="expanded"></div>
           </div>
-          <button type="button" id="floorplan-next" class="floorplan-nav-btn" aria-label="Next floor plan">
+          <button type="button" id="layout-next" class="layout-nav-btn" aria-label="Next layout">
             <img src="assets/icons/right-arrow.png" alt="" aria-hidden="true">
           </button>
-          <div class="floorplan-magnifier-lens" aria-hidden="true"></div>
+          <div class="layout-magnifier-lens" aria-hidden="true"></div>
         </div>
       </div>
-      <div class="floorplan-modal-actions">
-        <div class="floorplan-magnifier-controls" aria-label="Floor plan magnifier controls">
-          <div id="floorplan-magnifier-levels" class="floorplan-magnifier-levels" role="group" aria-label="Magnification level">
+      <div class="layout-modal-actions">
+        <div class="layout-magnifier-controls" aria-label="Layout magnifier controls">
+          <div id="layout-magnifier-levels" class="layout-magnifier-levels" role="group" aria-label="Magnification level">
             <button type="button" data-magnifier-level="2">2x</button>
             <button type="button" data-magnifier-level="2.5">2.5x</button>
           </div>
-          <button type="button" id="floorplan-magnifier-toggle" class="floorplan-magnifier-toggle" aria-label="Toggle floor plan magnifier" aria-pressed="false">
+          <button type="button" id="layout-magnifier-toggle" class="layout-magnifier-toggle" aria-label="Toggle layout magnifier" aria-pressed="false">
             <img src="assets/search.png" alt="" aria-hidden="true">
           </button>
         </div>
@@ -352,19 +354,19 @@ function ensureModalElements() {
   `;
   document.body.appendChild(modalOverlay);
 
-  modalEl = modalOverlay.querySelector('.floorplan-modal');
-  modalImageWrap = modalOverlay.querySelector('.floorplan-modal-body .floorplan-image-wrap');
-  modalStageEl = modalOverlay.querySelector('.floorplan-modal-body .floorplan-image-stage');
-  modalImg = modalOverlay.querySelector('#floorplan-modal-img');
-  modalTitleEl = modalOverlay.querySelector('#floorplan-modal-title');
-  modalHotspotLayer = modalOverlay.querySelector('.floorplan-hotspot-layer[data-layer="expanded"]');
-  magnifierLens = modalOverlay.querySelector('.floorplan-magnifier-lens');
-  magnifierControls = modalOverlay.querySelector('.floorplan-magnifier-controls');
-  magnifierToggleBtn = modalOverlay.querySelector('#floorplan-magnifier-toggle');
-  magnifierLevelsEl = modalOverlay.querySelector('#floorplan-magnifier-levels');
+  modalEl = modalOverlay.querySelector('.layout-modal');
+  modalImageWrap = modalOverlay.querySelector('.layout-modal-body .layout-image-wrap');
+  modalStageEl = modalOverlay.querySelector('.layout-modal-body .layout-image-stage');
+  modalImg = modalOverlay.querySelector('#layout-modal-img');
+  modalTitleEl = modalOverlay.querySelector('#layout-modal-title');
+  modalHotspotLayer = modalOverlay.querySelector('.layout-hotspot-layer[data-layer="expanded"]');
+  magnifierLens = modalOverlay.querySelector('.layout-magnifier-lens');
+  magnifierControls = modalOverlay.querySelector('.layout-magnifier-controls');
+  magnifierToggleBtn = modalOverlay.querySelector('#layout-magnifier-toggle');
+  magnifierLevelsEl = modalOverlay.querySelector('#layout-magnifier-levels');
   magnifierLevelBtns = Array.from(modalOverlay.querySelectorAll('[data-magnifier-level]'));
-  floorplanPrevBtn = modalOverlay.querySelector('#floorplan-prev');
-  floorplanNextBtn = modalOverlay.querySelector('#floorplan-next');
+  layoutPrevBtn = modalOverlay.querySelector('#layout-prev');
+  layoutNextBtn = modalOverlay.querySelector('#layout-next');
 
   modalOverlay.addEventListener('click', (e) => {
     if (e.target === modalOverlay) {
@@ -379,7 +381,7 @@ function ensureModalElements() {
         e.stopPropagation();
         return;
       }
-      // Clicking on empty floor plan area in client just ignores; hotspots handle their own clicks.
+      // Clicking on empty layout area in client just ignores; hotspots handle their own clicks.
       e.stopPropagation();
     });
     modalImg.addEventListener('load', () => {
@@ -449,27 +451,27 @@ function ensureModalElements() {
     });
   });
 
-  if (floorplanPrevBtn) {
-    floorplanPrevBtn.addEventListener('click', (e) => {
+  if (layoutPrevBtn) {
+    layoutPrevBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const idx = getFloorplanIndex(selectedFloorplan);
+      const idx = getLayoutIndex(selectedLayout);
       if (idx > 0) {
-        const target = floorplanFiles[idx - 1];
-        setActiveFloorplan(target);
+        const target = layoutFiles[idx - 1];
+        setActiveLayout(target);
         openModalFor(target);
       }
     });
   }
 
-  if (floorplanNextBtn) {
-    floorplanNextBtn.addEventListener('click', (e) => {
+  if (layoutNextBtn) {
+    layoutNextBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const idx = getFloorplanIndex(selectedFloorplan);
-      if (idx >= 0 && idx < floorplanFiles.length - 1) {
-        const target = floorplanFiles[idx + 1];
-        setActiveFloorplan(target);
+      const idx = getLayoutIndex(selectedLayout);
+      if (idx >= 0 && idx < layoutFiles.length - 1) {
+        const target = layoutFiles[idx + 1];
+        setActiveLayout(target);
         openModalFor(target);
       }
     });
@@ -490,16 +492,16 @@ function closeModal() {
   if (!modalOverlay) return;
   resetMagnifierState();
   modalOverlay.classList.remove('visible');
-  document.body.classList.remove('floorplan-modal-open');
-  setPreviewVisible(Boolean(selectedFloorplan));
+  document.body.classList.remove('layout-modal-open');
+  setPreviewVisible(Boolean(selectedLayout));
 }
 
 function openModalFor(filename) {
   if (!filename) return;
   ensurePreviewElements();
   ensureModalElements();
-  selectedFloorplan = filename;
-  const base = getFloorplanBase();
+  selectedLayout = filename;
+  const base = getLayoutBase();
   const src = `${base}/${encodeURIComponent(filename)}`;
   if (modalImg) {
     modalImg.src = src;
@@ -515,8 +517,8 @@ function openModalFor(filename) {
   // When entering Expanded Display, hide the Rendered Display (minimized preview).
   setPreviewVisible(false);
   modalOverlay.classList.add('visible');
-  document.body.classList.add('floorplan-modal-open');
-  updateFloorplanNav();
+  document.body.classList.add('layout-modal-open');
+  updateLayoutNav();
   requestAnimationFrame(() => {
     rerenderHotspotsForLayout();
   });
@@ -525,28 +527,28 @@ function openModalFor(filename) {
 function showPreview(filename) {
   ensurePreviewElements();
   if (!previewImg) return;
-  const base = getFloorplanBase();
+  const base = getLayoutBase();
   previewImg.src = `${base}/${encodeURIComponent(filename)}`;
   setPreviewVisible(true);
   renderRenderedHotspots();
 }
 
 function renderHotspotsToLayer(layerEl, { allowClickToPanorama, showTitle, sizeClass }) {
-  if (!layerEl || !selectedFloorplan) return;
+  if (!layerEl || !selectedLayout) return;
   layerEl.innerHTML = '';
-  const list = floorplanHotspotsByFile.get(selectedFloorplan) || [];
+  const list = layoutHotspotsByFile.get(selectedLayout) || [];
 
   list.forEach((entry) => {
     const wrapper = document.createElement('div');
-    wrapper.className = 'floorplan-hotspot-pin';
+    wrapper.className = 'layout-hotspot-pin';
     wrapper.style.left = `${entry.x * 100}%`;
     wrapper.style.top = `${entry.y * 100}%`;
-    wrapper.setAttribute('data-floorplan-hotspot-id', String(entry.id));
+    wrapper.setAttribute('data-layout-hotspot-id', String(entry.id));
 
     const dot = document.createElement('button');
     dot.type = 'button';
     dot.className =
-      'floorplan-hotspot-pin-dot' +
+      'layout-hotspot-pin-dot' +
       (sizeClass ? ` ${sizeClass}` : '') +
       (selectedHotspotId === entry.id ? ' selected' : '');
     if (allowClickToPanorama && entry.linkTo) {
@@ -555,7 +557,7 @@ function renderHotspotsToLayer(layerEl, { allowClickToPanorama, showTitle, sizeC
         e.stopPropagation();
         e.preventDefault();
         selectedHotspotId = entry.id;
-        renderFloorplanHotspots();
+        renderLayoutHotspots();
         renderRenderedHotspots();
         closeModal();
         await loadPanorama(entry.linkTo);
@@ -567,7 +569,7 @@ function renderHotspotsToLayer(layerEl, { allowClickToPanorama, showTitle, sizeC
   });
 }
 
-function renderFloorplanHotspots() {
+function renderLayoutHotspots() {
   if (!modalHotspotLayer) return;
   renderHotspotsToLayer(modalHotspotLayer, {
     allowClickToPanorama: true,
@@ -585,22 +587,22 @@ function renderRenderedHotspots() {
   });
 }
 
-function saveLastFloorplan(filename) {
+function saveLastLayout(filename) {
   const pid = getProjectId();
   if (pid) {
     try {
-      localStorage.setItem(LAST_FLOORPLAN_KEY_PREFIX + pid, filename);
+      localStorage.setItem(LAST_LAYOUT_KEY_PREFIX + pid, filename);
     } catch (e) {}
   }
 }
 
-async function loadFloorplans() {
+async function loadLayouts() {
   if (!floorList) return;
   try {
-    const res = await fetch(appendProjectParams('/api/floorplans'));
+    const res = await fetch(appendProjectParams('/api/layouts'));
     if (!res.ok) return;
     const files = await res.json();
-    floorplanFiles = Array.isArray(files) ? files.slice() : [];
+    layoutFiles = Array.isArray(files) ? files.slice() : [];
     floorList.innerHTML = '';
     files.forEach((filename) => {
       const li = document.createElement('li');
@@ -612,40 +614,40 @@ async function loadFloorplans() {
       li.draggable = false;
       li.onclick = () => {
         const name = li.dataset.filename;
-        setActiveFloorplan(name);
+        setActiveLayout(name);
         openModalFor(name);
       };
       floorList.appendChild(li);
     });
-    if (files.length > 0 && !selectedFloorplan) {
+    if (files.length > 0 && !selectedLayout) {
       const firstFile = files[0];
-      setActiveFloorplan(firstFile);
+      setActiveLayout(firstFile);
       openModalFor(firstFile);
     }
     if (!files || files.length === 0) {
-      floorplanFiles = [];
-      selectedFloorplan = null;
+      layoutFiles = [];
+      selectedLayout = null;
       setPreviewVisible(false);
-      updateFloorplanNav();
-      floorList.innerHTML = "<li class='active' style='text-align: center'>No floor plan uploaded</li>";
+      updateLayoutNav();
+      floorList.innerHTML = "<li class='active' style='text-align: center'>No layout uploaded</li>";
     }
   } catch (e) {
-    console.error('Error loading client floorplans', e);
+    console.error('Error loading client layouts', e);
   }
 }
 
-export async function reloadFloorplanHotspotsClient() {
-  await loadFloorplanHotspotsFromServer();
+export async function reloadLayoutHotspotsClient() {
+  await loadLayoutHotspotsFromServer();
   rerenderHotspotsForLayout();
 }
 
-export async function reloadFloorplansListClient() {
-  await loadFloorplans();
+export async function reloadLayoutsListClient() {
+  await loadLayouts();
 }
 
-export function initFloorplansClient() {
-  const toggleBtn = document.getElementById('pano-floorplan-toggle');
-  floorList = document.getElementById('pano-floorplan-list');
+export function initLayoutsClient() {
+  const toggleBtn = document.getElementById('pano-layout-toggle');
+  floorList = document.getElementById('pano-layout-list');
 
   if (!toggleBtn || !floorList) return;
 
@@ -656,11 +658,11 @@ export function initFloorplansClient() {
   try {
     registerOnSceneLoad(() => {
       const current = getSelectedImageName();
-      if (!current || !selectedFloorplan) return;
-      const list = floorplanHotspotsByFile.get(selectedFloorplan) || [];
+      if (!current || !selectedLayout) return;
+      const list = layoutHotspotsByFile.get(selectedLayout) || [];
       const match = list.find((e) => e.linkTo === current);
       selectedHotspotId = match ? match.id : null;
-      renderFloorplanHotspots();
+      renderLayoutHotspots();
       renderRenderedHotspots();
     });
   } catch (e) {}
@@ -674,8 +676,8 @@ export function initFloorplansClient() {
   floorList.style.display = 'block';
 
   (async () => {
-    loadFloorplanHotspotsFromStorage();
-    await loadFloorplanHotspotsFromServer();
-    await loadFloorplans();
+    loadLayoutHotspotsFromStorage();
+    await loadLayoutHotspotsFromServer();
+    await loadLayouts();
   })();
 }

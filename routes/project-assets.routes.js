@@ -19,7 +19,7 @@ function createStaticProjectDirMiddleware(dirKey) {
 function createProjectAssetsRouter() {
   const router = express.Router({ mergeParams: true });
   router.use('/upload', createStaticProjectDirMiddleware('upload'));
-  router.use('/floorplans', createStaticProjectDirMiddleware('floorplans'));
+  router.use('/layouts', createStaticProjectDirMiddleware('layouts'));
   router.use('/tiles', createStaticProjectDirMiddleware('tiles'));
   return router;
 }

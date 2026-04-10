@@ -109,8 +109,8 @@ function gatherPanoramaFilenames(projectPath) {
     });
   });
 
-  const floorplanHotspots = readJson(path.join(projectPath, 'data', 'floorplan-hotspots.json'), {});
-  Object.values(floorplanHotspots || {}).forEach((entries) => {
+  const layoutHotspots = readLayoutHotspotsMerged(projectPath);
+  Object.values(layoutHotspots || {}).forEach((entries) => {
     if (!Array.isArray(entries)) return;
     entries.forEach((entry) => {
       if (entry && entry.linkTo) names.add(String(entry.linkTo));
@@ -120,12 +120,26 @@ function gatherPanoramaFilenames(projectPath) {
   return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
+function layoutImagesDir(projectPath) {
+  const nextDir = path.join(projectPath, 'layouts');
+  const legacyDir = path.join(projectPath, 'floorplans');
+  if (fs.existsSync(nextDir)) return nextDir;
+  return legacyDir;
+}
+
+function readLayoutHotspotsMerged(projectPath) {
+  const nextPath = path.join(projectPath, 'data', 'layout-hotspots.json');
+  const legacyPath = path.join(projectPath, 'data', 'floorplan-hotspots.json');
+  if (fs.existsSync(nextPath)) return readJson(nextPath, {});
+  return readJson(legacyPath, {});
+}
+
 function gatherLayoutFilenames(projectPath) {
-  const layoutDir = path.join(projectPath, 'floorplans');
-  const floorplanHotspots = readJson(path.join(projectPath, 'data', 'floorplan-hotspots.json'), {});
+  const layoutDir = layoutImagesDir(projectPath);
+  const layoutHotspots = readLayoutHotspotsMerged(projectPath);
   const names = new Set(listFiles(layoutDir, IMAGE_EXTENSIONS));
-  if (floorplanHotspots && typeof floorplanHotspots === 'object') {
-    Object.keys(floorplanHotspots).forEach((filename) => names.add(filename));
+  if (layoutHotspots && typeof layoutHotspots === 'object') {
+    Object.keys(layoutHotspots).forEach((filename) => names.add(filename));
   }
   return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
@@ -218,7 +232,7 @@ async function syncProjectWithClient(client, project, { createdByUserId, previou
   const initialViews = readJson(path.join(projectPath, 'data', 'initial-views.json'), {});
   const hotspots = readJson(path.join(projectPath, 'data', 'hotspots.json'), {});
   const blurMasks = readJson(path.join(projectPath, 'data', 'blur-masks.json'), {});
-  const floorplanHotspots = readJson(path.join(projectPath, 'data', 'floorplan-hotspots.json'), {});
+  const layoutHotspots = readLayoutHotspotsMerged(projectPath);
 
   const projectId = await upsertProjectRow(
     client,
@@ -305,7 +319,7 @@ async function syncProjectWithClient(client, project, { createdByUserId, previou
     }
   }
 
-  for (const [layoutFilename, entries] of Object.entries(floorplanHotspots || {})) {
+  for (const [layoutFilename, entries] of Object.entries(layoutHotspots || {})) {
     const layoutId = layoutMap.get(layoutFilename);
     if (!layoutId || !Array.isArray(entries)) continue;
     for (const entry of entries) {
@@ -329,6 +343,7 @@ async function syncProjectWithClient(client, project, { createdByUserId, previou
   const auditEntries = [
     ...getAuditEntries(projectPath, 'projects', ownerUserId),
     ...getAuditEntries(projectPath, 'panos', ownerUserId),
+    ...getAuditEntries(projectPath, 'layouts', ownerUserId),
     ...getAuditEntries(projectPath, 'floorplans', ownerUserId),
   ];
 
@@ -366,7 +381,7 @@ async function syncProjectWithClient(client, project, { createdByUserId, previou
     layouts: layoutMap.size,
     hotspotGroups: Object.keys(hotspots || {}).length,
     blurMaskGroups: Object.keys(blurMasks || {}).length,
-    floorplanHotspotGroups: Object.keys(floorplanHotspots || {}).length,
+    layoutHotspotGroups: Object.keys(layoutHotspots || {}).length,
     auditEntries: auditEntries.length,
   };
 }

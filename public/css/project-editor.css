@@ -98,7 +98,7 @@
   white-space: nowrap; 
 }
 
-/* Tabs for Panoramic Scenes / Floor Plan */
+/* Tabs for Panoramic Scenes / Layout */
 #pano-sidebar-tabs {
   display: flex;
 }
@@ -258,8 +258,8 @@
   opacity: 0.5;
 }
 
-/* Floor plan list: separate content from pano-image-list */
-#pano-floorplan-list {
+/* Layout list: separate content from pano-image-list */
+#pano-layout-list {
   overflow-y: auto;
   overflow-x: hidden;
   border-radius: .2rem;
@@ -267,10 +267,10 @@
   list-style: none;
   background-color: white;
   max-height: 340px;
-  display: none; /* hidden by default; shown when Floor Plan tab is active */
+  display: none; /* hidden by default; shown when Layout tab is active */
 }
 
-#pano-floorplan-list > li {
+#pano-layout-list > li {
   padding: 5px 10px;
   margin: 0.2rem;
   border-radius: 4px;
@@ -286,7 +286,7 @@
   text-overflow: ellipsis;
 }
 
-.floorplan-item-name {
+.layout-item-name {
   flex: 1;
   min-width: 0;
   white-space: nowrap;
@@ -294,7 +294,7 @@
   text-overflow: ellipsis;
 }
 
-.floorplan-item-actions {
+.layout-item-actions {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -304,14 +304,14 @@
   transition: opacity 0.15s ease;
 }
 
-#pano-floorplan-list li:hover .floorplan-item-actions,
-#pano-floorplan-list li.active .floorplan-item-actions {
+#pano-layout-list li:hover .layout-item-actions,
+#pano-layout-list li.active .layout-item-actions {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
 }
 
-.floorplan-item-action-btn {
+.layout-item-action-btn {
   width: 22px;
   height: 22px;
   border: none;
@@ -325,45 +325,45 @@
   transition: background 0.15s ease;
 }
 
-.floorplan-item-action-btn img {
+.layout-item-action-btn img {
   width: 14px;
   height: 14px;
   display: block;
 }
 
-.floorplan-item-action-btn:hover {
+.layout-item-action-btn:hover {
   background: rgba(0, 0, 0, 0.12);
 }
 
-#pano-floorplan-list li:hover {
+#pano-layout-list li:hover {
   background: #c5d4db;
 }
 
-#pano-floorplan-list li.active {
+#pano-layout-list li.active {
   background-color: #115272;
   color: #fff;
 }
 
-/* Archive panel */
-#pano-archive-panel {
+/* Audit logs panel */
+#pano-audit-logs-panel {
   overflow-y: auto;
   overflow-x: hidden;
   border-radius: 0.2rem;
   margin: 0.3rem;
   background-color: white;
   max-height: 340px;
-  display: none; /* hidden by default; shown when Archive tab is active */
+  display: none; /* hidden by default; shown when Audit Logs tab is active */
   padding: 10px;
 }
 
-.archive-project-title {
+.audit-logs-project-title {
   font-weight: 700;
   font-size: 0.8rem;
   color: #115272;
   margin-bottom: 6px;
 }
 
-#pano-archive-project-list {
+#pano-audit-logs-project-list {
   list-style: none;
   margin: 0 0 10px 0;
   padding: 0;
@@ -372,7 +372,7 @@
   gap: 6px;
 }
 
-#pano-archive-project-list li {
+#pano-audit-logs-project-list li {
   padding: 8px;
   border-radius: 4px;
   background: #eef3f6;
@@ -381,14 +381,14 @@
   line-height: 1.15rem;
 }
 
-.archive-entry-by {
+.audit-log-entry-by {
   color: rgba(0, 0, 0, 0.7);
   font-weight: 600;
   display: block;
   margin-top: 2px;
 }
 
-#pano-archive-target {
+#pano-audit-logs-target {
   font-weight: 600;
   font-size: 0.85rem;
   color: #115272;
@@ -398,7 +398,7 @@
   text-overflow: ellipsis;
 }
 
-#pano-archive-list {
+#pano-audit-logs-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -407,7 +407,7 @@
   gap: 6px;
 }
 
-#pano-archive-list li {
+#pano-audit-logs-list li {
   padding: 8px;
   border-radius: 4px;
   background: #d4dfe4;
@@ -416,18 +416,18 @@
   line-height: 1.15rem;
 }
 
-.archive-entry-ts {
+.audit-log-entry-ts {
   display: block;
   font-size: 0.72rem;
   color: rgba(0, 0, 0, 0.6);
   margin-bottom: 2px;
 }
 
-.archive-entry-msg {
+.audit-log-entry-msg {
   display: block;
 }
 
-#pano-archive-list li .archive-entry-image-link {
+#pano-audit-logs-list li .audit-log-entry-image-link {
   border: none;
   background: none;
   padding: 0;
@@ -439,17 +439,17 @@
   font-size: inherit;
 }
 
-#pano-archive-list li .archive-entry-image-link:hover {
+#pano-audit-logs-list li .audit-log-entry-image-link:hover {
   color: #083c52;
 }
 
-#pano-archive-list li .archive-entry-image-link:disabled {
+#pano-audit-logs-list li .audit-log-entry-image-link:disabled {
   cursor: wait;
   opacity: 0.62;
   text-decoration: none;
 }
 
-.archive-source-loading-overlay {
+.audit-log-source-loading-overlay {
   position: fixed;
   inset: 0;
   background: rgba(6, 20, 30, 0.72);
@@ -460,11 +460,11 @@
   padding: 16px;
 }
 
-.archive-source-loading-overlay.visible {
+.audit-log-source-loading-overlay.visible {
   display: flex;
 }
 
-.archive-source-loading-box {
+.audit-log-source-loading-box {
   min-width: 220px;
   max-width: min(90vw, 380px);
   background: #173746;
@@ -478,29 +478,29 @@
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
 }
 
-.archive-source-loading-spinner {
+.audit-log-source-loading-spinner {
   width: 22px;
   height: 22px;
   border-radius: 50%;
   border: 3px solid rgba(255, 255, 255, 0.28);
   border-top-color: #ffffff;
   flex-shrink: 0;
-  animation: archive-source-spin 0.8s linear infinite;
+  animation: audit-log-source-spin 0.8s linear infinite;
 }
 
-.archive-source-loading-text {
+.audit-log-source-loading-text {
   font-size: 0.88rem;
   font-weight: 600;
   line-height: 1.2;
 }
 
-@keyframes archive-source-spin {
+@keyframes audit-log-source-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-.archive-viewer-modal-overlay {
+.audit-log-viewer-modal-overlay {
   position: fixed;
   inset: 0;
   background: rgba(6, 20, 30, 0.7);
@@ -511,11 +511,11 @@
   padding: 16px;
 }
 
-.archive-viewer-modal-overlay.visible {
+.audit-log-viewer-modal-overlay.visible {
   display: flex;
 }
 
-.archive-viewer-modal {
+.audit-log-viewer-modal {
   width: min(1100px, 96vw);
   height: min(720px, 90vh);
   background: #0f1f27;
@@ -526,7 +526,7 @@
   flex-direction: column;
 }
 
-.archive-viewer-modal-header {
+.audit-log-viewer-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -536,7 +536,7 @@
   padding: 10px 12px;
 }
 
-.archive-viewer-modal-title {
+.audit-log-viewer-modal-title {
   min-width: 0;
   font-size: 0.9rem;
   font-weight: 600;
@@ -545,7 +545,7 @@
   text-overflow: ellipsis;
 }
 
-.archive-viewer-close {
+.audit-log-viewer-close {
   border: none;
   border-radius: 4px;
   padding: 6px 10px;
@@ -554,35 +554,35 @@
   cursor: pointer;
 }
 
-.archive-viewer-close:hover {
+.audit-log-viewer-close:hover {
   background: #2f799a;
 }
 
-.archive-viewer-modal-body {
+.audit-log-viewer-modal-body {
   flex: 1;
   min-height: 0;
   background: #0d1720;
   position: relative;
 }
 
-.archive-viewer-pano,
-.archive-viewer-image {
+.audit-log-viewer-pano,
+.audit-log-viewer-image {
   width: 100%;
   height: 100%;
   display: none;
 }
 
-.archive-viewer-pano.visible,
-.archive-viewer-image.visible {
+.audit-log-viewer-pano.visible,
+.audit-log-viewer-image.visible {
   display: block;
 }
 
-.archive-viewer-image {
+.audit-log-viewer-image {
   object-fit: contain;
   background: #0d1720;
 }
 
-/* Circle "+" button for adding floor plans */
+/* Circle "+" button for adding layouts */
 #add-plan-btn {
   width: 32px;
   height: 32px;
@@ -609,8 +609,8 @@
   background: #000;
 }
 
-/* Bottom-left floor plan preview (image only, no title) */
-.floorplan-preview {
+/* Bottom-left layout preview (image only, no title) */
+.layout-preview {
   position: absolute;
   left: .5rem;
   bottom: .5rem;
@@ -627,18 +627,18 @@
   transition: opacity 280ms ease, transform 280ms ease, visibility 0s linear 280ms;
 }
 
-.floorplan-preview.visible {
+.layout-preview.visible {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
   transform: translateY(0);
   transition: opacity 280ms ease, transform 280ms ease;
 }
-.floorplan-preview.visible:hover {
+.layout-preview.visible:hover {
   transform: translateY(0) scale(1.05);
 }
 
-.floorplan-preview img {
+.layout-preview img {
   display: block;
   width: 100%;
   height: auto;
@@ -647,13 +647,13 @@
 }
 
 /* Ensure rendered display hotspot layer positions correctly */
-.floorplan-preview .floorplan-image-wrap {
+.layout-preview .layout-image-wrap {
   position: relative;
   width: 100%;
 }
 
-/* Expanded floor plan modal */
-.floorplan-modal-overlay {
+/* Expanded layout modal */
+.layout-modal-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
@@ -668,14 +668,14 @@
   transition: opacity 280ms ease, visibility 0s linear 280ms;
 }
 
-.floorplan-modal-overlay.visible {
+.layout-modal-overlay.visible {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
   transition: opacity 280ms ease;
 }
 
-.floorplan-modal {
+.layout-modal {
   background: #ffffff;
   max-width: 80vw;
   max-height: 90vh;
@@ -691,18 +691,18 @@
   transition: opacity 280ms ease, transform 280ms ease;
 }
 
-.floorplan-modal-overlay.visible .floorplan-modal {
+.layout-modal-overlay.visible .layout-modal {
   opacity: 1;
   transform: translateY(0);
 }
 
-.floorplan-modal-header {
+.layout-modal-header {
   padding: 10px 12px;
   background: #ffffff;
   border-bottom: 1px solid #e0e0e0;
 }
 
-.floorplan-modal-title {
+.layout-modal-title {
   font-weight: 700;
   font-size: 0.95rem;
   text-align: center;
@@ -712,7 +712,7 @@
   text-overflow: ellipsis;
 }
 
-.floorplan-modal-body {
+.layout-modal-body {
   flex: 1;
   min-height: 0;
   padding: 12px;
@@ -725,7 +725,7 @@
   width: 100%;
 }
 
-.floorplan-image-wrap {
+.layout-image-wrap {
   position: relative;
   width: 100%;
   height: 100%;
@@ -734,12 +734,12 @@
   justify-content: center;
 }
 
-.floorplan-modal-body .floorplan-image-wrap {
+.layout-modal-body .layout-image-wrap {
   width: 100%;
   height: 100%;
 }
 
-.floorplan-modal-body .floorplan-image-stage {
+.layout-modal-body .layout-image-stage {
   position: relative;
   display: inline-block;
   flex: 0 0 auto;
@@ -749,7 +749,7 @@
   max-height: 100%;
 }
 
-.floorplan-modal-body img {
+.layout-modal-body img {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -758,7 +758,7 @@
   display: block;
 }
 
-.floorplan-modal-actions {
+.layout-modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 0;
@@ -767,7 +767,7 @@
   border-top: 1px solid #e0e0e0;
 }
 
-.floorplan-action-btn {
+.layout-action-btn {
   padding: 6px 12px;
   font-size: 0.85rem;
   border-radius: 4px;
@@ -778,40 +778,40 @@
   transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
-.floorplan-action-btn:hover {
+.layout-action-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.25);
 }
 
-.floorplan-hotspot {
+.layout-hotspot {
   background: #3c7b8e;
   color: #fff;
 }
 
-.floorplan-hotspot.active {
+.layout-hotspot.active {
   background: #ffffff;
   color: #0d3d52;
 }
 
 /* Blur main content slightly while modal is open */
-body.floorplan-modal-open #pano-panel {
+body.layout-modal-open #pano-panel {
   filter: blur(2px);
 }
 
-/* Hotspots inside expanded floor plan */
-.floorplan-hotspot-layer {
+/* Hotspots inside expanded layout */
+.layout-hotspot-layer {
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
 
-.floorplan-hotspot-pin {
+.layout-hotspot-pin {
   position: absolute;
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
 
-.floorplan-hotspot-pin-dot {
+.layout-hotspot-pin-dot {
   width: 15px;
   height: 15px;
   border-radius: 50%;
@@ -825,28 +825,28 @@ body.floorplan-modal-open #pano-panel {
 }
 
 /* Per-view hotspot sizes */
-.floorplan-hotspot-pin-dot.hotspot-preview {
+.layout-hotspot-pin-dot.hotspot-preview {
   width: 14px;
   height: 14px;
 }
 
-.floorplan-hotspot-pin-dot.hotspot-modal {
+.layout-hotspot-pin-dot.hotspot-modal {
   width: 20px;
   height: 20px;
 }
 
-.floorplan-hotspot-pin-dot:hover {
+.layout-hotspot-pin-dot:hover {
   transform: scale(1.1);
   background: #5a8ac8;
 }
 
-/* Selected floor plan hotspot: highlight in light green */
-.floorplan-hotspot-pin-dot.selected {
+/* Selected layout hotspot: highlight in light green */
+.layout-hotspot-pin-dot.selected {
   background: rgb(222, 222, 21);
   border-color: #c8e6c9;
 }
 
-.floorplan-hotspot-pin-remove {
+.layout-hotspot-pin-remove {
   position: absolute;
   top: -6px;
   right: -6px;
@@ -870,17 +870,17 @@ body.floorplan-modal-open #pano-panel {
   pointer-events: auto;
 }
 
-.floorplan-hotspot-pin-dot:hover ~ .floorplan-hotspot-pin-remove,
-.floorplan-hotspot-pin-remove:hover {
+.layout-hotspot-pin-dot:hover ~ .layout-hotspot-pin-remove,
+.layout-hotspot-pin-remove:hover {
   opacity: 1;
 }
 
-.floorplan-hotspot-pin-remove:hover {
+.layout-hotspot-pin-remove:hover {
   background: #8b3a3a;
   transform: scale(1.1);
 }
 
-.floorplan-hotspot-pin-remove::before {
+.layout-hotspot-pin-remove::before {
   content: '×';
   font-weight: bold;
 }

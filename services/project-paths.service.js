@@ -1,26 +1,71 @@
 const path = require('path');
+const fs = require('fs');
 const {
   findProjectByIdOrNumber,
   projectsDir,
 } = require('./project-manifest.service');
 
+function migrateLegacyFloorplanArtifacts(base) {
+  if (!base || !fs.existsSync(base)) return;
+  const oldDir = path.join(base, 'floorplans');
+  const newDir = path.join(base, 'layouts');
+  try {
+    if (fs.existsSync(oldDir) && !fs.existsSync(newDir)) {
+      fs.renameSync(oldDir, newDir);
+    }
+  } catch (error) {
+    console.error('Could not migrate floorplans directory to layouts:', error);
+  }
+  const dataDir = path.join(base, 'data');
+  const filePairs = [
+    ['floorplan-hotspots.json', 'layout-hotspots.json'],
+    ['floorplan-order.json', 'layout-order.json'],
+  ];
+  for (const [from, to] of filePairs) {
+    const a = path.join(dataDir, from);
+    const b = path.join(dataDir, to);
+    try {
+      if (fs.existsSync(a) && !fs.existsSync(b)) {
+        fs.renameSync(a, b);
+      }
+    } catch (error) {
+      console.error(`Could not migrate ${from} to ${to}:`, error);
+    }
+  }
+  const auditBase = path.join(dataDir, 'audit');
+  const dirPairs = [
+    [path.join(auditBase, 'floorplans'), path.join(auditBase, 'layouts')],
+    [path.join(auditBase, 'images', 'floorplans'), path.join(auditBase, 'images', 'layouts')],
+  ];
+  for (const [oldP, newP] of dirPairs) {
+    try {
+      if (fs.existsSync(oldP) && !fs.existsSync(newP)) {
+        fs.mkdirSync(path.dirname(newP), { recursive: true });
+        fs.renameSync(oldP, newP);
+      }
+    } catch (error) {
+      console.error('Could not migrate audit directory:', oldP, error);
+    }
+  }
+}
+
 function getProjectPaths(projectId) {
   if (!projectId || projectId.includes('..') || /[\/\\]/.test(projectId)) return null;
   const base = path.join(projectsDir, projectId);
+  migrateLegacyFloorplanArtifacts(base);
   return {
     base,
     upload: path.join(base, 'upload'),
-    floorplans: path.join(base, 'floorplans'),
+    layouts: path.join(base, 'layouts'),
     tiles: path.join(base, 'tiles'),
     data: path.join(base, 'data'),
   };
 }
 
 function ensureProjectDirs(projectId) {
-  const fs = require('fs');
   const projectPaths = getProjectPaths(projectId);
   if (!projectPaths) return null;
-  [projectPaths.upload, projectPaths.floorplans, projectPaths.tiles, projectPaths.data].forEach((dir) => {
+  [projectPaths.upload, projectPaths.layouts, projectPaths.tiles, projectPaths.data].forEach((dir) => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   });
   return projectPaths;
@@ -34,14 +79,14 @@ function resolvePaths(req) {
   if (!projectPaths) return null;
   return {
     uploadsDir: projectPaths.upload,
-    floorplansDir: projectPaths.floorplans,
+    layoutsDir: projectPaths.layouts,
     tilesDir: projectPaths.tiles,
     hotspotsPath: path.join(projectPaths.data, 'hotspots.json'),
     blurMasksPath: path.join(projectPaths.data, 'blur-masks.json'),
-    floorplanHotspotsPath: path.join(projectPaths.data, 'floorplan-hotspots.json'),
+    layoutHotspotsPath: path.join(projectPaths.data, 'layout-hotspots.json'),
     initialViewsPath: path.join(projectPaths.data, 'initial-views.json'),
     panoramaOrderPath: path.join(projectPaths.data, 'panorama-order.json'),
-    floorplanOrderPath: path.join(projectPaths.data, 'floorplan-order.json'),
+    layoutOrderPath: path.join(projectPaths.data, 'layout-order.json'),
     projectId,
   };
 }

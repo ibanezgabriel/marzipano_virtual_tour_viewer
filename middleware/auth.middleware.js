@@ -44,15 +44,15 @@ function isProtectedMutationRequest(req) {
     requestPath === '/api/projects' ||
     /^\/api\/projects\/[^/]+$/.test(requestPath) ||
     requestPath === '/upload' ||
-    requestPath === '/upload-floorplan' ||
-    requestPath === '/upload-floorplan/update' ||
-    requestPath === '/api/floorplans/rename' ||
-    /^\/api\/floorplans\/[^/]+$/.test(requestPath) ||
-    requestPath === '/api/floorplans/order' ||
+    requestPath === '/upload-layout' ||
+    requestPath === '/upload-layout/update' ||
+    requestPath === '/api/layouts/rename' ||
+    /^\/api\/layouts\/[^/]+$/.test(requestPath) ||
+    requestPath === '/api/layouts/order' ||
     requestPath === '/api/panos/order' ||
     requestPath === '/upload/rename' ||
     requestPath === '/upload/update' ||
-    requestPath === '/api/floorplan-hotspots' ||
+    requestPath === '/api/layout-hotspots' ||
     requestPath === '/api/blur-masks' ||
     requestPath === '/api/hotspots' ||
     requestPath === '/api/initial-views' ||

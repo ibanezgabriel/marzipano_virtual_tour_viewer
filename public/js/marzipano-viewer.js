@@ -274,7 +274,7 @@ export async function loadImages(onImagesLoaded) {
         }
       } else {
         if (!viewer && panoViewerEl) {
-          panoViewerEl.innerHTML = '<div class="no-pano-msg"><p>Select a Floor Plan from the list</p></div>';
+          panoViewerEl.innerHTML = '<div class="no-pano-msg"><p>Select a layout from the list</p></div>';
         }
       }
     }

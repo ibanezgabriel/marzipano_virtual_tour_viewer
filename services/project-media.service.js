@@ -12,48 +12,48 @@ async function listUploadedImages(uploadsDir) {
   return files.filter((file) => IMAGE_PATTERN.test(file));
 }
 
-async function listFloorplanImages(floorplansDir) {
+async function listLayoutImages(layoutsDir) {
   try {
-    const files = await fs.promises.readdir(floorplansDir);
+    const files = await fs.promises.readdir(layoutsDir);
     return files.filter((file) => IMAGE_PATTERN.test(file));
   } catch (error) {
-    if (error.code !== 'ENOENT') console.error('Error reading floorplans dir:', error);
+    if (error.code !== 'ENOENT') console.error('Error reading layouts dir:', error);
     return [];
   }
 }
 
-function readFloorplanOrder(floorplanOrderPath) {
+function readLayoutOrder(layoutOrderPath) {
   try {
-    const raw = fs.readFileSync(floorplanOrderPath, 'utf8');
+    const raw = fs.readFileSync(layoutOrderPath, 'utf8');
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch (error) {
-    if (error.code !== 'ENOENT') console.error('Error reading floorplan order:', error);
+    if (error.code !== 'ENOENT') console.error('Error reading layout order:', error);
     return [];
   }
 }
 
-function writeFloorplanOrder(floorplanOrderPath, order) {
-  const dir = path.dirname(floorplanOrderPath);
+function writeLayoutOrder(layoutOrderPath, order) {
+  const dir = path.dirname(layoutOrderPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(floorplanOrderPath, JSON.stringify(order, null, 2), 'utf8');
+  fs.writeFileSync(layoutOrderPath, JSON.stringify(order, null, 2), 'utf8');
 }
 
-function readFloorplanHotspots(floorplanHotspotsPath) {
+function readLayoutHotspots(layoutHotspotsPath) {
   try {
-    const raw = fs.readFileSync(floorplanHotspotsPath, 'utf8');
+    const raw = fs.readFileSync(layoutHotspotsPath, 'utf8');
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : {};
   } catch (error) {
-    if (error.code !== 'ENOENT') console.error('Error reading floor plan hotspots:', error);
+    if (error.code !== 'ENOENT') console.error('Error reading layout hotspots:', error);
     return {};
   }
 }
 
-function writeFloorplanHotspots(floorplanHotspotsPath, hotspots) {
-  const dir = path.dirname(floorplanHotspotsPath);
+function writeLayoutHotspots(layoutHotspotsPath, hotspots) {
+  const dir = path.dirname(layoutHotspotsPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(floorplanHotspotsPath, JSON.stringify(hotspots, null, 2), 'utf8');
+  fs.writeFileSync(layoutHotspotsPath, JSON.stringify(hotspots, null, 2), 'utf8');
 }
 
 function readBlurMasks(blurMasksPath) {
@@ -89,10 +89,10 @@ function renameBlurMasksForPano(paths, oldFilename, newFilename) {
   return { changed: true, blurMasks };
 }
 
-function clearFloorplanHotspotsForFilenames(paths, filenames) {
+function clearLayoutHotspotsForFilenames(paths, filenames) {
   const names = Array.from(new Set((filenames || []).filter(Boolean)));
   if (names.length === 0) return { changed: false, hotspots: null };
-  const hotspots = readFloorplanHotspots(paths.floorplanHotspotsPath);
+  const hotspots = readLayoutHotspots(paths.layoutHotspotsPath);
   let changed = false;
   names.forEach((name) => {
     if (Object.prototype.hasOwnProperty.call(hotspots, name)) {
@@ -100,12 +100,12 @@ function clearFloorplanHotspotsForFilenames(paths, filenames) {
       changed = true;
     }
   });
-  if (changed) writeFloorplanHotspots(paths.floorplanHotspotsPath, hotspots);
+  if (changed) writeLayoutHotspots(paths.layoutHotspotsPath, hotspots);
   return { changed, hotspots };
 }
 
-function floorplanOrderReplace(paths, oldFilename, newFilename) {
-  const order = readFloorplanOrder(paths.floorplanOrderPath);
+function layoutOrderReplace(paths, oldFilename, newFilename) {
+  const order = readLayoutOrder(paths.layoutOrderPath);
   const index = order.indexOf(oldFilename);
   if (index !== -1) order[index] = newFilename;
   else order.push(newFilename);
@@ -116,26 +116,26 @@ function floorplanOrderReplace(paths, oldFilename, newFilename) {
     seen.add(filename);
     deduped.push(filename);
   }
-  writeFloorplanOrder(paths.floorplanOrderPath, deduped);
+  writeLayoutOrder(paths.layoutOrderPath, deduped);
   return deduped;
 }
 
-async function getOrderedFloorplanFilenames(paths) {
-  const existing = await listFloorplanImages(paths.floorplansDir);
+async function getOrderedLayoutFilenames(paths) {
+  const existing = await listLayoutImages(paths.layoutsDir);
   const existingSet = new Set(existing);
-  const order = readFloorplanOrder(paths.floorplanOrderPath).filter((filename) => existingSet.has(filename));
+  const order = readLayoutOrder(paths.layoutOrderPath).filter((filename) => existingSet.has(filename));
   const inOrder = new Set(order);
   const appended = existing.filter((filename) => !inOrder.has(filename));
   const result = [...order, ...appended];
   const orderChanged = order.length !== result.length || appended.length > 0;
   if (orderChanged && result.length > 0) {
-    writeFloorplanOrder(paths.floorplanOrderPath, result);
+    writeLayoutOrder(paths.layoutOrderPath, result);
   }
   return result;
 }
 
-function floorplanOrderAppend(paths, filenames) {
-  const order = readFloorplanOrder(paths.floorplanOrderPath);
+function layoutOrderAppend(paths, filenames) {
+  const order = readLayoutOrder(paths.layoutOrderPath);
   const set = new Set(order);
   let changed = false;
   for (const filename of filenames || []) {
@@ -144,7 +144,7 @@ function floorplanOrderAppend(paths, filenames) {
     set.add(filename);
     changed = true;
   }
-  if (changed) writeFloorplanOrder(paths.floorplanOrderPath, order);
+  if (changed) writeLayoutOrder(paths.layoutOrderPath, order);
   return order;
 }
 
@@ -237,16 +237,16 @@ async function ensureTilesForFilename(paths, filename) {
 
 module.exports = {
   listUploadedImages,
-  readFloorplanOrder,
-  writeFloorplanOrder,
-  getOrderedFloorplanFilenames,
-  floorplanOrderAppend,
-  floorplanOrderReplace,
+  readLayoutOrder,
+  writeLayoutOrder,
+  getOrderedLayoutFilenames,
+  layoutOrderAppend,
+  layoutOrderReplace,
   getOrderedFilenames,
   writePanoramaOrder,
   panoramaOrderAppend,
   panoramaOrderReplace,
   ensureTilesForFilename,
   renameBlurMasksForPano,
-  clearFloorplanHotspotsForFilenames,
+  clearLayoutHotspotsForFilenames,
 };
