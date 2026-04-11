@@ -8,6 +8,7 @@ const { emitToProject } = require('../services/project-events.service');
 const {
   appendAuditEntry,
   buildAuditMeta,
+  formatEditorAuditMessage,
   renameAuditLog,
   storeReplacedImageInAudit,
 } = require('../services/audit.service');
@@ -34,8 +35,8 @@ router.post('/upload-layout', layoutUpload.array('layout', 20), async (req, res)
   try {
     filenames.forEach((name) => {
       appendAuditEntry(paths, 'layout', name, {
-        action: 'upload',
-        message: 'Layout uploaded.',
+        action: 'Layout_Upload',
+        message: formatEditorAuditMessage('Layout_Upload', { filename: name }),
         meta: buildAuditMeta(undefined, req.authUser),
       });
     });
@@ -103,9 +104,9 @@ router.put('/upload-layout/update', layoutUpload.single('layout'), async (req, r
     if (oldFilename === newFilename) {
       try {
         appendAuditEntry(paths, 'layout', newFilename, {
-          action: 'update',
-          message: 'Layout updated.',
-          meta: buildAuditMeta(undefined, req.authUser),
+          action: 'Layout_Update',
+          message: formatEditorAuditMessage('Layout_Update', { oldFilename, newFilename }),
+          meta: buildAuditMeta({ replaced: { oldFilename, newFilename } }, req.authUser),
         });
       } catch (_error) {}
       try {
@@ -135,18 +136,21 @@ router.put('/upload-layout/update', layoutUpload.single('layout'), async (req, r
     try {
       renameAuditLog(paths, 'layout', oldFilename, newFilename);
       appendAuditEntry(paths, 'layout', newFilename, {
-        action: 'update',
-        message: `Layout updated (replaced "${oldFilename}" with "${newFilename}").`,
+        action: 'Layout_Update',
+        message: formatEditorAuditMessage('Layout_Update', { oldFilename, newFilename }),
         meta: buildAuditMeta(
-          archivedImage
-            ? {
-                archivedImage: {
-                  kind: 'layout',
-                  originalFilename: archivedImage.originalFilename,
-                  storedFilename: archivedImage.storedFilename,
-                },
-              }
-            : undefined,
+          {
+            replaced: { oldFilename, newFilename },
+            ...(archivedImage
+              ? {
+                  archivedImage: {
+                    kind: 'layout',
+                    originalFilename: archivedImage.originalFilename,
+                    storedFilename: archivedImage.storedFilename,
+                  },
+                }
+              : {}),
+          },
           req.authUser
         ),
       });
@@ -217,9 +221,9 @@ router.put('/api/layouts/rename', async (req, res) => {
     try {
       renameAuditLog(paths, 'layout', oldFilename, newFilename);
       appendAuditEntry(paths, 'layout', newFilename, {
-        action: 'rename',
-        message: `Layout renamed from "${oldFilename}" to "${newFilename}".`,
-        meta: buildAuditMeta(undefined, req.authUser),
+        action: 'Layout_Rename',
+        message: formatEditorAuditMessage('Layout_Rename', { oldFilename, newFilename }),
+        meta: buildAuditMeta({ renamed: { oldFilename, newFilename } }, req.authUser),
       });
     } catch (_error) {}
     try {

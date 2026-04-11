@@ -75,7 +75,9 @@ function createLiveImageUrl(kind, filename) {
 
 function parseRenamedFilenamesFromMessage(message) {
   const text = String(message || '');
-  const match = text.match(/renamed\s+from\s+"([^"]+)"\s+to\s+"([^"]+)"/i);
+  const legacy = text.match(/renamed\s+from\s+"([^"]+)"\s+to\s+"([^"]+)"/i);
+  const modern = text.match(/rename:\s*'([^']+)'\s*to\s*'([^']+)'/i);
+  const match = legacy || modern;
   if (!match) return null;
   const oldFilename = match[1] ? match[1].trim() : '';
   const newFilename = match[2] ? match[2].trim() : '';
@@ -85,12 +87,29 @@ function parseRenamedFilenamesFromMessage(message) {
 
 function parseReplacedFilenamesFromMessage(message) {
   const text = String(message || '');
-  const match = text.match(/replaced\s+"([^"]+)"\s+with\s+"([^"]+)"/i);
+  const legacy = text.match(/replaced\s+"([^"]+)"\s+with\s+"([^"]+)"/i);
+  const modern = text.match(/update:\s*'([^']+)'\s*to\s*'([^']+)'/i);
+  const match = legacy || modern;
   if (!match) return null;
   const oldFilename = match[1] ? match[1].trim() : '';
   const newFilename = match[2] ? match[2].trim() : '';
   if (!oldFilename || !newFilename) return null;
   return { oldFilename, newFilename };
+}
+
+function readReplacedMeta(entry) {
+  const replaced = entry && entry.meta && entry.meta.replaced && typeof entry.meta.replaced === 'object'
+    ? entry.meta.replaced
+    : null;
+  if (!replaced) return null;
+  const oldFilename = replaced.oldFilename ? String(replaced.oldFilename).trim() : '';
+  const newFilename = replaced.newFilename ? String(replaced.newFilename).trim() : '';
+  if (!oldFilename || !newFilename) return null;
+  return { oldFilename, newFilename };
+}
+
+function getReplacedPair(entry) {
+  return readReplacedMeta(entry) || parseReplacedFilenamesFromMessage(entry && entry.message);
 }
 
 function createLiveFilenameResolver(entries) {
@@ -128,7 +147,7 @@ function createArchivedImageResolver(entries, defaultKind) {
     : [];
 
   ordered.forEach((entry) => {
-    const replaced = parseReplacedFilenamesFromMessage(entry && entry.message);
+    const replaced = getReplacedPair(entry);
     if (!replaced) return;
     const archived = entry && entry.meta && entry.meta.archivedImage;
     if (!archived || !archived.storedFilename) return;
@@ -363,21 +382,11 @@ function createAuditLogViewerModal() {
     overlay.setAttribute('aria-hidden', 'false');
 
     if (kind === 'pano') {
-      paneEl.classList.add('visible');
-      imgEl.classList.remove('visible');
-      try {
-        const viewer = ensurePanoViewer();
-        const source = Marzipano.ImageUrlSource.fromString(imageUrl);
-        const geometry = new Marzipano.EquirectGeometry([{ width: AUDIT_LOG_EQUIRECT_WIDTH }]);
-        const limiter = Marzipano.RectilinearView.limit.traditional(AUDIT_LOG_MIN_FOV, AUDIT_LOG_MAX_FOV);
-        const view = new Marzipano.RectilinearView({ yaw: 0, pitch: 0, fov: Math.PI / 2 }, limiter);
-        const scene = viewer.createScene({ source, geometry, view });
-        scene.switchTo();
-      } catch (e) {
-        paneEl.classList.remove('visible');
-        imgEl.classList.add('visible');
-        imgEl.src = imageUrl;
-      }
+      // Use a plain <img> for audit comparisons to avoid black/blank Marzipano renders
+      // when the source is a raw archived image instead of a tiled scene.
+      paneEl.classList.remove('visible');
+      imgEl.classList.add('visible');
+      imgEl.src = imageUrl;
       return;
     }
 
@@ -522,14 +531,18 @@ export function initAuditLogs() {
     msg.className = 'audit-log-entry-msg';
     const text = entry && entry.message ? String(entry.message) : String(entry && entry.action ? entry.action : 'Update');
 
-    const replacedMatch = text.match(/^(.*replaced\s+)\"([^\"]+)\"(\s+with\s+)\"([^\"]+)\"(.*)$/i);
-    if (!replacedMatch) {
+    const legacyMatch = text.match(/^(.*replaced\s+)\"([^\"]+)\"(\s+with\s+)\"([^\"]+)\"(.*)$/i);
+    const modernMatch = text.match(/^(.*update:\s*)'([^']+)'(\s*to\s*)'([^']+)'(.*)$/i);
+    const match = legacyMatch || modernMatch;
+    if (!match) {
       msg.textContent = text;
       return msg;
     }
 
-    const [, beforeOld, oldFilename, between, newFilename, afterNew] = replacedMatch;
+    const [, beforeOld, oldFilename, betweenRaw, newFilename, afterNew] = match;
     msg.appendChild(document.createTextNode(beforeOld || ''));
+    const between = betweenRaw || (legacyMatch ? ' with ' : ' to ');
+    if (modernMatch) msg.appendChild(document.createTextNode(`'`));
 
     const entryArchived = entry && entry.meta && entry.meta.archivedImage;
     const archivedKind =
@@ -573,7 +586,9 @@ export function initAuditLogs() {
     if (oldBtn) msg.appendChild(oldBtn);
     else msg.appendChild(document.createTextNode(`"${oldFilename}"`));
 
-    msg.appendChild(document.createTextNode(between || ' with '));
+    if (modernMatch) msg.appendChild(document.createTextNode(`'`));
+    msg.appendChild(document.createTextNode(between));
+    if (modernMatch) msg.appendChild(document.createTextNode(`'`));
 
     const resolvedNewFilename = resolveLiveFilename(newFilename);
     const resolvedArchivedNewImage =
@@ -602,6 +617,7 @@ export function initAuditLogs() {
     if (newBtn) msg.appendChild(newBtn);
     else msg.appendChild(document.createTextNode(`"${newFilename}"`));
 
+    if (modernMatch) msg.appendChild(document.createTextNode(`'`));
     msg.appendChild(document.createTextNode(afterNew || ''));
     return msg;
   }
