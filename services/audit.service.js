@@ -145,11 +145,25 @@ function appendAuditEntry(paths, kind, filename, { action, message, meta } = {},
   if (!paths || !filename) return;
   try {
     const existing = readAuditEntries(paths, kind, filename) || [];
+    const normalizedMeta = meta && typeof meta === 'object' ? meta : null;
+    const replaced = normalizedMeta && normalizedMeta.replaced && typeof normalizedMeta.replaced === 'object'
+      ? normalizedMeta.replaced
+      : null;
+    const renamed = normalizedMeta && normalizedMeta.renamed && typeof normalizedMeta.renamed === 'object'
+      ? normalizedMeta.renamed
+      : null;
+    const fallbackMessage = !message
+      ? formatEditorAuditMessage(action, {
+          filename,
+          oldFilename: replaced && replaced.oldFilename ? replaced.oldFilename : (renamed && renamed.oldFilename ? renamed.oldFilename : ''),
+          newFilename: replaced && replaced.newFilename ? replaced.newFilename : (renamed && renamed.newFilename ? renamed.newFilename : ''),
+        })
+      : '';
     const entry = {
       ts: new Date().toISOString(),
       action: action || 'update',
-      message: message || action || 'Update',
-      ...(meta && typeof meta === 'object' ? { meta } : {}),
+      message: message || fallbackMessage || action || 'Update',
+      ...(normalizedMeta ? { meta: normalizedMeta } : {}),
     };
     if (dedupeWindowMs > 0 && existing.length > 0) {
       const last = existing[existing.length - 1];
@@ -364,6 +378,50 @@ function buildCollectionChangeMessage(labelSingular, labelPlural, beforeCount, a
   return `${labelPlural.charAt(0).toUpperCase()}${labelPlural.slice(1)} updated (${after}).`;
 }
 
+function quoteAuditValue(value) {
+  const raw = String(value || '').trim();
+  // Avoid breaking the intended message template when filenames contain quotes.
+  return raw.replace(/'/g, '’');
+}
+
+function formatEditorAuditMessage(action, payload = {}) {
+  const a = String(action || '').trim();
+  const filename = quoteAuditValue(payload.filename || payload.name || '');
+  const oldName = quoteAuditValue(payload.oldFilename || payload.oldName || '');
+  const newName = quoteAuditValue(payload.newFilename || payload.newName || '');
+
+  switch (a) {
+    case 'Pano_Upload':
+      return `Panorama Upload: '${filename}'`;
+    case 'Pano_Update':
+      return `Panorama Update: '${oldName}' to '${newName}'`;
+    case 'Pano_Rename':
+      return `Panorama Rename: '${oldName}' to '${newName}'`;
+    case 'Layout_Upload':
+      return `Layout Upload: '${filename}'`;
+    case 'Layout_Update':
+      return `Layout Update: '${oldName}' to '${newName}'`;
+    case 'Layout_Rename':
+      return `Layout Rename: '${oldName}' to '${newName}'`;
+    case 'Pano_Hotspot_Create':
+      return `Hotspot Created: '${filename}'`;
+    case 'Pano_Hotspot_Delete':
+      return `Hotspot Deleted: '${filename}'`;
+    case 'Layout_Hotspot_Create':
+      return `Layout Hotspot Create: '${filename}'`;
+    case 'Layout_Hotspot_Delete':
+      return `Layout Hotspot Delete: '${filename}'`;
+    case 'Blur_Mask_Create':
+      return `Blur Created: '${filename}'`;
+    case 'Blur_Mask_Delete':
+      return `Blur Deleted: '${filename}'`;
+    case 'Blur_Mask_Update':
+      return `Blur Updated: '${filename}'`;
+    default:
+      return '';
+  }
+}
+
 module.exports = {
   readJsonFileOrDefault,
   resolveArchiveImagePath,
@@ -377,4 +435,5 @@ module.exports = {
   normalizeTopLevelArrayMap,
   getArrayCountByKey,
   buildCollectionChangeMessage,
+  formatEditorAuditMessage,
 };

@@ -7,6 +7,7 @@ const { emitToProject } = require('../services/project-events.service');
 const {
   appendAuditEntry,
   buildAuditMeta,
+  formatEditorAuditMessage,
   buildCollectionChangeMessage,
   diffChangedTopLevelKeys,
   getArrayCountByKey,
@@ -71,15 +72,17 @@ router.post('/api/layout-hotspots', async (req, res) => {
         if (!fs.existsSync(layoutImagePath)) return;
         const beforeCount = getArrayCountByKey(before, filename);
         const afterCount = getArrayCountByKey(normalizedBody, filename);
-        const message = buildCollectionChangeMessage('Layout hotspot', 'layout hotspots', beforeCount, afterCount);
+        if (beforeCount === afterCount) return;
+        const action = afterCount > beforeCount ? 'Layout_Hotspot_Create' : 'Layout_Hotspot_Delete';
+        const message = formatEditorAuditMessage(action, { filename });
         appendAuditEntry(
           paths,
           'layout',
           filename,
           {
-            action: 'hotspots',
+            action,
             message,
-            meta: buildAuditMeta(undefined, req.authUser),
+            meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
           },
           { dedupeWindowMs: 5000 }
         );
@@ -117,16 +120,21 @@ router.post('/api/blur-masks', async (req, res) => {
         if (!fs.existsSync(imagePath)) return;
         const beforeCount = getArrayCountByKey(before, filename);
         const afterCount = getArrayCountByKey(normalizedBody, filename);
-        if (beforeCount === afterCount) return;
-        const message = buildCollectionChangeMessage('Blur mask', 'blur masks', beforeCount, afterCount);
+        const action =
+          afterCount > beforeCount
+            ? 'Blur_Mask_Create'
+            : afterCount < beforeCount
+              ? 'Blur_Mask_Delete'
+              : 'Blur_Mask_Update';
+        const message = formatEditorAuditMessage(action, { filename });
         appendAuditEntry(
           paths,
           'pano',
           filename,
           {
-            action: 'blur',
+            action,
             message,
-            meta: buildAuditMeta(undefined, req.authUser),
+            meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
           },
           { dedupeWindowMs: 15000 }
         );
@@ -163,15 +171,17 @@ router.post('/api/hotspots', async (req, res) => {
         if (!fs.existsSync(imagePath)) return;
         const beforeCount = getArrayCountByKey(before, filename);
         const afterCount = getArrayCountByKey(normalizedBody, filename);
-        const message = buildCollectionChangeMessage('Hotspot', 'hotspots', beforeCount, afterCount);
+        if (beforeCount === afterCount) return;
+        const action = afterCount > beforeCount ? 'Pano_Hotspot_Create' : 'Pano_Hotspot_Delete';
+        const message = formatEditorAuditMessage(action, { filename });
         appendAuditEntry(
           paths,
           'pano',
           filename,
           {
-            action: 'hotspots',
+            action,
             message,
-            meta: buildAuditMeta(undefined, req.authUser),
+            meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
           },
           { dedupeWindowMs: 5000 }
         );
@@ -216,9 +226,9 @@ router.post('/api/initial-views', async (req, res) => {
           'pano',
           filename,
           {
-            action: 'initial-view',
-            message: 'Initial view saved.',
-            meta: buildAuditMeta(undefined, req.authUser),
+            action: 'Pano_Update',
+            message: formatEditorAuditMessage('Pano_Update', { oldFilename: filename, newFilename: filename }),
+            meta: buildAuditMeta({ initialView: true }, req.authUser),
           },
           { dedupeWindowMs: 3000 }
         );

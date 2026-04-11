@@ -9,6 +9,7 @@ const { createJob } = require('../services/job.service');
 const {
   appendAuditEntry,
   buildAuditMeta,
+  formatEditorAuditMessage,
   renameAuditLog,
   storeReplacedImageInAudit,
 } = require('../services/audit.service');
@@ -43,8 +44,8 @@ router.post('/upload', panoramaUpload.array('panorama', 20), async (req, res) =>
   try {
     filenames.forEach((name) => {
       appendAuditEntry(paths, 'pano', name, {
-        action: 'upload',
-        message: 'Panorama uploaded.',
+        action: 'Pano_Upload',
+        message: formatEditorAuditMessage('Pano_Upload', { filename: name }),
         meta: buildAuditMeta(undefined, req.authUser),
       });
     });
@@ -225,9 +226,9 @@ router.put('/upload/rename', async (req, res) => {
     try {
       renameAuditLog(paths, 'pano', oldFilename, newFilename);
       appendAuditEntry(paths, 'pano', newFilename, {
-        action: 'rename',
-        message: `Panorama renamed from "${oldFilename}" to "${newFilename}".`,
-        meta: buildAuditMeta(undefined, req.authUser),
+        action: 'Pano_Rename',
+        message: formatEditorAuditMessage('Pano_Rename', { oldFilename, newFilename }),
+        meta: buildAuditMeta({ renamed: { oldFilename, newFilename } }, req.authUser),
       });
     } catch (_error) {}
     try {
@@ -306,18 +307,21 @@ router.put('/upload/update', panoramaUpload.single('panorama'), (req, res) => {
       try {
         renameAuditLog(paths, 'pano', oldFilename, newFilename);
         appendAuditEntry(paths, 'pano', newFilename, {
-          action: 'update',
-          message: `Panorama updated (replaced "${oldFilename}" with "${newFilename}").`,
+          action: 'Pano_Update',
+          message: formatEditorAuditMessage('Pano_Update', { oldFilename, newFilename }),
           meta: buildAuditMeta(
-            archivedImage
-              ? {
-                  archivedImage: {
-                    kind: 'pano',
-                    originalFilename: archivedImage.originalFilename,
-                    storedFilename: archivedImage.storedFilename,
-                  },
-                }
-              : undefined,
+            {
+              replaced: { oldFilename, newFilename },
+              ...(archivedImage
+                ? {
+                    archivedImage: {
+                      kind: 'pano',
+                      originalFilename: archivedImage.originalFilename,
+                      storedFilename: archivedImage.storedFilename,
+                    },
+                  }
+                : {}),
+            },
             req.authUser
           ),
         });
