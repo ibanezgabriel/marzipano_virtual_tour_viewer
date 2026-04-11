@@ -90,6 +90,116 @@ function getAuditEntries(projectPath, kind, fallbackUserId) {
   });
 }
 
+function readSnapshotValue(container, key) {
+  if (!container || typeof container !== 'object') return '';
+  const value = container[key];
+  return value === undefined || value === null ? '' : String(value).trim();
+}
+
+function resolveProjectSnapshotEntries(auditEntries, fallbackProjectNumber, fallbackProjectName) {
+  if (!Array.isArray(auditEntries) || auditEntries.length === 0) return [];
+
+  const normalizedFallbackNumber = String(fallbackProjectNumber || '').trim();
+  const normalizedFallbackName = String(fallbackProjectName || '').trim();
+
+  const ordered = auditEntries
+    .map((entry, index) => ({ entry, index }))
+    .sort((a, b) => {
+      const aTs = Date.parse(a.entry && a.entry.createdAt ? a.entry.createdAt : '');
+      const bTs = Date.parse(b.entry && b.entry.createdAt ? b.entry.createdAt : '');
+      const aValid = Number.isFinite(aTs);
+      const bValid = Number.isFinite(bTs);
+      if (aValid && bValid && aTs !== bTs) return aTs - bTs;
+      if (aValid && !bValid) return -1;
+      if (!aValid && bValid) return 1;
+      return a.index - b.index;
+    });
+
+  let currentProjectNumber = '';
+  let currentProjectName = '';
+
+  const withSnapshots = ordered.map(({ entry, index }) => {
+    const metadata = entry && entry.metadata && typeof entry.metadata === 'object' ? entry.metadata : {};
+    const metadataProject = metadata.project && typeof metadata.project === 'object' ? metadata.project : {};
+    const metadataBefore = metadata.before && typeof metadata.before === 'object' ? metadata.before : {};
+    const metadataAfter = metadata.after && typeof metadata.after === 'object' ? metadata.after : {};
+
+    const projectNumberFromProject = readSnapshotValue(metadataProject, 'number');
+    const projectNumberFromBefore = readSnapshotValue(metadataBefore, 'number');
+    const projectNumberFromAfter = readSnapshotValue(metadataAfter, 'number');
+    const projectNameFromProject = readSnapshotValue(metadataProject, 'name');
+    const projectNameFromBefore = readSnapshotValue(metadataBefore, 'name');
+    const projectNameFromAfter = readSnapshotValue(metadataAfter, 'name');
+
+    const snapshotProjectNumber =
+      projectNumberFromProject ||
+      projectNumberFromAfter ||
+      currentProjectNumber;
+
+    const snapshotProjectName =
+      projectNameFromProject ||
+      projectNameFromAfter ||
+      currentProjectName;
+
+    currentProjectNumber = projectNumberFromAfter || projectNumberFromProject || currentProjectNumber;
+    currentProjectName = projectNameFromAfter || projectNameFromProject || currentProjectName;
+
+    return {
+      ...entry,
+      projectNumberFromBefore,
+      projectNameFromBefore,
+      projectNumberFromAfter,
+      projectNameFromAfter,
+      snapshotProjectNumber,
+      snapshotProjectName,
+      __orderIndex: index,
+    };
+  });
+
+  // Backfill missing snapshots for old entries by walking backward.
+  // This lets rename events push their "before" name/number to earlier entries.
+  let carryProjectNumber = normalizedFallbackNumber;
+  let carryProjectName = normalizedFallbackName;
+  for (let i = withSnapshots.length - 1; i >= 0; i -= 1) {
+    const item = withSnapshots[i];
+    const explicitNumber = item.snapshotProjectNumber || '';
+    const explicitName = item.snapshotProjectName || '';
+
+    if (!explicitNumber) {
+      item.snapshotProjectNumber = carryProjectNumber;
+    } else {
+      carryProjectNumber = explicitNumber;
+    }
+
+    if (!explicitName) {
+      item.snapshotProjectName = carryProjectName;
+    } else {
+      carryProjectName = explicitName;
+    }
+
+    if (item.projectNumberFromBefore) {
+      carryProjectNumber = item.projectNumberFromBefore;
+    }
+    if (item.projectNameFromBefore) {
+      carryProjectName = item.projectNameFromBefore;
+    }
+  }
+
+  return withSnapshots
+    .sort((a, b) => a.__orderIndex - b.__orderIndex)
+    .map((entry) => {
+      const {
+        __orderIndex,
+        projectNumberFromBefore,
+        projectNameFromBefore,
+        projectNumberFromAfter,
+        projectNameFromAfter,
+        ...cleanEntry
+      } = entry;
+      return cleanEntry;
+    });
+}
+
 function gatherPanoramaFilenames(projectPath) {
   const uploadDir = path.join(projectPath, 'upload');
   const initialViews = readJson(path.join(projectPath, 'data', 'initial-views.json'), {});
@@ -145,12 +255,44 @@ function gatherLayoutFilenames(projectPath) {
 }
 
 async function clearProjectData(client, projectId) {
-  await client.query('DELETE FROM audit_logs WHERE project_id = $1', [projectId]);
+  // IMPORTANT: audit logs are append-only "paper trail" records.
+  // Never delete them during sync, otherwise earlier entries (e.g. Project_Create)
+  // get replaced on every update sync and stop being immutable snapshots.
   await client.query('DELETE FROM layout_hotspots WHERE project_id = $1', [projectId]);
   await client.query('DELETE FROM panorama_hotspots WHERE project_id = $1', [projectId]);
   await client.query('DELETE FROM blur_masks WHERE project_id = $1', [projectId]);
   await client.query('DELETE FROM layouts WHERE project_id = $1', [projectId]);
   await client.query('DELETE FROM panoramas WHERE project_id = $1', [projectId]);
+}
+
+function makeAuditRowKey({ action, message, createdAtIso }) {
+  return `${String(action || '')}||${String(message || '')}||${String(createdAtIso || '')}`;
+}
+
+function toIsoOrEmpty(value) {
+  if (!value) return '';
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    if (!Number.isFinite(date.getTime())) return '';
+    return date.toISOString();
+  } catch (_error) {
+    return '';
+  }
+}
+
+async function loadExistingAuditRowKeys(client, projectId) {
+  const existing = await client.query(
+    `SELECT action, message, created_at
+       FROM audit_logs
+      WHERE project_id = $1`,
+    [projectId]
+  );
+  const keys = new Set();
+  for (const row of existing.rows || []) {
+    const createdAtIso = toIsoOrEmpty(row && row.created_at);
+    keys.add(makeAuditRowKey({ action: row.action, message: row.message, createdAtIso }));
+  }
+  return keys;
 }
 
 async function upsertProjectRow(client, { legacyId, projectNumber, projectName, status }, opts = {}) {
@@ -227,6 +369,17 @@ async function syncProjectWithClient(client, project, { createdByUserId, previou
     const bootstrapUser = await ensureBootstrapSuperAdmin();
     ownerUserId = String(bootstrapUser.id || '').trim();
   }
+  ownerUserId = formatUserId(ownerUserId);
+
+  const usersResult = await client.query('SELECT id FROM users');
+  const validUserIds = new Set(
+    usersResult.rows
+      .map((row) => formatUserId(row && row.id ? row.id : ''))
+      .filter(Boolean)
+  );
+  const fallbackAuditUserId = validUserIds.has(ownerUserId)
+    ? ownerUserId
+    : (validUserIds.values().next().value || ownerUserId);
 
   const projectPath = path.join(projectsDir, legacyId);
   const initialViews = readJson(path.join(projectPath, 'data', 'initial-views.json'), {});
@@ -346,8 +499,22 @@ async function syncProjectWithClient(client, project, { createdByUserId, previou
     ...getAuditEntries(projectPath, 'layouts', ownerUserId),
     ...getAuditEntries(projectPath, 'floorplans', ownerUserId),
   ];
+  const auditEntriesWithSnapshots = resolveProjectSnapshotEntries(auditEntries, projectNumber, projectName);
 
-  for (const entry of auditEntries) {
+  const existingAuditKeys = await loadExistingAuditRowKeys(client, projectId);
+  for (const entry of auditEntriesWithSnapshots) {
+    const createdAtIso = toIsoOrEmpty(entry && entry.createdAt);
+    const dedupeKey = makeAuditRowKey({
+      action: entry.action,
+      message: entry.message,
+      createdAtIso,
+    });
+    if (existingAuditKeys.has(dedupeKey)) continue;
+
+    const preferredCreatedBy = formatUserId(entry.createdByUserId || ownerUserId);
+    const auditCreatedBy = validUserIds.has(preferredCreatedBy)
+      ? preferredCreatedBy
+      : fallbackAuditUserId;
     await client.query(
       `INSERT INTO audit_logs (
         project_id,
@@ -361,15 +528,16 @@ async function syncProjectWithClient(client, project, { createdByUserId, previou
       ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, COALESCE($8::timestamptz, NOW()))`,
       [
         projectId,
-        projectNumber,
-        projectName,
-        formatUserId(entry.createdByUserId || ownerUserId),
+        entry.snapshotProjectNumber || projectNumber,
+        entry.snapshotProjectName || projectName,
+        auditCreatedBy,
         entry.action,
         entry.message,
         JSON.stringify(entry.metadata || {}),
         entry.createdAt,
       ]
     );
+    existingAuditKeys.add(dedupeKey);
   }
 
   return {
@@ -382,7 +550,7 @@ async function syncProjectWithClient(client, project, { createdByUserId, previou
     hotspotGroups: Object.keys(hotspots || {}).length,
     blurMaskGroups: Object.keys(blurMasks || {}).length,
     layoutHotspotGroups: Object.keys(layoutHotspots || {}).length,
-    auditEntries: auditEntries.length,
+    auditEntries: auditEntriesWithSnapshots.length,
   };
 }
 
