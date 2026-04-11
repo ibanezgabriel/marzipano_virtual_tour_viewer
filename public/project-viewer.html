@@ -6,10 +6,317 @@
     <title>QCDE - IPVT</title>
     <link rel="icon" type="image/x-icon" href="assets/icons/NEW-LOGO-QCDE.png"> 
     <link rel="stylesheet" href="css/main.css">
+    <style>
+        /* Project viewer-only responsive overrides (scoped to this page). */
+        body.project-viewer-page {
+            --pano-header-height: 3rem;
+            --pano-sidebar-width: 320px;
+            --pv-surface: rgba(17, 82, 114, 0.92); /* #115272 with alpha */
+            --pv-surface-solid: #115272;
+            --pv-accent: #18719e;
+            --pv-accent-strong: #0d3d52;
+            --pv-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+        }
+
+        body.project-viewer-page.no-pano-header {
+            --pano-header-height: 0px;
+        }
+
+        /* Keep the viewer visible below the fixed header. */
+        body.project-viewer-page #pano-panel {
+            top: var(--pano-header-height);
+        }
+
+        /* Header: avoid overflow on small screens and keep logo/title readable. */
+        body.project-viewer-page #pano-header {
+            height: var(--pano-header-height);
+            justify-content: space-between;
+            padding: 0 12px;
+            gap: 12px;
+            backdrop-filter: blur(8px);
+            background-color: var(--pv-surface);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+        }
+
+        body.project-viewer-page #pano-header-text {
+            position: static;
+            transform: none;
+            max-width: min(62vw, 520px);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        body.project-viewer-page #dep_logo {
+            position: static;
+            right: auto;
+            flex: 0 0 auto;
+        }
+
+        body.project-viewer-page #pano-header-title-wrap {
+            flex: 1 1 auto;
+            min-width: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        body.project-viewer-page #project-name-info-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.10);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 140ms ease, background-color 140ms ease, opacity 140ms ease;
+        }
+
+        body.project-viewer-page #project-name-info-btn:hover {
+            transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.16);
+        }
+
+        body.project-viewer-page #project-name-info-btn:active {
+            transform: translateY(0);
+            opacity: 0.9;
+        }
+
+        /* Hide the filename/title inside the expanded layout modal for public viewing. */
+        body.project-viewer-page .layout-modal-header {
+            padding: 0;
+            border-bottom: none;
+        }
+        body.project-viewer-page .layout-modal-title {
+            display: none;
+        }
+
+        /* Layout modal sizing: edge-to-edge on mobile, card-like on larger screens. */
+        @media (max-width: 600px) {
+            body.project-viewer-page .layout-modal {
+                max-width: 100vw;
+                max-height: 100vh;
+                border-radius: 0;
+            }
+            body.project-viewer-page .layout-modal-body {
+                padding: 10px;
+            }
+        }
+
+        /* Full project name modal (used when the header text is truncated). */
+        body.project-viewer-page #project-name-modal .modal {
+            min-width: 0;
+            width: min(92vw, 640px);
+            max-height: min(80vh, 420px);
+            overflow: auto;
+            padding: 18px;
+        }
+        body.project-viewer-page #project-name-modal .modal h2 {
+            margin-bottom: 10px;
+        }
+        body.project-viewer-page #project-name-modal-value {
+            font-weight: 600;
+            word-break: break-word;
+            line-height: 1.35;
+            color: #111;
+        }
+        body.project-viewer-page #pano-header-text:active {
+            opacity: 0.9;
+        }
+
+        /* Sidebar: sit below header, use full available height, scroll list content. */
+        body.project-viewer-page #pano-sidebar-wrapper {
+            top: var(--pano-header-height);
+            height: calc(100vh - var(--pano-header-height));
+            z-index: 6;
+        }
+
+        body.project-viewer-page #pano-sidebar-container {
+            width: var(--pano-sidebar-width);
+            height: 100%;
+            max-height: none;
+            box-shadow: var(--pv-shadow);
+            border-right: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        body.project-viewer-page #pano-layout-list {
+            flex: 1 1 auto;
+            max-height: none;
+        }
+
+        body.project-viewer-page #pano-layout-list > li {
+            padding: 12px 12px;
+            font-weight: 600;
+        }
+
+        body.project-viewer-page #pano-layout-toggle {
+            background-color: var(--pv-accent);
+        }
+
+        body.project-viewer-page #pano-sidebar-btn {
+            background-color: rgba(25, 103, 137, 0.95);
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.22);
+        }
+
+        body.project-viewer-page #pano-sidebar-btn > img {
+            transition: transform 160ms ease;
+        }
+
+        body.project-viewer-page #pano-sidebar-wrapper.collapsed #pano-sidebar-btn > img {
+            transform: rotate(180deg);
+        }
+
+        body.project-viewer-page #pano-sidebar-wrapper.collapsed {
+            transform: translateX(calc(-1 * var(--pano-sidebar-width)));
+        }
+
+        /* Mobile: allow the bottom-left layout preview to be swiped away. */
+        @media (max-width: 900px) {
+            body.project-viewer-page #layout-preview {
+                /* Rebuild the transform rules to allow adding an X offset without breaking existing Y/scale behavior. */
+                transform: translateX(var(--pv-preview-x, 0px)) translateY(8px);
+                transition: opacity 280ms ease, transform 280ms ease, visibility 0s linear 280ms;
+            }
+
+            body.project-viewer-page #layout-preview.visible {
+                transform: translateX(var(--pv-preview-x, 0px)) translateY(0);
+            }
+
+            body.project-viewer-page #layout-preview.visible:hover {
+                transform: translateX(var(--pv-preview-x, 0px)) translateY(0) scale(1.05);
+            }
+
+            body.project-viewer-page.pv-preview-hidden #layout-preview {
+                --pv-preview-x: calc(-100% - 18px);
+                opacity: 0;
+                pointer-events: none;
+            }
+
+            body.project-viewer-page #pv-layout-preview-handle {
+                position: fixed;
+                left: max(10px, env(safe-area-inset-left));
+                bottom: max(12px, env(safe-area-inset-bottom));
+                width: 44px;
+                height: 44px;
+                border-radius: 999px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(25, 103, 137, 0.95);
+                color: #fff;
+                font-weight: 800;
+                font-size: 1.25rem;
+                border: 1px solid rgba(255, 255, 255, 0.14);
+                box-shadow: var(--pv-shadow);
+                cursor: pointer;
+                opacity: 0;
+                visibility: hidden;
+                pointer-events: none;
+                transform: translateX(-8px);
+                transition: opacity 180ms ease, transform 180ms ease, visibility 0s linear 180ms;
+                z-index: 2500;
+            }
+
+            body.project-viewer-page.pv-preview-hidden.pv-has-layout-preview #pv-layout-preview-handle {
+                opacity: 1;
+                visibility: visible;
+                pointer-events: auto;
+                transform: translateX(0);
+                transition: opacity 180ms ease, transform 180ms ease;
+            }
+
+            body.project-viewer-page #pv-layout-preview-handle:active {
+                opacity: 0.9;
+                transform: translateX(0) scale(0.98);
+            }
+        }
+
+        /* Small helper toast for first-time public viewers. */
+        body.project-viewer-page #pv-toast {
+            position: fixed;
+            left: 50%;
+            bottom: max(12px, env(safe-area-inset-bottom));
+            transform: translateX(-50%);
+            z-index: 3000;
+            background: rgba(13, 61, 82, 0.92);
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 999px;
+            box-shadow: var(--pv-shadow);
+            font-weight: 600;
+            font-size: 0.92rem;
+            max-width: min(92vw, 560px);
+            text-align: center;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 220ms ease, transform 220ms ease, visibility 0s linear 220ms;
+        }
+
+        body.project-viewer-page #pv-toast.visible {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+            transform: translateX(-50%) translateY(-2px);
+            transition: opacity 220ms ease, transform 220ms ease;
+        }
+
+        /* Tablet + phone: use a percentage-based drawer width and slightly larger tap targets. */
+        @media (max-width: 900px) {
+            body.project-viewer-page {
+                --pano-header-height: 3.25rem;
+                --pano-sidebar-width: min(86vw, 320px);
+            }
+
+            body.project-viewer-page #pano-layout-toggle {
+                height: 48px;
+                font-size: 1rem;
+            }
+
+            body.project-viewer-page #pano-sidebar-btn {
+                height: 48px;
+                width: 48px;
+            }
+
+            body.project-viewer-page #pano-sidebar-btn > img {
+                height: 44px;
+                width: 44px;
+            }
+
+            body.project-viewer-page #project-name-info-btn {
+                width: 44px;
+                height: 44px;
+            }
+        }
+
+        /* Small phones: prioritize viewer space; title truncates more aggressively. */
+        @media (max-width: 480px) {
+            body.project-viewer-page #pano-header-text {
+                max-width: 56vw;
+                font-size: 0.95rem;
+            }
+
+            body.project-viewer-page #dep_logo {
+                height: 1.75rem;
+                width: 1.75rem;
+            }
+        }
+    </style>
 </head>
-<body>
+<body class="project-viewer-page">
     <header id="pano-header">
-        <span id="pano-header-text"></span>
+        <div id="pano-header-title-wrap">
+            <span id="pano-header-text" title="Tap to view full project name"></span>
+            <button id="project-name-info-btn" type="button" aria-label="View full project name" title="View full project name">i</button>
+        </div>
         <img id="dep_logo" src="assets/icons/NEW-LOGO-QCDE.png"> 
         <div id="pano-sidebar-wrapper">
             <aside id="pano-sidebar-container">
@@ -26,6 +333,170 @@
     <main id="pano-panel">
         <div id="pano-viewer"></div>
     </main>
+
+    <!-- Full project name modal (opens when user taps the header title). -->
+    <div class="modal-overlay" id="project-name-modal">
+        <div class="modal project-name-modal" role="dialog" aria-modal="true" aria-labelledby="project-name-modal-title">
+            <h2 id="project-name-modal-title">Project Name</h2>
+            <p id="project-name-modal-value"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-primary" id="project-name-modal-close">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="pv-toast" role="status" aria-live="polite"></div>
+    <button id="pv-layout-preview-handle" type="button" aria-label="Show layout preview" title="Show layout preview">›</button>
+
+    <script>
+        // Default the sidebar to collapsed on smaller screens so the panorama is the focus.
+        try {
+            if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
+                const wrapper = document.getElementById('pano-sidebar-wrapper');
+                if (wrapper) wrapper.classList.add('collapsed');
+            }
+        } catch (e) {}
+
+        // Allow users to tap/click the truncated project name to see the full value.
+        (function initProjectNameModal() {
+            const headerText = document.getElementById('pano-header-text');
+            const infoBtn = document.getElementById('project-name-info-btn');
+            const overlay = document.getElementById('project-name-modal');
+            const valueEl = document.getElementById('project-name-modal-value');
+            const closeBtn = document.getElementById('project-name-modal-close');
+            if (!headerText || !overlay || !valueEl || !closeBtn) return;
+
+            function open() {
+                const name = (headerText.textContent || '').trim();
+                if (!name) return;
+                valueEl.textContent = name;
+                overlay.classList.add('visible');
+            }
+
+            function close() {
+                overlay.classList.remove('visible');
+            }
+
+            headerText.addEventListener('click', open);
+            if (infoBtn) infoBtn.addEventListener('click', open);
+            closeBtn.addEventListener('click', close);
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) close();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') close();
+            });
+        })();
+
+        // First-time hint toast to help public users discover the Layout drawer.
+        (function initPublicHintToast() {
+            const toast = document.getElementById('pv-toast');
+            if (!toast) return;
+            const KEY = 'pv-hint-layout-v1';
+            let already = false;
+            try { already = localStorage.getItem(KEY) === '1'; } catch (e) {}
+            if (already) return;
+
+            // Delay slightly so it doesn’t flash before the viewer initializes.
+            setTimeout(() => {
+                try { localStorage.setItem(KEY, '1'); } catch (e) {}
+                toast.textContent = 'Tip: Tap “Layout” to view floor plans. Tap the project name to see the full title.';
+                toast.classList.add('visible');
+                setTimeout(() => toast.classList.remove('visible'), 5200);
+            }, 1200);
+        })();
+
+        // Mobile: swipe the bottom-left layout preview to the left to hide it.
+        // Leaves a small arrow button to bring it back.
+        (function initLayoutPreviewSwipe() {
+            try {
+                if (!window.matchMedia || !window.matchMedia('(max-width: 900px)').matches) return;
+
+                const KEY = 'pv-layout-preview-hidden-v1';
+                const body = document.body;
+                const handle = document.getElementById('pv-layout-preview-handle');
+                if (!body || !handle) return;
+
+                function setHidden(hidden) {
+                    body.classList.toggle('pv-preview-hidden', Boolean(hidden));
+                    try { localStorage.setItem(KEY, hidden ? '1' : '0'); } catch (e) {}
+                }
+
+                function syncHasPreview(preview) {
+                    const has = Boolean(preview);
+                    body.classList.toggle('pv-has-layout-preview', has);
+                }
+
+                function attach(preview) {
+                    if (!preview) return;
+                    syncHasPreview(preview);
+
+                    // Restore previous state.
+                    let hidden = false;
+                    try { hidden = localStorage.getItem(KEY) === '1'; } catch (e) {}
+                    if (hidden) setHidden(true);
+
+                    const SWIPE_THRESHOLD_PX = 60;
+                    const DOMINANCE_RATIO = 1.2;
+                    let startX = null;
+                    let startY = null;
+                    let activePointerId = null;
+                    let handled = false;
+
+                    preview.addEventListener('pointerdown', (e) => {
+                        if (!e || e.pointerType !== 'touch') return;
+                        if (body.classList.contains('pv-preview-hidden')) return;
+                        if (e.target && e.target.closest && e.target.closest('.layout-hotspot-pin')) return;
+                        activePointerId = e.pointerId;
+                        startX = e.clientX;
+                        startY = e.clientY;
+                        handled = false;
+                    });
+
+                    preview.addEventListener('pointermove', (e) => {
+                        if (activePointerId === null || e.pointerId !== activePointerId) return;
+                        if (handled || startX === null || startY === null) return;
+                        const dx = e.clientX - startX;
+                        const dy = e.clientY - startY;
+                        if (Math.abs(dx) < SWIPE_THRESHOLD_PX) return;
+                        if (Math.abs(dx) < Math.abs(dy) * DOMINANCE_RATIO) return;
+                        if (dx < 0) {
+                            handled = true;
+                            setHidden(true);
+                        }
+                    });
+
+                    function endSwipe(e) {
+                        if (activePointerId === null) return;
+                        if (e && e.pointerId !== activePointerId) return;
+                        activePointerId = null;
+                        startX = null;
+                        startY = null;
+                        handled = false;
+                    }
+
+                    preview.addEventListener('pointerup', endSwipe);
+                    preview.addEventListener('pointercancel', endSwipe);
+                }
+
+                handle.addEventListener('click', () => setHidden(false));
+
+                const existing = document.getElementById('layout-preview');
+                if (existing) {
+                    attach(existing);
+                    return;
+                }
+
+                const observer = new MutationObserver(() => {
+                    const preview = document.getElementById('layout-preview');
+                    if (!preview) return;
+                    observer.disconnect();
+                    attach(preview);
+                });
+                observer.observe(document.documentElement, { childList: true, subtree: true });
+            } catch (e) {}
+        })();
+    </script>
     <script type="module" src="js/project-viewer.js"></script>
     <script src="js/login.js"></script>
 </body>
