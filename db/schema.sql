@@ -56,7 +56,6 @@ CREATE TABLE IF NOT EXISTS panorama_hotspots (
   target_panorama_id BIGINT NOT NULL REFERENCES panoramas(id),
   yaw DOUBLE PRECISION NOT NULL,
   pitch DOUBLE PRECISION NOT NULL,
-  label TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -72,7 +71,6 @@ CREATE TABLE IF NOT EXISTS layout_hotspots (
   target_panorama_id BIGINT NOT NULL REFERENCES panoramas(id),
   x DOUBLE PRECISION NOT NULL,
   y DOUBLE PRECISION NOT NULL,
-  label TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

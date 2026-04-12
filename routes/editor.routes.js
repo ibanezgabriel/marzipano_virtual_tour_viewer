@@ -63,6 +63,53 @@ function diffHotspotEntryKeys(beforeList, afterList, kind) {
   return { created, deleted };
 }
 
+function blurMaskEntryKey(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const id = Number(entry.id);
+  if (Number.isFinite(id)) return `id:${id}`;
+  return `legacy:${roundHotspotNumber(entry.yaw)}:${roundHotspotNumber(entry.pitch)}:${roundHotspotNumber(entry.radiusRatio)}`;
+}
+
+function blurMaskEntryFingerprint(entry) {
+  if (!entry || typeof entry !== 'object') return '';
+  return `${roundHotspotNumber(entry.yaw)}|${roundHotspotNumber(entry.pitch)}|${roundHotspotNumber(entry.radiusRatio)}`;
+}
+
+function diffBlurMaskEntries(beforeList, afterList) {
+  const beforeMap = new Map();
+  const afterMap = new Map();
+  (Array.isArray(beforeList) ? beforeList : []).forEach((entry) => {
+    const key = blurMaskEntryKey(entry);
+    if (!key) return;
+    beforeMap.set(key, blurMaskEntryFingerprint(entry));
+  });
+  (Array.isArray(afterList) ? afterList : []).forEach((entry) => {
+    const key = blurMaskEntryKey(entry);
+    if (!key) return;
+    afterMap.set(key, blurMaskEntryFingerprint(entry));
+  });
+  const created = [];
+  const deleted = [];
+  const updated = [];
+  const keys = new Set([...beforeMap.keys(), ...afterMap.keys()]);
+  keys.forEach((key) => {
+    const beforeFp = beforeMap.get(key);
+    const afterFp = afterMap.get(key);
+    if (beforeFp === undefined && afterFp !== undefined) {
+      created.push(key);
+      return;
+    }
+    if (beforeFp !== undefined && afterFp === undefined) {
+      deleted.push(key);
+      return;
+    }
+    if (beforeFp !== undefined && afterFp !== undefined && beforeFp !== afterFp) {
+      updated.push(key);
+    }
+  });
+  return { created, deleted, updated };
+}
+
 function readObjectFile(res, filePath, errorMessage) {
   fs.readFile(filePath, 'utf8', (error, data) => {
     if (error) {
@@ -171,26 +218,38 @@ router.post('/api/blur-masks', async (req, res) => {
       changed.forEach((filename) => {
         const imagePath = path.join(paths.uploadsDir, filename);
         if (!fs.existsSync(imagePath)) return;
-        const beforeCount = getArrayCountByKey(before, filename);
-        const afterCount = getArrayCountByKey(normalizedBody, filename);
-        const action =
-          afterCount > beforeCount
-            ? 'Blur_Mask_Create'
-            : afterCount < beforeCount
-              ? 'Blur_Mask_Delete'
-              : 'Blur_Mask_Update';
-        const message = formatEditorAuditMessage(action, { filename });
-        appendAuditEntry(
-          paths,
-          'pano',
-          filename,
-          {
+        const beforeList = before && before[filename];
+        const afterList = normalizedBody && normalizedBody[filename];
+        const beforeCount = Array.isArray(beforeList) ? beforeList.length : 0;
+        const afterCount = Array.isArray(afterList) ? afterList.length : 0;
+        const { created, deleted, updated } = diffBlurMaskEntries(beforeList, afterList);
+
+        created.forEach(() => {
+          const action = 'Blur_Mask_Create';
+          appendAuditEntry(paths, 'pano', filename, {
             action,
-            message,
+            message: formatEditorAuditMessage(action, { filename }),
             meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
-          },
-          { dedupeWindowMs: 15000 }
-        );
+          });
+        });
+
+        deleted.forEach(() => {
+          const action = 'Blur_Mask_Delete';
+          appendAuditEntry(paths, 'pano', filename, {
+            action,
+            message: formatEditorAuditMessage(action, { filename }),
+            meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
+          });
+        });
+
+        updated.forEach(() => {
+          const action = 'Blur_Mask_Update';
+          appendAuditEntry(paths, 'pano', filename, {
+            action,
+            message: formatEditorAuditMessage(action, { filename }),
+            meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
+          });
+        });
       });
     } catch (_error) {}
     await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);

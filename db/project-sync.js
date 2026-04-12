@@ -440,15 +440,14 @@ async function syncProjectWithClient(client, project, { createdByUserId, previou
       const targetPanoramaId = panoramaMap.get(entry && entry.linkTo ? String(entry.linkTo) : '');
       if (!targetPanoramaId) continue;
       await client.query(
-        `INSERT INTO panorama_hotspots (project_id, panorama_id, target_panorama_id, yaw, pitch, label)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+        `INSERT INTO panorama_hotspots (project_id, panorama_id, target_panorama_id, yaw, pitch)
+         VALUES ($1, $2, $3, $4, $5)`,
         [
           projectId,
           panoramaId,
           targetPanoramaId,
           Number(entry.yaw),
           Number(entry.pitch),
-          entry && entry.label ? String(entry.label) : null,
         ]
       );
     }
@@ -479,15 +478,14 @@ async function syncProjectWithClient(client, project, { createdByUserId, previou
       const targetPanoramaId = panoramaMap.get(entry && entry.linkTo ? String(entry.linkTo) : '');
       if (!targetPanoramaId) continue;
       await client.query(
-        `INSERT INTO layout_hotspots (project_id, layout_id, target_panorama_id, x, y, label)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+        `INSERT INTO layout_hotspots (project_id, layout_id, target_panorama_id, x, y)
+         VALUES ($1, $2, $3, $4, $5)`,
         [
           projectId,
           layoutId,
           targetPanoramaId,
           Number(entry.x),
           Number(entry.y),
-          entry && entry.label ? String(entry.label) : null,
         ]
       );
     }
