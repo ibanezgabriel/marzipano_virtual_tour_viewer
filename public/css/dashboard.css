@@ -180,6 +180,24 @@
     cursor: pointer;
     /* text-transform: uppercase; */
 }
+.project-status-text {
+  cursor: default;
+}
+.project-status-text.status-completed {
+  color: #28a745;
+}
+.project-status-text.status-ongoing {
+  color: #fd7e14;
+}
+.modal-status-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d0d5da;
+  border-radius: 6px;
+  font-size: 1rem;
+  background: #fff;
+  color: #333;
+}
 .project-number-display {
   font-weight: 600;
 }
