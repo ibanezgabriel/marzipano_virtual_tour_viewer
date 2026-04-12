@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const projectsDir = path.join(__dirname, '..', 'projects');
+const { projectsDir } = require('../config/storage-paths');
 const projectsManifestPath = path.join(projectsDir, 'projects.json');
 const MAX_PROJECT_NUMBER_LENGTH = 20;
 const ALLOWED_PROJECT_STATUSES = new Set(['on-going', 'completed']);

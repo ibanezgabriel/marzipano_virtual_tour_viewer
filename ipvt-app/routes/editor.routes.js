@@ -340,17 +340,12 @@ router.post('/api/initial-views', async (req, res) => {
       changed.forEach((filename) => {
         const imagePath = path.join(paths.uploadsDir, filename);
         if (!fs.existsSync(imagePath)) return;
-        appendAuditEntry(
-          paths,
-          'pano',
-          filename,
-          {
-            action: 'Pano_Update',
-            message: formatEditorAuditMessage('Pano_Update', { oldFilename: filename, newFilename: filename }),
-            meta: buildAuditMeta({ initialView: true }, req.authUser),
-          },
-          { dedupeWindowMs: 3000 }
-        );
+        const action = 'Pano_Initial_View_Set';
+        appendAuditEntry(paths, 'pano', filename, {
+          action,
+          message: formatEditorAuditMessage(action, { filename }),
+          meta: buildAuditMeta({ initialView: true }, req.authUser),
+        });
       });
     } catch (_error) {}
     await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);

@@ -21,6 +21,7 @@ const {
   panoramaOrderReplace,
   ensureTilesForFilename,
   renameBlurMasksForPano,
+  clearBlurMasksForFilenames,
 } = require('../services/project-media.service');
 const {
   buildTilesForImage,
@@ -300,9 +301,11 @@ router.put('/upload/update', panoramaUpload.single('panorama'), (req, res) => {
         },
       });
       panoramaOrderReplace(paths, oldFilename, newFilename);
-      const blurRename = renameBlurMasksForPano(paths, oldFilename, newFilename);
-      if (blurRename.changed) {
-        emitToProject(req.app, paths.projectId, 'blur-masks:changed', blurRename.blurMasks);
+      // Updating a panorama replaces the image content; previous blur masks are no longer valid.
+      // Remove them (and let DB sync delete them) without writing blur-mask audit logs.
+      const blurClear = clearBlurMasksForFilenames(paths, [oldFilename, newFilename]);
+      if (blurClear.changed) {
+        emitToProject(req.app, paths.projectId, 'blur-masks:changed', blurClear.blurMasks);
       }
       try {
         renameAuditLog(paths, 'pano', oldFilename, newFilename);

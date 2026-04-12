@@ -1,8 +1,86 @@
 const fs = require("fs");
 const path = require("path");
 require("dotenv").config();
+const { Client } = require("pg");
 const { getPool } = require("./pool");
 const { formatUserId } = require("./users");
+
+function quoteIdentifier(identifier) {
+  const value = String(identifier || "").trim();
+  if (!/^[a-zA-Z0-9_]+$/.test(value)) {
+    throw new Error(
+      `Refusing to quote unsafe database identifier "${value}". ` +
+      `Use only letters, numbers, and underscores for PGDATABASE, or create the database manually.`
+    );
+  }
+  return `"${value}"`;
+}
+
+function getTargetDatabaseName() {
+  if (process.env.DATABASE_URL) {
+    try {
+      const url = new URL(process.env.DATABASE_URL);
+      const db = (url.pathname || "").replace(/^\//, "").trim();
+      return db || "";
+    } catch (_error) {
+      return "";
+    }
+  }
+  return String(process.env.PGDATABASE || "").trim();
+}
+
+function buildAdminConnectionOptions(targetDbName) {
+  if (process.env.DATABASE_URL) {
+    const url = new URL(process.env.DATABASE_URL);
+    // Connect to a known existing database to create the target one if missing.
+    url.pathname = "/postgres";
+    return { connectionString: url.toString() };
+  }
+  return {
+    host: process.env.PGHOST,
+    port: process.env.PGPORT ? Number(process.env.PGPORT) : undefined,
+    user: process.env.PGUSER,
+    password: process.env.PGPASSWORD,
+    database: "postgres",
+  };
+}
+
+async function ensureDatabaseExists() {
+  const targetDbName = getTargetDatabaseName();
+  if (!targetDbName) return;
+
+  let adminClient = null;
+  try {
+    adminClient = new Client(buildAdminConnectionOptions(targetDbName));
+    await adminClient.connect();
+  } catch (error) {
+    // Fallback: some installs don't have the "postgres" database available.
+    try {
+      if (adminClient) await adminClient.end();
+    } catch (_e) {}
+    adminClient = null;
+    if (process.env.DATABASE_URL) throw error;
+    adminClient = new Client({
+      host: process.env.PGHOST,
+      port: process.env.PGPORT ? Number(process.env.PGPORT) : undefined,
+      user: process.env.PGUSER,
+      password: process.env.PGPASSWORD,
+      database: "template1",
+    });
+    await adminClient.connect();
+  }
+
+  try {
+    const exists = await adminClient.query(
+      "SELECT 1 FROM pg_database WHERE datname = $1 LIMIT 1",
+      [targetDbName]
+    );
+    if (exists.rowCount > 0) return;
+    await adminClient.query(`CREATE DATABASE ${quoteIdentifier(targetDbName)}`);
+  } finally {
+    await adminClient.end();
+  }
+}
 
 function splitSql(sql) {
   const noLineComments = sql
@@ -265,6 +343,8 @@ async function main() {
   const schemaPath = path.join(__dirname, "..", "db", "schema.sql");
   const sql = fs.readFileSync(schemaPath, "utf8");
   const statements = splitSql(sql);
+
+  await ensureDatabaseExists();
 
   const client = await getPool().connect();
   try {
