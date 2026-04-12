@@ -89,6 +89,21 @@ function renameBlurMasksForPano(paths, oldFilename, newFilename) {
   return { changed: true, blurMasks };
 }
 
+function clearBlurMasksForFilenames(paths, filenames) {
+  const names = Array.from(new Set((filenames || []).filter(Boolean)));
+  if (names.length === 0) return { changed: false, blurMasks: null };
+  const blurMasks = readBlurMasks(paths.blurMasksPath);
+  let changed = false;
+  names.forEach((name) => {
+    if (Object.prototype.hasOwnProperty.call(blurMasks, name)) {
+      delete blurMasks[name];
+      changed = true;
+    }
+  });
+  if (changed) writeBlurMasks(paths.blurMasksPath, blurMasks);
+  return { changed, blurMasks };
+}
+
 function clearLayoutHotspotsForFilenames(paths, filenames) {
   const names = Array.from(new Set((filenames || []).filter(Boolean)));
   if (names.length === 0) return { changed: false, hotspots: null };
@@ -248,5 +263,6 @@ module.exports = {
   panoramaOrderReplace,
   ensureTilesForFilename,
   renameBlurMasksForPano,
+  clearBlurMasksForFilenames,
   clearLayoutHotspotsForFilenames,
 };

@@ -4,9 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const { getPool } = require('./pool');
 const { ensureBootstrapSuperAdmin, formatUserId } = require('./users');
+const { projectsDir: storageProjectsDir } = require('../config/storage-paths');
 
 const projectRoot = path.join(__dirname, '..');
-const projectsDir = path.join(projectRoot, 'projects');
+const projectsDir = storageProjectsDir;
 const projectsManifestPath = path.join(projectsDir, 'projects.json');
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.jfif']);
 
@@ -499,12 +500,29 @@ async function syncProjectWithClient(client, project, { createdByUserId, previou
   ];
   const auditEntriesWithSnapshots = resolveProjectSnapshotEntries(auditEntries, projectNumber, projectName);
 
+  // Backfill legacy initial-view messages (older versions stored a generic message).
+  // Uses the stored snapshot filename from metadata to keep this stable across later renames.
+  await client.query(
+    `UPDATE audit_logs
+        SET message = CASE
+          WHEN COALESCE(metadata->>'filename','') <> '' THEN 'Initial View set for ' || (metadata->>'filename')
+          ELSE 'Initial View set'
+        END
+      WHERE project_id = $1
+        AND action = 'Pano_Initial_View_Set'
+        AND message = 'initial view: set'`,
+    [projectId]
+  );
+
   const existingAuditKeys = await loadExistingAuditRowKeys(client, projectId);
   for (const entry of auditEntriesWithSnapshots) {
     const createdAtIso = toIsoOrEmpty(entry && entry.createdAt);
+    const dbMessage = entry && entry.action === 'Pano_Initial_View_Set'
+      ? String(entry.message || '').replace(/^Initial View Set for /, 'Initial View set for ')
+      : entry.message;
     const dedupeKey = makeAuditRowKey({
       action: entry.action,
-      message: entry.message,
+      message: dbMessage,
       createdAtIso,
     });
     if (existingAuditKeys.has(dedupeKey)) continue;
@@ -530,7 +548,7 @@ async function syncProjectWithClient(client, project, { createdByUserId, previou
         entry.snapshotProjectName || projectName,
         auditCreatedBy,
         entry.action,
-        entry.message,
+        dbMessage,
         JSON.stringify(entry.metadata || {}),
         entry.createdAt,
       ]

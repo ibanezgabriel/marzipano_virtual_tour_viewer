@@ -415,6 +415,8 @@ function formatEditorAuditMessage(action, payload = {}) {
       return `Hotspot Created: '${filename}'`;
     case 'Pano_Hotspot_Delete':
       return `Hotspot Deleted: '${filename}'`;
+    case 'Pano_Initial_View_Set':
+      return `Initial View Set for ${filename}`;
     case 'Layout_Hotspot_Create':
       return `Layout Hotspot Created: '${filename}'`;
     case 'Layout_Hotspot_Delete':
