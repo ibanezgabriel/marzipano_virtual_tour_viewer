@@ -98,13 +98,12 @@ async function recreatePanoramaHotspotsTable(client) {
       target_panorama_id BIGINT NOT NULL REFERENCES panoramas(id),
       yaw DOUBLE PRECISION NOT NULL,
       pitch DOUBLE PRECISION NOT NULL,
-      label TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
   await client.query(`
-    INSERT INTO panorama_hotspots (id, project_id, panorama_id, target_panorama_id, yaw, pitch, label, created_at)
-    SELECT pho.id, pa.project_id, pho.panorama_id, pho.target_panorama_id, pho.yaw, pho.pitch, pho.label, pho.created_at
+    INSERT INTO panorama_hotspots (id, project_id, panorama_id, target_panorama_id, yaw, pitch, created_at)
+    SELECT pho.id, pa.project_id, pho.panorama_id, pho.target_panorama_id, pho.yaw, pho.pitch, pho.created_at
       FROM panorama_hotspots_old AS pho
       JOIN panoramas AS pa ON pa.id = pho.panorama_id
   `);
@@ -137,13 +136,12 @@ async function recreateLayoutHotspotsTable(client) {
       target_panorama_id BIGINT NOT NULL REFERENCES panoramas(id),
       x DOUBLE PRECISION NOT NULL,
       y DOUBLE PRECISION NOT NULL,
-      label TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
   await client.query(`
-    INSERT INTO layout_hotspots (id, project_id, layout_id, target_panorama_id, x, y, label, created_at)
-    SELECT lho.id, l.project_id, lho.layout_id, lho.target_panorama_id, lho.x, lho.y, lho.label, lho.created_at
+    INSERT INTO layout_hotspots (id, project_id, layout_id, target_panorama_id, x, y, created_at)
+    SELECT lho.id, l.project_id, lho.layout_id, lho.target_panorama_id, lho.x, lho.y, lho.created_at
       FROM layout_hotspots_old AS lho
       JOIN layouts AS l ON l.id = lho.layout_id
   `);
