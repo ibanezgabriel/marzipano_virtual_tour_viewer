@@ -2,6 +2,14 @@ const fs = require('fs');
 const path = require('path');
 
 const AUDIT_LOG_MAX_ENTRIES = 250;
+let lastAuditTimestampMs = 0;
+
+function nextAuditTimestampIso() {
+  const now = Date.now();
+  const next = now <= lastAuditTimestampMs ? lastAuditTimestampMs + 1 : now;
+  lastAuditTimestampMs = next;
+  return new Date(next).toISOString();
+}
 
 function getAuditDirs(paths) {
   const dataDir = path.dirname(paths.hotspotsPath);
@@ -160,7 +168,7 @@ function appendAuditEntry(paths, kind, filename, { action, message, meta } = {},
         })
       : '';
     const entry = {
-      ts: new Date().toISOString(),
+      ts: nextAuditTimestampIso(),
       action: action || 'update',
       message: message || fallbackMessage || action || 'Update',
       ...(normalizedMeta ? { meta: normalizedMeta } : {}),
@@ -408,9 +416,9 @@ function formatEditorAuditMessage(action, payload = {}) {
     case 'Pano_Hotspot_Delete':
       return `Hotspot Deleted: '${filename}'`;
     case 'Layout_Hotspot_Create':
-      return `Layout Hotspot Create: '${filename}'`;
+      return `Layout Hotspot Created: '${filename}'`;
     case 'Layout_Hotspot_Delete':
-      return `Layout Hotspot Delete: '${filename}'`;
+      return `Layout Hotspot Deleted: '${filename}'`;
     case 'Blur_Mask_Create':
       return `Blur Created: '${filename}'`;
     case 'Blur_Mask_Delete':
