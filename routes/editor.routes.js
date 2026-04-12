@@ -17,6 +17,52 @@ const {
 
 const router = express.Router();
 
+function roundHotspotNumber(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  return Math.round(num * 10000) / 10000;
+}
+
+function hotspotEntryKey(entry, kind) {
+  if (!entry || typeof entry !== 'object') return null;
+  const id = Number(entry.id);
+  if (Number.isFinite(id)) return `id:${id}`;
+  const linkTo = typeof entry.linkTo === 'string' ? entry.linkTo : '';
+  const label = typeof entry.label === 'string' ? entry.label : '';
+  if (kind === 'layout') {
+    return `legacy:${linkTo}:${label}:${roundHotspotNumber(entry.x)}:${roundHotspotNumber(entry.y)}`;
+  }
+  return `legacy:${linkTo}:${label}:${roundHotspotNumber(entry.yaw)}:${roundHotspotNumber(entry.pitch)}`;
+}
+
+function diffHotspotEntryKeys(beforeList, afterList, kind) {
+  const beforeCounts = new Map();
+  const afterCounts = new Map();
+  (Array.isArray(beforeList) ? beforeList : []).forEach((entry) => {
+    const key = hotspotEntryKey(entry, kind);
+    if (!key) return;
+    beforeCounts.set(key, (beforeCounts.get(key) || 0) + 1);
+  });
+  (Array.isArray(afterList) ? afterList : []).forEach((entry) => {
+    const key = hotspotEntryKey(entry, kind);
+    if (!key) return;
+    afterCounts.set(key, (afterCounts.get(key) || 0) + 1);
+  });
+  const created = [];
+  const deleted = [];
+  const keys = new Set([...beforeCounts.keys(), ...afterCounts.keys()]);
+  keys.forEach((key) => {
+    const beforeCount = beforeCounts.get(key) || 0;
+    const afterCount = afterCounts.get(key) || 0;
+    if (afterCount > beforeCount) {
+      for (let i = 0; i < afterCount - beforeCount; i++) created.push(key);
+    } else if (beforeCount > afterCount) {
+      for (let i = 0; i < beforeCount - afterCount; i++) deleted.push(key);
+    }
+  });
+  return { created, deleted };
+}
+
 function readObjectFile(res, filePath, errorMessage) {
   fs.readFile(filePath, 'utf8', (error, data) => {
     if (error) {
@@ -70,22 +116,29 @@ router.post('/api/layout-hotspots', async (req, res) => {
       changed.forEach((filename) => {
         const layoutImagePath = path.join(paths.layoutsDir, filename);
         if (!fs.existsSync(layoutImagePath)) return;
-        const beforeCount = getArrayCountByKey(before, filename);
-        const afterCount = getArrayCountByKey(normalizedBody, filename);
-        if (beforeCount === afterCount) return;
-        const action = afterCount > beforeCount ? 'Layout_Hotspot_Create' : 'Layout_Hotspot_Delete';
-        const message = formatEditorAuditMessage(action, { filename });
-        appendAuditEntry(
-          paths,
-          'layout',
-          filename,
-          {
+        const beforeList = before && before[filename];
+        const afterList = normalizedBody && normalizedBody[filename];
+        const beforeCount = Array.isArray(beforeList) ? beforeList.length : 0;
+        const afterCount = Array.isArray(afterList) ? afterList.length : 0;
+        const { created, deleted } = diffHotspotEntryKeys(beforeList, afterList, 'layout');
+
+        created.forEach(() => {
+          const action = 'Layout_Hotspot_Create';
+          appendAuditEntry(paths, 'layout', filename, {
             action,
-            message,
+            message: formatEditorAuditMessage(action, { filename }),
             meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
-          },
-          { dedupeWindowMs: 5000 }
-        );
+          });
+        });
+
+        deleted.forEach(() => {
+          const action = 'Layout_Hotspot_Delete';
+          appendAuditEntry(paths, 'layout', filename, {
+            action,
+            message: formatEditorAuditMessage(action, { filename }),
+            meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
+          });
+        });
       });
     } catch (_error) {}
     await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
@@ -169,22 +222,29 @@ router.post('/api/hotspots', async (req, res) => {
       changed.forEach((filename) => {
         const imagePath = path.join(paths.uploadsDir, filename);
         if (!fs.existsSync(imagePath)) return;
-        const beforeCount = getArrayCountByKey(before, filename);
-        const afterCount = getArrayCountByKey(normalizedBody, filename);
-        if (beforeCount === afterCount) return;
-        const action = afterCount > beforeCount ? 'Pano_Hotspot_Create' : 'Pano_Hotspot_Delete';
-        const message = formatEditorAuditMessage(action, { filename });
-        appendAuditEntry(
-          paths,
-          'pano',
-          filename,
-          {
+        const beforeList = before && before[filename];
+        const afterList = normalizedBody && normalizedBody[filename];
+        const beforeCount = Array.isArray(beforeList) ? beforeList.length : 0;
+        const afterCount = Array.isArray(afterList) ? afterList.length : 0;
+        const { created, deleted } = diffHotspotEntryKeys(beforeList, afterList, 'pano');
+
+        created.forEach(() => {
+          const action = 'Pano_Hotspot_Create';
+          appendAuditEntry(paths, 'pano', filename, {
             action,
-            message,
+            message: formatEditorAuditMessage(action, { filename }),
             meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
-          },
-          { dedupeWindowMs: 5000 }
-        );
+          });
+        });
+
+        deleted.forEach(() => {
+          const action = 'Pano_Hotspot_Delete';
+          appendAuditEntry(paths, 'pano', filename, {
+            action,
+            message: formatEditorAuditMessage(action, { filename }),
+            meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
+          });
+        });
       });
     } catch (_error) {}
     await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
