@@ -14,6 +14,7 @@ const openModalCloseBtn = document.getElementById('open-modal-close');
 const renameProjectModal = document.getElementById('rename-project-modal');
 const renameProjectNumberInput = document.getElementById('rename-project-number');
 const renameProjectNameInput = document.getElementById('rename-project-name');
+const renameProjectStatusSelect = document.getElementById('rename-project-status');
 const renameProjectErrorEl = document.getElementById('rename-project-error');
 const renameModalCancelBtn = document.getElementById('rename-modal-cancel');
 const renameModalSaveBtn = document.getElementById('rename-modal-save');
@@ -187,6 +188,9 @@ function showRenameModal(project, nameDisplayEl) {
     renameProjectNumberInput.value = project.number || '';
   }
   renameProjectNameInput.value = project.name;
+  if (renameProjectStatusSelect) {
+    renameProjectStatusSelect.value = normalizeProjectStatus(project.status);
+  }
   renameProjectModal.classList.add('visible');
   renameProjectNameInput.focus();
   renameProjectNameInput.select();
@@ -205,6 +209,9 @@ function showRenameModal(project, nameDisplayEl) {
     const name = renameProjectNameInput.value;
     const numberRaw = renameProjectNumberInput ? renameProjectNumberInput.value || '' : '';
     const number = numberRaw.replace(/[^A-Za-z0-9-]+/g, '').slice(0, MAX_PROJECT_NUMBER_LENGTH);
+    const status = renameProjectStatusSelect
+      ? normalizeProjectStatus(renameProjectStatusSelect.value)
+      : normalizeProjectStatus(project.status);
     const numberError = validateProjectNumber(number, 'Project number is required.');
     if (numberError) {
       renameProjectErrorEl.textContent = numberError;
@@ -222,20 +229,21 @@ function showRenameModal(project, nameDisplayEl) {
         return;
       }
     }
-    // If neither name nor number actually changed, do nothing.
+    // If neither name, number, nor status actually changed, do nothing.
     const currentNumber = String(project.number || '');
-    if (name.trim() === project.name.trim() && number === currentNumber) {
+    const currentStatus = normalizeProjectStatus(project.status);
+    if (name.trim() === project.name.trim() && number === currentNumber && status === currentStatus) {
       renameProjectErrorEl.textContent = 'No changes made.';
       return;
     }
     try {
-      const updated = await renameProject(project.id, name.trim(), number, project.status);
+      const updated = await renameProject(project.id, name.trim(), number, status);
       const finalProject = {
         ...project,
         ...updated,
         name: updated.name || name.trim(),
         number: updated.number !== undefined ? updated.number : number,
-        status: updated.status !== undefined ? updated.status : project.status,
+        status: updated.status !== undefined ? updated.status : status,
       };
       // Update in-memory list
       allProjects = allProjects.map((p) => (p.id === project.id ? finalProject : p));
@@ -282,49 +290,15 @@ function renderProjectRow(project) {
   nameCell.appendChild(nameDisplay);
 
   // cell for status
-  const statusDisplay = document.createElement('select');
-  statusDisplay.className = 'project-status-display project-status-select';
-  const statusOptions = [
-    { value: 'on-going', label: 'On-going' },
-    { value: 'completed', label: 'Completed' },
-  ];
-  statusOptions.forEach(({ value, label }) => {
-    const option = document.createElement('option');
-    option.value = value;
-    option.textContent = label;
-    option.className = value === 'completed' ? 'status-option-completed' : 'status-option-ongoing';
-    statusDisplay.appendChild(option);
-  });
-  statusDisplay.value = normalizeProjectStatus(project.status);
-  statusDisplay.classList.toggle('status-completed', statusDisplay.value === 'completed');
-  statusDisplay.classList.toggle('status-ongoing', statusDisplay.value === 'on-going');
+  const statusDisplay = document.createElement('span');
+  statusDisplay.className = 'project-status-display project-status-text';
+  const normalizedStatus = normalizeProjectStatus(project.status);
+  statusDisplay.textContent = normalizedStatus === 'completed' ? 'Completed' : 'On-Going';
+  statusDisplay.classList.toggle('status-completed', normalizedStatus === 'completed');
+  statusDisplay.classList.toggle('status-ongoing', normalizedStatus === 'on-going');
   const statusCell = document.createElement('div');
   statusCell.className = 'project-status-cell';
   statusCell.appendChild(statusDisplay);
-
-  // Prevent row click (open project) when interacting with status control
-  statusCell.addEventListener('click', (e) => {
-    e.stopPropagation();
-  });
-
-  statusDisplay.addEventListener('change', async () => {
-    const previous = normalizeProjectStatus(project.status);
-    const next = normalizeProjectStatus(statusDisplay.value);
-    if (next === previous) return;
-    statusDisplay.disabled = true;
-    statusDisplay.classList.toggle('status-completed', next === 'completed');
-    statusDisplay.classList.toggle('status-ongoing', next === 'on-going');
-    try {
-      const updatedProject = await updateProjectStatus(project, next);
-      allProjects = allProjects.map((p) => (p.id === project.id ? updatedProject : p));
-      renderProjectList(allProjects);
-    } catch (e) {
-      statusDisplay.value = previous;
-      alert(e.message || 'Failed to update status.');
-    } finally {
-      statusDisplay.disabled = false;
-    }
-  });
 
   const viewBtn = document.createElement('button');
   viewBtn.type = 'button';
