@@ -1,1 +1,8 @@
+# Auto-detect text files and normalize to LF in repo
 * text=auto
+
+# Force specific file types to LF (recommended for web projects)
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
