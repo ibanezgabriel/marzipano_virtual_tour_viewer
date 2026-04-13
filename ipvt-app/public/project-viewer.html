@@ -7,9 +7,11 @@
     <link rel="icon" type="image/x-icon" href="assets/icons/NEW-LOGO-QCDE.png"> 
     <link rel="stylesheet" href="css/main.css">
 </head>
-<body>
+<body class="viewer">
     <header id="pano-header">
-        <span id="pano-header-text"></span>
+        <div id="pano-header-title">
+            <span id="pano-header-text"></span>
+        </div>
         <img id="dep_logo" src="assets/icons/NEW-LOGO-QCDE.png"> 
         <div id="pano-sidebar-wrapper">
             <aside id="pano-sidebar-container">
@@ -26,6 +28,16 @@
     <main id="pano-panel">
         <div id="pano-viewer"></div>
     </main>
+
+    <div class="modal-overlay" id="project-name-modal">
+        <div class="modal viewer-project-name-modal">
+            <h2>PROJECT NAME</h2>
+            <p id="project-fullname-text"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-primary" id="project-name-modal-close">Close</button>
+            </div>
+        </div>
+    </div>
     <script type="module" src="js/project-viewer.js"></script>
     <script src="js/login.js"></script>
 </body>

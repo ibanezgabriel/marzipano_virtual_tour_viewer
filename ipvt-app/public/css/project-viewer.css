@@ -12,6 +12,250 @@
   cursor: pointer;
 }
 
+/* Viewer-only responsive overrides (scoped with body.viewer) */
+.viewer {
+  --pano-header-height: 3rem;
+  --pano-sidebar-width: 320px;
+  --layout-preview-toggle-size: 44px;
+  --layout-preview-toggle-half: 22px;
+}
+
+.viewer #pano-header-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 140px);
+  min-width: 0;
+}
+
+.viewer #pano-header-text {
+  position: static;
+  left: auto;
+  transform: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer #pano-header-text.project-name-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.viewer .viewer-project-name-modal {
+  min-width: 0;
+  width: min(92vw, 520px);
+}
+
+.viewer #project-fullname-text {
+  padding: 10px 0 2px;
+  color: #111;
+  font-size: 1rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+/* Sidebar sizing (viewer only) */
+.viewer #pano-sidebar-container {
+  width: var(--pano-sidebar-width);
+  max-height: min(70vh, 520px);
+}
+.viewer #pano-sidebar-wrapper.collapsed {
+  transform: translateX(calc(-1 * var(--pano-sidebar-width)));
+}
+
+/* Viewer: layout list slide-in/out (mobile) */
+.viewer #pano-sidebar-container:not(.layout-list-open) #pano-layout-list {
+  display: none;
+}
+
+.viewer #pano-sidebar-container.layout-list-open #pano-layout-list {
+  display: block;
+}
+
+@media (max-width: 600px) {
+  .viewer #pano-sidebar-container {
+    position: relative;
+    overflow: visible;
+  }
+
+  .viewer #pano-sidebar-container #pano-layout-list {
+    display: block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 43px;
+    transform: translateX(-105%);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 240ms ease, opacity 240ms ease, visibility 0s linear 240ms;
+    z-index: 3;
+  }
+
+  .viewer #pano-sidebar-container.layout-list-open #pano-layout-list {
+    transform: translateX(0);
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: transform 240ms ease, opacity 240ms ease;
+  }
+}
+
+@media (max-width: 1024px) {
+  .viewer {
+    --pano-sidebar-width: min(82vw, 320px);
+  }
+
+  .viewer #pano-sidebar-container {
+    max-height: calc(100vh - var(--pano-header-height));
+  }
+}
+
+/* Mobile/tablet: collapsible bottom-left layout preview with toggle + swipe */
+.viewer .layout-preview-toggle {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .viewer .layout-preview {
+    left: 12px;
+    bottom: 12px;
+    max-width: min(76vw, 340px);
+    border-radius: 14px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(6px);
+    transform: translateX(0);
+    transition: opacity 280ms ease, transform 280ms ease, background-color 280ms ease, visibility 0s linear 280ms;
+  }
+
+  .viewer .layout-preview.visible {
+    transform: translateX(0);
+    transition: opacity 280ms ease, transform 280ms ease, background-color 280ms ease;
+  }
+
+  .viewer .layout-preview.visible:hover {
+    transform: translateX(0);
+  }
+
+  .viewer .layout-preview.visible.layout-preview-collapsed {
+    padding: 0;
+    background: transparent;
+    backdrop-filter: none;
+    transform: translateX(calc(-100% + var(--layout-preview-toggle-size)));
+  }
+
+  .viewer .layout-preview-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--layout-preview-toggle-size);
+    height: var(--layout-preview-toggle-size);
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    background: rgba(17, 82, 114, 0.95);
+    color: #fff;
+    font-weight: 800;
+    cursor: pointer;
+    position: absolute;
+    right: calc(-1 * var(--layout-preview-toggle-half));
+    top: 50%;
+    transform: translateY(-50%);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+    z-index: 6;
+  }
+
+  .viewer .layout-preview .layout-image-wrap {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 280ms ease, visibility 0s linear 0s;
+  }
+
+  .viewer .layout-preview.visible.layout-preview-collapsed .layout-image-wrap {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 280ms ease, visibility 0s linear 280ms;
+  }
+
+  .viewer .layout-preview.visible.layout-preview-collapsed .layout-preview-toggle {
+    right: 0;
+  }
+
+  .viewer .layout-preview-toggle .arrow {
+    display: block;
+    width: 0;
+    height: 0;
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
+    border-left: 10px solid #fff; /* points right by default */
+    transform: translateX(1px);
+  }
+
+  .viewer .layout-preview:not(.layout-preview-collapsed) .layout-preview-toggle .arrow {
+    border-left: 0;
+    border-right: 10px solid #fff; /* points left when expanded */
+    transform: translateX(-1px);
+  }
+}
+
+/* Viewer: expanded layout modal shouldn't show a filename header */
+.viewer .layout-modal-overlay-client .layout-modal-header {
+  display: none;
+}
+
+/* Phone: layout modal becomes "tap to close" and hides extra controls */
+@media (max-width: 600px) {
+  .viewer .layout-modal-overlay-client .layout-modal-actions {
+    padding: 10px 12px 8px;
+  }
+
+  .viewer .layout-modal-overlay-client .layout-modal {
+    width: 94vw;
+    max-width: 94vw;
+    height: auto;
+    max-height: 82vh;
+  }
+
+  .viewer .layout-modal-overlay-client .layout-magnifier-controls {
+    display: none !important;
+  }
+}
+
+/* Easier tapping on hotspots (viewer only) */
+@media (max-width: 1024px) {
+  .viewer .app-hotspot-pin {
+    margin-left: -20px;
+    margin-top: -20px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .viewer .app-hotspot-pin-dot {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+  }
+
+  .viewer .layout-hotspot-pin-dot.hotspot-preview,
+  .viewer .layout-hotspot-pin-dot.hotspot-modal {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    min-height: 20px;
+  }
+}
+
 .layout-modal-overlay-client .layout-modal {
   position: relative;
 }
@@ -27,7 +271,7 @@
 .layout-modal-overlay-client .layout-modal-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 12px;
   padding: 10px 16px 6px;
 }
@@ -41,10 +285,11 @@
   align-items: center;
   gap: 8px;
   justify-content: center;
+  flex: 1 1 auto;
 }
 
 .layout-modal-overlay-client .layout-magnifier-controls {
-  flex: 1;
+  flex: 0 0 auto;
 }
 
 .layout-modal-overlay-client .layout-nav-btn {
@@ -70,26 +315,22 @@
 }
 
 .layout-modal-overlay-client .layout-modal-body .layout-image-wrap {
-  gap: 12px;
+  gap: 0;
 }
 
 .layout-modal-overlay-client .layout-modal-body .layout-image-stage {
-  flex: 1 1 auto;
-}
-
-.layout-modal-overlay-client .layout-modal-body .layout-nav-btn {
   flex: 0 0 auto;
+  width: auto;
+  height: auto;
 }
 
 .layout-modal-overlay-client .layout-nav-btn:hover {
-  transform: translateY(-1px);
   opacity: 0.85;
 }
 
 .layout-modal-overlay-client .layout-nav-btn:disabled {
   cursor: default;
   opacity: 0.5;
-  transform: none;
 }
 
 .layout-modal-overlay-client .layout-magnifier-levels {

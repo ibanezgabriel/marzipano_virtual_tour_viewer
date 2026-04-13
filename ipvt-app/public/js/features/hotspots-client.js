@@ -81,14 +81,13 @@ function createClientHotspotElement(entry) {
 }
 
 function bindClientHotspotClick(el, entry) {
-  const pin = el.querySelector('.app-hotspot-pin-dot');
-  if (pin && entry.linkTo) {
-    pin.addEventListener('click', (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      loadPanorama(entry.linkTo);
-    });
-  }
+  if (!entry.linkTo) return;
+  // Bind on the wrapper so the hotspot is easier to tap on mobile (larger hit target via CSS).
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    loadPanorama(entry.linkTo);
+  });
 }
 
 function restoreHotspotsForCurrentScene() {

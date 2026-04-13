@@ -31,6 +31,8 @@ let floorList = null;
 let layoutFiles = [];
 let layoutPrevBtn = null;
 let layoutNextBtn = null;
+let previewToggleBtn = null;
+let previewCollapsed = false;
 
 const MAGNIFIER_DEFAULT_LEVEL = 2;
 const MAGNIFIER_LEVEL_OPTIONS = [2, 2.5];
@@ -126,12 +128,13 @@ function getLayoutIndex(name) {
 function updateLayoutNav() {
   if (!layoutPrevBtn || !layoutNextBtn) return;
   const idx = getLayoutIndex(selectedLayout);
+  const showNav = layoutFiles.length > 1;
   const hasPrev = idx > 0;
   const hasNext = idx >= 0 && idx < layoutFiles.length - 1;
   layoutPrevBtn.disabled = !hasPrev;
   layoutNextBtn.disabled = !hasNext;
-  layoutPrevBtn.style.display = 'inline-flex';
-  layoutNextBtn.style.display = 'inline-flex';
+  layoutPrevBtn.style.display = showNav ? 'inline-flex' : 'none';
+  layoutNextBtn.style.display = showNav ? 'inline-flex' : 'none';
 }
 
 function setActiveLayout(filename) {
@@ -187,6 +190,20 @@ function updateMagnifierLens(clientX, clientY, { forceVisible = false } = {}) {
 function setPreviewVisible(visible) {
   if (!previewContainer) return;
   previewContainer.classList.toggle('visible', Boolean(visible));
+}
+
+function setPreviewCollapsed(collapsed) {
+  previewCollapsed = Boolean(collapsed);
+  if (!previewContainer) return;
+  previewContainer.classList.toggle('layout-preview-collapsed', previewCollapsed);
+}
+
+function isPhoneViewport() {
+  try {
+    return window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+  } catch (_e) {
+    return false;
+  }
 }
 
 function syncStageContain(imgEl, stageEl, containerEl) {
@@ -293,6 +310,11 @@ function ensurePreviewElements() {
       <div class="layout-hotspot-layer" data-layer="rendered"></div>
     </div>
   `;
+  previewToggleBtn = document.createElement('button');
+  previewToggleBtn.type = 'button';
+  previewToggleBtn.className = 'layout-preview-toggle';
+  previewToggleBtn.innerHTML = `<span class="arrow"></span>`;
+  previewContainer.appendChild(previewToggleBtn);
   const viewerWrap = document.getElementById('pano-viewer-wrap') || document.getElementById('pano-panel');
   if (viewerWrap) {
     viewerWrap.appendChild(previewContainer);
@@ -303,8 +325,95 @@ function ensurePreviewElements() {
   previewHotspotLayer = previewContainer.querySelector('.layout-hotspot-layer');
 
   setPreviewVisible(false);
+  setPreviewCollapsed(false);
+
+  if (previewToggleBtn) {
+    previewToggleBtn.addEventListener('click', (e) => {
+      if (previewToggleBtn.dataset && previewToggleBtn.dataset.suppressClick) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPreviewCollapsed(!previewCollapsed);
+    });
+  }
+
+  // Swipe left on the preview to hide it (mobile/tablet).
+  let swipePointerId = null;
+  let swipeCaptureEl = null;
+  let swipeStartX = 0;
+  let swipeStartY = 0;
+  let swipeMoved = false;
+  previewContainer.addEventListener('pointerdown', (e) => {
+    if (!e || e.pointerType !== 'touch') return;
+    swipeCaptureEl = null;
+    swipePointerId = e.pointerId;
+    swipeStartX = e.clientX;
+    swipeStartY = e.clientY;
+    swipeMoved = false;
+    swipeCaptureEl = (previewToggleBtn && e.target === previewToggleBtn) ? previewToggleBtn : previewContainer;
+    try {
+      swipeCaptureEl.setPointerCapture(e.pointerId);
+    } catch (_err) {}
+  });
+  previewContainer.addEventListener('pointermove', (e) => {
+    if (swipePointerId !== e.pointerId) return;
+    const dx = e.clientX - swipeStartX;
+    const dy = e.clientY - swipeStartY;
+    if (Math.abs(dx) < 18) return;
+    if (Math.abs(dx) < Math.abs(dy) * 1.25) return;
+    swipeMoved = true;
+    if (dx < -50) {
+      setPreviewCollapsed(true);
+      previewContainer.dataset.suppressNextClick = '1';
+      if (previewToggleBtn && previewToggleBtn.dataset) previewToggleBtn.dataset.suppressClick = '1';
+      setTimeout(() => {
+        try { delete previewContainer.dataset.suppressNextClick; } catch (_e2) {}
+        try { if (previewToggleBtn && previewToggleBtn.dataset) delete previewToggleBtn.dataset.suppressClick; } catch (_e3) {}
+      }, 250);
+      swipePointerId = null;
+      try {
+        (swipeCaptureEl || previewContainer).releasePointerCapture(e.pointerId);
+      } catch (_err) {}
+    } else if (dx > 50) {
+      setPreviewCollapsed(false);
+      previewContainer.dataset.suppressNextClick = '1';
+      if (previewToggleBtn && previewToggleBtn.dataset) previewToggleBtn.dataset.suppressClick = '1';
+      setTimeout(() => {
+        try { delete previewContainer.dataset.suppressNextClick; } catch (_e2) {}
+        try { if (previewToggleBtn && previewToggleBtn.dataset) delete previewToggleBtn.dataset.suppressClick; } catch (_e3) {}
+      }, 250);
+      swipePointerId = null;
+      try {
+        (swipeCaptureEl || previewContainer).releasePointerCapture(e.pointerId);
+      } catch (_err) {}
+    }
+  });
+  previewContainer.addEventListener('pointerup', (e) => {
+    if (swipePointerId !== e.pointerId) return;
+    swipePointerId = null;
+    try {
+      (swipeCaptureEl || previewContainer).releasePointerCapture(e.pointerId);
+    } catch (_err) {}
+    // If this was a swipe, prevent the "open modal" click right after.
+    if (swipeMoved) {
+      previewContainer.dataset.suppressNextClick = '1';
+      if (previewToggleBtn && previewToggleBtn.dataset) previewToggleBtn.dataset.suppressClick = '1';
+      setTimeout(() => {
+        try { delete previewContainer.dataset.suppressNextClick; } catch (_e2) {}
+        try { if (previewToggleBtn && previewToggleBtn.dataset) delete previewToggleBtn.dataset.suppressClick; } catch (_e3) {}
+      }, 250);
+    }
+  });
+  previewContainer.addEventListener('pointercancel', (e) => {
+    if (swipePointerId !== e.pointerId) return;
+    swipePointerId = null;
+    try {
+      (swipeCaptureEl || previewContainer).releasePointerCapture(e.pointerId);
+    } catch (_err) {}
+  });
 
   previewContainer.addEventListener('click', (e) => {
+    if (previewContainer.dataset && previewContainer.dataset.suppressNextClick) return;
+    if (previewCollapsed) return;
     if (e.target && e.target.closest && e.target.closest('.layout-hotspot-pin')) {
       return;
     }
@@ -326,20 +435,22 @@ function ensureModalElements() {
       </div>
       <div class="layout-modal-body">
         <div class="layout-image-wrap">
-          <button type="button" id="layout-prev" class="layout-nav-btn" aria-label="Previous layout">
-            <img src="assets/icons/left-arrow.png" alt="" aria-hidden="true">
-          </button>
           <div class="layout-image-stage">
             <img id="layout-modal-img" alt="Expanded layout">
             <div class="layout-hotspot-layer" data-layer="expanded"></div>
           </div>
-          <button type="button" id="layout-next" class="layout-nav-btn" aria-label="Next layout">
-            <img src="assets/icons/right-arrow.png" alt="" aria-hidden="true">
-          </button>
           <div class="layout-magnifier-lens" aria-hidden="true"></div>
         </div>
       </div>
       <div class="layout-modal-actions">
+        <div class="layout-nav" aria-label="Layout navigation">
+          <button type="button" id="layout-prev" class="layout-nav-btn layout-nav-btn-prev" aria-label="Previous layout">
+            <img src="assets/icons/left-arrow.png" alt="" aria-hidden="true">
+          </button>
+          <button type="button" id="layout-next" class="layout-nav-btn layout-nav-btn-next" aria-label="Next layout">
+            <img src="assets/icons/right-arrow.png" alt="" aria-hidden="true">
+          </button>
+        </div>
         <div class="layout-magnifier-controls" aria-label="Layout magnifier controls">
           <div id="layout-magnifier-levels" class="layout-magnifier-levels" role="group" aria-label="Magnification level">
             <button type="button" data-magnifier-level="2">2x</button>
@@ -369,7 +480,10 @@ function ensureModalElements() {
   layoutNextBtn = modalOverlay.querySelector('#layout-next');
 
   modalOverlay.addEventListener('click', (e) => {
-    if (e.target === modalOverlay) {
+    if (e.target === modalOverlay) return closeModal();
+    if (isPhoneViewport()) {
+      // On phones: tapping anywhere closes (hotspot dots already close & navigate).
+      if (e.target && e.target.closest && e.target.closest('.layout-hotspot-pin-dot')) return;
       closeModal();
     }
   });
@@ -379,6 +493,11 @@ function ensureModalElements() {
       if (magnifierEnabled) {
         e.preventDefault();
         e.stopPropagation();
+        return;
+      }
+      if (isPhoneViewport()) {
+        e.preventDefault();
+        closeModal();
         return;
       }
       // Clicking on empty layout area in client just ignores; hotspots handle their own clicks.
@@ -507,11 +626,7 @@ function openModalFor(filename) {
     modalImg.src = src;
     modalImg.alt = filename;
   }
-  if (modalTitleEl) {
-    const dot = filename.lastIndexOf('.');
-    const displayName = dot > 0 ? filename.substring(0, dot) : filename;
-    modalTitleEl.textContent = displayName;
-  }
+  if (modalTitleEl) modalTitleEl.textContent = '';
   resetMagnifierState();
   syncMagnifierLensImage();
   // When entering Expanded Display, hide the Rendered Display (minimized preview).
@@ -648,8 +763,9 @@ export async function reloadLayoutsListClient() {
 export function initLayoutsClient() {
   const toggleBtn = document.getElementById('pano-layout-toggle');
   floorList = document.getElementById('pano-layout-list');
+  const sidebarContainer = document.getElementById('pano-sidebar-container');
 
-  if (!toggleBtn || !floorList) return;
+  if (!toggleBtn || !floorList || !sidebarContainer) return;
 
   ensurePreviewElements();
   ensureModalElements();
@@ -667,13 +783,99 @@ export function initLayoutsClient() {
     });
   } catch (e) {}
 
-  toggleBtn.addEventListener('click', () => {
-    const isVisible = floorList.style.display === 'block';
-    floorList.style.display = isVisible ? 'none' : 'block';
+  const isMobileLayoutListViewport = () => {
+    try {
+      return window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+    } catch (_e) {
+      return false;
+    }
+  };
+
+  let lastIsMobileLayoutListViewport = isMobileLayoutListViewport();
+  let layoutListOpen = !lastIsMobileLayoutListViewport;
+
+  const syncLayoutListState = () => {
+    sidebarContainer.classList.toggle('layout-list-open', layoutListOpen);
+    toggleBtn.setAttribute('aria-expanded', layoutListOpen ? 'true' : 'false');
+    toggleBtn.setAttribute('aria-controls', 'pano-layout-list');
+  };
+
+  const setLayoutListOpen = (nextOpen) => {
+    layoutListOpen = Boolean(nextOpen);
+    syncLayoutListState();
+  };
+
+  const toggleLayoutList = () => setLayoutListOpen(!layoutListOpen);
+
+  // Tap toggles list.
+  toggleBtn.addEventListener('click', (e) => {
+    if (toggleBtn.dataset && toggleBtn.dataset.suppressClick) return;
+    e.preventDefault();
+    toggleLayoutList();
   });
 
-  // Show list by default on client; no preselection
-  floorList.style.display = 'block';
+  // Swipe right/left on the Layout button (mobile) to open/close.
+  let listSwipePointerId = null;
+  let listSwipeStartX = 0;
+  let listSwipeStartY = 0;
+  let listSwipeMoved = false;
+
+  toggleBtn.addEventListener('pointerdown', (e) => {
+    if (!e || e.pointerType !== 'touch') return;
+    if (!isMobileLayoutListViewport()) return;
+    listSwipePointerId = e.pointerId;
+    listSwipeStartX = e.clientX;
+    listSwipeStartY = e.clientY;
+    listSwipeMoved = false;
+    try {
+      toggleBtn.setPointerCapture(e.pointerId);
+    } catch (_err) {}
+  });
+
+  toggleBtn.addEventListener('pointermove', (e) => {
+    if (listSwipePointerId !== e.pointerId) return;
+    const dx = e.clientX - listSwipeStartX;
+    const dy = e.clientY - listSwipeStartY;
+    if (Math.abs(dx) < 18) return;
+    if (Math.abs(dx) < Math.abs(dy) * 1.25) return;
+    listSwipeMoved = true;
+    if (dx > 50) {
+      setLayoutListOpen(true);
+      listSwipePointerId = null;
+      try { toggleBtn.releasePointerCapture(e.pointerId); } catch (_err) {}
+    } else if (dx < -50) {
+      setLayoutListOpen(false);
+      listSwipePointerId = null;
+      try { toggleBtn.releasePointerCapture(e.pointerId); } catch (_err) {}
+    }
+  });
+
+  toggleBtn.addEventListener('pointerup', (e) => {
+    if (listSwipePointerId !== e.pointerId) return;
+    listSwipePointerId = null;
+    try { toggleBtn.releasePointerCapture(e.pointerId); } catch (_err) {}
+    if (listSwipeMoved) {
+      if (toggleBtn.dataset) toggleBtn.dataset.suppressClick = '1';
+      setTimeout(() => {
+        try { if (toggleBtn.dataset) delete toggleBtn.dataset.suppressClick; } catch (_e2) {}
+      }, 250);
+    }
+  });
+
+  toggleBtn.addEventListener('pointercancel', (e) => {
+    if (listSwipePointerId !== e.pointerId) return;
+    listSwipePointerId = null;
+    try { toggleBtn.releasePointerCapture(e.pointerId); } catch (_err) {}
+  });
+
+  // Default: open on desktop, closed on mobile.
+  syncLayoutListState();
+  window.addEventListener('resize', () => {
+    const isMobile = isMobileLayoutListViewport();
+    if (isMobile === lastIsMobileLayoutListViewport) return;
+    lastIsMobileLayoutListViewport = isMobile;
+    setLayoutListOpen(!isMobile);
+  });
 
   (async () => {
     loadLayoutHotspotsFromStorage();
