@@ -1,6 +1,10 @@
 const fs = require("fs");
 const path = require("path");
-require("dotenv").config();
+const dotenv = require("dotenv");
+
+const appEnvPath = path.join(__dirname, "..", ".env");
+const repoEnvPath = path.join(__dirname, "..", "..", ".env");
+dotenv.config({ path: fs.existsSync(appEnvPath) ? appEnvPath : repoEnvPath });
 const { Client } = require("pg");
 const { getPool } = require("./pool");
 const { formatUserId } = require("./users");
@@ -36,11 +40,13 @@ function buildAdminConnectionOptions(targetDbName) {
     url.pathname = "/postgres";
     return { connectionString: url.toString() };
   }
+  const rawPassword = process.env.PGPASSWORD;
+  const password = rawPassword === undefined ? undefined : String(rawPassword);
   return {
     host: process.env.PGHOST,
     port: process.env.PGPORT ? Number(process.env.PGPORT) : undefined,
     user: process.env.PGUSER,
-    password: process.env.PGPASSWORD,
+    password,
     database: "postgres",
   };
 }
@@ -60,11 +66,13 @@ async function ensureDatabaseExists() {
     } catch (_e) {}
     adminClient = null;
     if (process.env.DATABASE_URL) throw error;
+    const rawPassword = process.env.PGPASSWORD;
+    const password = rawPassword === undefined ? undefined : String(rawPassword);
     adminClient = new Client({
       host: process.env.PGHOST,
       port: process.env.PGPORT ? Number(process.env.PGPORT) : undefined,
       user: process.env.PGUSER,
-      password: process.env.PGPASSWORD,
+      password,
       database: "template1",
     });
     await adminClient.connect();

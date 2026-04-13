@@ -1,4 +1,10 @@
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+
+const appEnvPath = path.join(__dirname, '..', '.env');
+const repoEnvPath = path.join(__dirname, '..', '..', '.env');
+dotenv.config({ path: fs.existsSync(appEnvPath) ? appEnvPath : repoEnvPath });
 
 const { getPool } = require('./pool');
 const { ensureBootstrapSuperAdmin } = require('./users');
