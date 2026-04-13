@@ -6,8 +6,6 @@ const appEnvPath = path.join(__dirname, '..', '.env');
 const repoEnvPath = path.join(__dirname, '..', '..', '.env');
 dotenv.config({ path: fs.existsSync(appEnvPath) ? appEnvPath : repoEnvPath });
 
-const fs = require('fs');
-const path = require('path');
 const { getPool } = require('./pool');
 const { ensureBootstrapSuperAdmin, formatUserId } = require('./users');
 const { projectsDir: storageProjectsDir } = require('../config/storage-paths');
