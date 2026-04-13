@@ -1,4 +1,4 @@
-import Marzipano from "//cdn.skypack.dev/marzipano";
+﻿import Marzipano from "//cdn.skypack.dev/marzipano";
 import { getUploadBase, getTilesBase, appendProjectParams, getProjectId } from './project-context.js';
 
 const LAST_PANO_KEY_PREFIX = 'marzipano-last-pano-';
@@ -252,9 +252,7 @@ export async function loadImages(onImagesLoaded) {
     // Ensure initial views are loaded once we know the project context is valid.
     await ensureInitialViewsLoaded();
     if (typeof onImagesLoaded === 'function') onImagesLoaded(fileList);
-
-    imageListEl.innerHTML = "";
-
+    if (imageListEl) imageListEl.innerHTML = "";
     // Detect admin context so drag/reorder is enabled only in admin UI
     const isAdmin = typeof window !== 'undefined' && /project-editor\.html$/i.test(window.location.pathname);
 
@@ -448,7 +446,7 @@ export async function loadImages(onImagesLoaded) {
     }
 
     fileList.forEach(file => {
-      imageListEl.appendChild(createImageListItem(file));
+      if (imageListEl) imageListEl.appendChild(createImageListItem(file));
     });
 
     if (fileList.length > 0) {
@@ -508,8 +506,7 @@ export async function loadImages(onImagesLoaded) {
       } catch (e) {}
       if (panoViewerEl) {
         panoViewerEl.innerHTML = '<div class="no-pano-msg"><p>No panoramas. Upload one to get started.</p></div>';
-        
-        imageListEl.innerHTML = "<li class='active' style='text-align: center'>No images uploaded</li>"
+        if (imageListEl) imageListEl.innerHTML = "<li class=\"active\" style=\"text-align: center\">No images uploaded<\/li>"
       }
     }
   } catch (error) {
@@ -656,3 +653,4 @@ export async function getImageList() {
   const panos = await res.json();
   return Array.isArray(panos) ? panos.map(p => p.filename) : [];
 }
+

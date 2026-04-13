@@ -1,9 +1,10 @@
-#dep_logo {
+﻿#dep_logo {
   height: 2rem;
   width: 2rem;
   position: absolute;
   right: 25px;
 }
+#viewer-pano-toggle,
 #pano-layout-toggle {
   height: 43px;
   color: white;
@@ -52,11 +53,70 @@
   display: none !important;
 }
 
+
+/* Viewer: match panorama list styling to the Layout list look */
+
+/* Viewer: keep list panels on the same blue background */
+.viewer #pano-layout-list {
+  background-color: #115272;
+  margin: 0;
+  border-radius: 0;
+}
+
+.viewer #pano-layout-list li.active {
+  background-color: #0b4f6c;
+  color: #fff;
+}
+
+
+.viewer #pano-image-list {
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-radius: 0;
+  margin: 0;
+  list-style: none;
+  background-color: #115272;
+  max-height: 340px;
+  display: none; /* visibility controlled by viewer-mode-* classes */
+}
+
+.viewer #pano-image-list > li {
+  padding: 5px 10px;
+  margin: 0.2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #d4dfe4;
+  color: #333;
+  transition: background 0.2s ease, color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.viewer #pano-image-list > li:hover {
+  background: #c5d4db;
+}
+
+.viewer #pano-image-list > li.active {
+  background-color: #0b4f6c;
+  color: #fff;
+}
+
+
+
+/* Viewer: remove inner padding so list background reaches the edge */
+.viewer #pano-sidebar-content {
+  padding: 0;
+}
+
 /* Viewer-only responsive overrides (scoped with body.viewer) */
 .viewer {
   --pano-header-height: 3rem;
   --pano-sidebar-width: 320px;
-  --layout-preview-toggle-size: 44px;
+  --layout-preview-toggle-size: 33px;
   --layout-preview-toggle-half: 22px;
 }
 
@@ -104,6 +164,7 @@
 .viewer #pano-sidebar-container {
   width: var(--pano-sidebar-width);
   max-height: min(70vh, 520px);
+  background-color: #115272;
 }
 .viewer #pano-sidebar-wrapper.collapsed {
   transform: translateX(calc(-1 * var(--pano-sidebar-width)));
@@ -122,7 +183,8 @@
   .viewer #pano-sidebar-container {
     position: relative;
     overflow: visible;
-  }
+  background-color: #115272;
+}
 
   .viewer #pano-sidebar-container #pano-layout-list {
     display: block;
@@ -154,7 +216,8 @@
 
   .viewer #pano-sidebar-container {
     max-height: calc(100vh - var(--pano-header-height));
-  }
+  background-color: #115272;
+}
 }
 
 /* Mobile/tablet: collapsible bottom-left layout preview with toggle + swipe */
@@ -164,15 +227,14 @@
 
 @media (max-width: 1024px) {
   .viewer .layout-preview {
-    left: 12px;
-    bottom: 12px;
     max-width: min(76vw, 340px);
-    border-radius: 14px;
-    padding: 8px;
     background: rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(6px);
     transform: translateX(0);
     transition: opacity 280ms ease, transform 280ms ease, background-color 280ms ease, visibility 0s linear 280ms;
+  }
+  #pano-sidebar-wrapper {
+    top: 3rem;
   }
 
   .viewer .layout-preview.visible {
@@ -197,8 +259,8 @@
     justify-content: center;
     width: var(--layout-preview-toggle-size);
     height: var(--layout-preview-toggle-size);
-    border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.85);
+    /* border-radius: 50%; */
+    /* border: 2px solid rgba(255, 255, 255, 0.85); */
     background: rgba(17, 82, 114, 0.95);
     color: #fff;
     font-weight: 800;
@@ -478,3 +540,11 @@
   opacity: 1;
   visibility: visible;
 }
+
+
+
+
+
+
+
+

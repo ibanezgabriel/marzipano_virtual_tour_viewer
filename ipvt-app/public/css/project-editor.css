@@ -612,7 +612,7 @@
 /* Bottom-left layout preview (image only, no title) */
 .layout-preview {
   position: absolute;
-  left: .5rem;
+  /* left: .5rem; */
   bottom: .5rem;
   max-width: 350px;
   background: rgba(0, 0, 0, 0.4);
