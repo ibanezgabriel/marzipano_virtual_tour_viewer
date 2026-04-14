@@ -28,6 +28,37 @@ let openProjectProjects = [];
 const SEARCH_FADE_MS = 140;
 let searchFadeOutTimer = null;
 let searchFadeInTimer = null;
+let activeViewMenu = null;
+
+function closeActiveViewMenu() {
+  if (!activeViewMenu) return;
+  const { menu, button, parent } = activeViewMenu;
+  menu.classList.remove('open');
+  menu.style.top = '';
+  menu.style.left = '';
+  menu.style.right = '';
+  menu.style.position = '';
+  if (parent && menu.parentElement !== parent) {
+    parent.appendChild(menu);
+  }
+  button.setAttribute('aria-expanded', 'false');
+  activeViewMenu = null;
+}
+
+document.addEventListener('click', (e) => {
+  if (!activeViewMenu) return;
+  const { button, menu } = activeViewMenu;
+  if (button.contains(e.target) || menu.contains(e.target)) return;
+  closeActiveViewMenu();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (!activeViewMenu) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeActiveViewMenu();
+  }
+});
 
 // Ensure project number input only allows alphanumeric characters and "-"
 if (newProjectNumberInput) {
@@ -304,6 +335,8 @@ function renderProjectRow(project) {
   viewBtn.type = 'button';
   viewBtn.className = 'btn-open';
   viewBtn.title = "View"
+  viewBtn.setAttribute('aria-haspopup', 'menu');
+  viewBtn.setAttribute('aria-expanded', 'false');
   const viewIcon = document.createElement('img')
   viewIcon.src = "../assets/icons/view1.png";
   viewIcon.style.height = '20px';
@@ -349,9 +382,63 @@ function renderProjectRow(project) {
   // Prefer project number in shared URLs when available.
   const projectToken = (project.number && String(project.number).trim()) || project.id;
 
-  viewBtn.onclick = () => {
+  const viewMenu = document.createElement('div');
+  viewMenu.className = 'view-menu';
+  viewMenu.setAttribute('role', 'menu');
+  const viewPanoBtn = document.createElement('button');
+  viewPanoBtn.type = 'button';
+  viewPanoBtn.className = 'view-menu-item';
+  viewPanoBtn.textContent = 'Panoramas';
+  viewPanoBtn.setAttribute('role', 'menuitem');
+  const viewLayoutBtn = document.createElement('button');
+  viewLayoutBtn.type = 'button';
+  viewLayoutBtn.className = 'view-menu-item';
+  viewLayoutBtn.textContent = 'Layout';
+  viewLayoutBtn.setAttribute('role', 'menuitem');
+  viewMenu.append(viewPanoBtn, viewLayoutBtn);
+  viewMenu.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+
+  const openViewMenu = () => {
+    if (activeViewMenu && activeViewMenu.menu !== viewMenu) {
+      closeActiveViewMenu();
+    }
+    const isOpen = viewMenu.classList.contains('open');
+    if (isOpen) {
+      closeActiveViewMenu();
+      return;
+    }
+    const rect = viewBtn.getBoundingClientRect();
+    viewMenu.style.position = 'fixed';
+    viewMenu.style.top = `${Math.round(rect.bottom + 6)}px`;
+    viewMenu.style.left = `${Math.round(rect.right - viewMenu.offsetWidth)}px`;
+    if (viewMenu.parentElement !== document.body) {
+      document.body.appendChild(viewMenu);
+    }
+    viewMenu.classList.add('open');
+    viewBtn.setAttribute('aria-expanded', 'true');
+    activeViewMenu = { button: viewBtn, menu: viewMenu, parent: viewMenuParent };
+  };
+
+  viewBtn.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openViewMenu();
+  };
+
+  viewPanoBtn.onclick = (e) => {
+    e.preventDefault();
     const params = new URLSearchParams({ project: projectToken });
-    window.open(`project-viewer.html?${params}`, '_blank');
+    window.open(`project-viewer-panoramas.html?${params}`, '_blank');
+    closeActiveViewMenu();
+  };
+
+  viewLayoutBtn.onclick = (e) => {
+    e.preventDefault();
+    const params = new URLSearchParams({ project: projectToken });
+    window.open(`project-viewer-layout.html?${params}`, '_blank');
+    closeActiveViewMenu();
   };
 
   // Make the entire row clickable to open the project,
@@ -367,7 +454,8 @@ function renderProjectRow(project) {
   // group buttons into their own cell
   const actionsCell = document.createElement('div');
   actionsCell.className = 'project-actions-cell';
-  actionsCell.append(viewBtn, editBTN);
+  actionsCell.append(viewBtn, editBTN, viewMenu);
+  const viewMenuParent = actionsCell;
 
   row.append(numberCell, nameCell, statusCell, actionsCell);
   return row;

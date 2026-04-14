@@ -377,6 +377,7 @@
   border-radius: 5px;
   transition: transform 0.3s ease, background-color 0.5s ease, box-shadow 0.3s ease;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  overflow: visible;
 }
 
 /* Main dashboard list: keep columns fixed so long names don't shift alignment */
@@ -434,6 +435,10 @@
     justify-content: center;
     align-items: center;
     gap: 12px;
+}
+.project-actions-cell {
+  position: relative;
+  overflow: visible;
 }
 .project-name-input {
     flex: 1;
@@ -538,6 +543,42 @@
     font-weight: 600;
     cursor: pointer;
     transition: background 0.7s;
+}
+
+.view-menu {
+  position: fixed;
+  display: none;
+  flex-direction: column;
+  min-width: 140px;
+  background: #ffffff;
+  border: 1px solid #d0d5da;
+  border-radius: 6px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+  z-index: 5;
+  padding: 6px;
+}
+
+.view-menu.open {
+  display: flex;
+}
+
+.view-menu-item {
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+  color: #0d3d52;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.view-menu-item:hover,
+.view-menu-item:focus-visible {
+  background: #e6f0f4;
+  color: #0a2c3c;
+  outline: none;
 }
 .project-row .btn-open:hover,
 .btn-open-modal:hover {

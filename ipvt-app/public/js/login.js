@@ -1,5 +1,5 @@
 const REDIRECT_KEY = 'ipvt_redirect_url';
-const PUBLIC_PAGES = new Set(['login.html', 'project-viewer.html']);
+const PUBLIC_PAGES = new Set(['login.html', 'project-viewer.html', 'project-viewer-panoramas.html', 'project-viewer-layout.html']);
 const SUPERADMIN_HOME_PAGE = 'user-management.html';
 const ADMIN_HOME_PAGE = 'dashboard.html';
 

@@ -791,8 +791,44 @@ export function initLayoutsClient() {
     }
   };
 
+  let viewMode = null;
+  try {
+    const fromData = document.body && document.body.dataset ? (document.body.dataset.viewMode || '') : '';
+    const normalized = String(fromData || '').trim().toLowerCase();
+    if (normalized === 'layout' || normalized === 'panoramas') {
+      viewMode = normalized;
+    }
+  } catch (_e) {}
+  if (!viewMode) {
+    try {
+      const path = (window.location.pathname || '').toLowerCase();
+      if (path.endsWith('project-viewer-layout.html')) viewMode = 'layout';
+      if (path.endsWith('project-viewer-panoramas.html')) viewMode = 'panoramas';
+    } catch (_e) {}
+  }
+  if (!viewMode) {
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      const rawView = (params.get('view') || '').trim().toLowerCase();
+      if (rawView === 'layout' || rawView === 'panoramas') {
+        viewMode = rawView;
+      }
+    } catch (_e) {}
+  }
+
   let lastIsMobileLayoutListViewport = isMobileLayoutListViewport();
   let layoutListOpen = !lastIsMobileLayoutListViewport;
+  if (viewMode === 'layout') layoutListOpen = true;
+  if (viewMode === 'panoramas') layoutListOpen = false;
+
+  const applyViewMode = (nextMode) => {
+    if (nextMode !== 'layout' && nextMode !== 'panoramas' && nextMode !== null) return;
+    viewMode = nextMode;
+    if (viewMode === 'layout') layoutListOpen = true;
+    if (viewMode === 'panoramas') layoutListOpen = false;
+    if (viewMode === null) layoutListOpen = !lastIsMobileLayoutListViewport;
+    syncLayoutListState();
+  };
 
   const syncLayoutListState = () => {
     sidebarContainer.classList.toggle('layout-list-open', layoutListOpen);
@@ -871,10 +907,20 @@ export function initLayoutsClient() {
   // Default: open on desktop, closed on mobile.
   syncLayoutListState();
   window.addEventListener('resize', () => {
+    if (viewMode) return;
     const isMobile = isMobileLayoutListViewport();
     if (isMobile === lastIsMobileLayoutListViewport) return;
     lastIsMobileLayoutListViewport = isMobile;
     setLayoutListOpen(!isMobile);
+  });
+
+  document.addEventListener('viewer:viewmode', (ev) => {
+    const mode = ev && ev.detail && ev.detail.mode ? String(ev.detail.mode).toLowerCase() : null;
+    if (mode !== 'layout' && mode !== 'panoramas') {
+      applyViewMode(null);
+      return;
+    }
+    applyViewMode(mode);
   });
 
   (async () => {

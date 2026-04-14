@@ -274,7 +274,9 @@ export async function loadImages(onImagesLoaded) {
         }
       } else {
         if (!viewer && panoViewerEl) {
-          panoViewerEl.innerHTML = '<div class="no-pano-msg"><p>Select a layout from the list</p></div>';
+          const isLayoutMode = document.body && document.body.classList && document.body.classList.contains('viewer-mode-layout');
+          const label = isLayoutMode ? 'layout' : 'panorama';
+          panoViewerEl.innerHTML = `<div class="no-pano-msg"><p>Select a ${label} from the list</p></div>`;
         }
       }
     }
@@ -467,8 +469,31 @@ export async function loadImages(onImagesLoaded) {
             : fileList[0];
         await loadPanorama(imageToShow);
       } else {
-        // Client: do not auto-load any panorama; wait for hotspot selection
-        // Do not alter viewer or clear its DOM to avoid black screen issues.
+        const isViewerPanoMode = Boolean(
+          document.body &&
+          document.body.classList &&
+          document.body.classList.contains('viewer-mode-panoramas')
+        );
+        if (isViewerPanoMode) {
+          const lastSaved = (() => {
+            const pid = getProjectId();
+            if (!pid) return null;
+            try {
+              return localStorage.getItem(LAST_PANO_KEY_PREFIX + pid);
+            } catch (e) {
+              return null;
+            }
+          })();
+          const imageToShow = (lastSaved && fileList.includes(lastSaved))
+            ? lastSaved
+            : (selectedImageName && fileList.includes(selectedImageName))
+              ? selectedImageName
+              : fileList[0];
+          await loadPanorama(imageToShow);
+        } else {
+          // Client: do not auto-load any panorama; wait for hotspot selection
+          // Do not alter viewer or clear its DOM to avoid black screen issues.
+        }
       }
     } else {
       currentScene = null;

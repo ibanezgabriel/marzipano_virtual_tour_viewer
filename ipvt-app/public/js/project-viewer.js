@@ -8,6 +8,71 @@ import { io } from '/socket.io/socket.io.esm.min.js';
 
 let projectNameResizeBound = false;
 
+function initViewerModeToggle() {
+  const panoBtn = document.getElementById('viewer-pano-toggle');
+  const layoutBtn = document.getElementById('pano-layout-toggle');
+  if (!panoBtn || !layoutBtn) return;
+
+  const fixedMode = Boolean(document.body && document.body.dataset && document.body.dataset.viewMode);
+
+  const getModeFromUrl = () => {
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      const raw = (params.get('view') || '').trim().toLowerCase();
+      if (raw === 'layout' || raw === 'panoramas') return raw;
+    } catch (_e) {}
+    return null;
+  };
+
+  const getModeFromPage = () => {
+    const fromData = document.body && document.body.dataset ? (document.body.dataset.viewMode || '') : '';
+    const normalized = String(fromData || '').trim().toLowerCase();
+    if (normalized === 'layout' || normalized === 'panoramas') return normalized;
+    const path = (window.location.pathname || '').toLowerCase();
+    if (path.endsWith('project-viewer-layout.html')) return 'layout';
+    if (path.endsWith('project-viewer-panoramas.html')) return 'panoramas';
+    return null;
+  };
+
+  const setMode = (mode, options = {}) => {
+    const { updateUrl = true } = options;
+    if (mode !== 'layout' && mode !== 'panoramas') return;
+    document.body.classList.toggle('viewer-mode-panoramas', mode === 'panoramas');
+    document.body.classList.toggle('viewer-mode-layout', mode === 'layout');
+    panoBtn.classList.toggle('active-tab', mode === 'panoramas');
+    layoutBtn.classList.toggle('active-tab', mode === 'layout');
+    panoBtn.setAttribute('aria-pressed', mode === 'panoramas' ? 'true' : 'false');
+    layoutBtn.setAttribute('aria-pressed', mode === 'layout' ? 'true' : 'false');
+    try {
+      document.dispatchEvent(new CustomEvent('viewer:viewmode', { detail: { mode } }));
+    } catch (_e) {}
+
+    if (updateUrl && !fixedMode) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('view', mode);
+        history.replaceState(null, '', url.pathname + url.search + url.hash);
+      } catch (_e) {}
+    }
+  };
+
+  const initialMode = getModeFromPage() || getModeFromUrl() || 'panoramas';
+  setMode(initialMode, { updateUrl: true });
+
+  panoBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (fixedMode) return;
+    setMode('panoramas');
+  });
+
+  layoutBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (fixedMode) return;
+    setMode('layout');
+  });
+}
+
 function setupProjectNameModal() {
   const modal = document.getElementById('project-name-modal');
   const closeBtn = document.getElementById('project-name-modal-close');
@@ -102,6 +167,7 @@ if (!getProjectId()) {
   initBlurMasksClient();
   document.addEventListener('DOMContentLoaded', async () => {
     setupProjectNameModal();
+    initViewerModeToggle();
     await initHotspotsClient();
     await initBlurMasksClient();
     let canonicalId = getProjectId();
@@ -154,4 +220,3 @@ if (!getProjectId()) {
 
 // Initialize the menu collapsible functionality
 initMenuCollapsible();
-

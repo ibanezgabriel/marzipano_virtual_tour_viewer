@@ -31,7 +31,12 @@ function hasReadyTiles(tilesRoot) {
 
 function guardProjectPages(req, res, next) {
   const requestPath = req.path || '';
-  if (requestPath !== '/dashboard.html' && requestPath !== '/project-viewer.html') return next();
+  if (
+    requestPath !== '/dashboard.html' &&
+    requestPath !== '/project-viewer.html' &&
+    requestPath !== '/project-viewer-panoramas.html' &&
+    requestPath !== '/project-viewer-layout.html'
+  ) return next();
 
   try {
     const projectId = getProjectIdFromQuery(req);

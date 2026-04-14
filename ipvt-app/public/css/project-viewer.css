@@ -12,6 +12,46 @@
   cursor: pointer;
 }
 
+.viewer #pano-sidebar-tabs.viewer-tabs {
+  display: flex;
+}
+
+.viewer #pano-sidebar-tabs.viewer-tabs button {
+  flex: 1;
+}
+
+.viewer.viewer-fixed.viewer-mode-panoramas #pano-layout-toggle {
+  display: none;
+}
+
+.viewer.viewer-fixed.viewer-mode-layout #viewer-pano-toggle {
+  display: none;
+}
+
+.viewer.viewer-mode-panoramas #pano-image-list {
+  display: block;
+}
+
+.viewer.viewer-mode-panoramas #pano-layout-list {
+  display: none !important;
+}
+
+.viewer.viewer-mode-layout #pano-image-list {
+  display: none;
+}
+
+.viewer.viewer-mode-layout #pano-layout-list {
+  display: block;
+}
+
+.viewer.viewer-mode-panoramas .layout-preview {
+  display: none !important;
+}
+
+.viewer.viewer-mode-panoramas .layout-modal-overlay-client {
+  display: none !important;
+}
+
 /* Viewer-only responsive overrides (scoped with body.viewer) */
 .viewer {
   --pano-header-height: 3rem;
