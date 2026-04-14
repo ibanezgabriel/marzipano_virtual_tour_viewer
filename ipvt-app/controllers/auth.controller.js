@@ -11,6 +11,11 @@ const {
   serializeUserForClient,
   setSessionCookie,
 } = require('../services/auth.service');
+const { logAuditEvent } = require('../services/admin-audit.service');
+
+function isAdministrativeUser(user) {
+  return Boolean(user && (user.role === 'admin' || user.role === 'superadmin'));
+}
 
 /* Handles login. */
 async function login(req, res) {
@@ -43,6 +48,15 @@ async function login(req, res) {
 
     const session = await createSessionForUser(user.id);
     setSessionCookie(res, session.sessionId, session.expiresAt);
+
+    if (isAdministrativeUser(user)) {
+      logAuditEvent({
+        actor: user.username,
+        action: 'LOGIN',
+        target: user.username,
+      });
+    }
+
     return res.json({ success: true, user: serializeUserForClient(user) });
   } catch (error) {
     console.error('Login failed:', error);
@@ -75,6 +89,14 @@ async function logout(req, res) {
     }
   } catch (error) {
     console.error('Logout cleanup failed:', error);
+  }
+
+  if (isAdministrativeUser(req.authUser)) {
+    logAuditEvent({
+      actor: req.authUser.username,
+      action: 'LOGOUT',
+      target: req.authUser.username,
+    });
   }
 
   clearSessionCookie(res);
