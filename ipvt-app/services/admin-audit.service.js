@@ -1,6 +1,4 @@
 /* Emits targeted administrative audit logs for PM2 capture. */
-
-const AUDIT_PREFIX = '[AUDIT]';
 const PH_TIME_ZONE = 'Asia/Manila';
 
 function formatPhilippinesTimestamp(date = new Date()) {
@@ -36,7 +34,7 @@ function logAuditEvent({ actor, action, target }) {
   const targetValue = formatAuditValue(target, '-');
 
   console.log(
-    `${AUDIT_PREFIX} [${timestamp}] | ACTOR: [${actorValue}] | ACTION: [${actionValue}] | TARGET: [${targetValue}]`
+    `[${timestamp}] | ACTOR: [${actorValue}] | ACTION: [${actionValue}] | TARGET: [${targetValue}]`
   );
 }
 
