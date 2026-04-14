@@ -1,5 +1,5 @@
 {
-  "name": "marzipano_virtual_tour_viewer",
+  "name": "qcde_ipvt",
   "version": "1.0.0",
   "description": "",
   "main": "public/js/app.js",
@@ -23,11 +23,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/with-aeon/marzipano_virtual_tour_viewer.git"
+    "url": "git+https://github.com/with-aeon/QCDE_IPVT.git"
   },
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/with-aeon/marzipano_virtual_tour_viewer/issues"
+    "url": "https://github.com/with-aeon/QCDE_IPVT/issues"
   },
-  "homepage": "https://github.com/with-aeon/marzipano_virtual_tour_viewer#readme"
+  "homepage": "https://github.com/with-aeon/QCDE_IPVT#readme"
 }
