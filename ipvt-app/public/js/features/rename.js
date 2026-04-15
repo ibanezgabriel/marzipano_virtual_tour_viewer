@@ -1,3 +1,4 @@
+/* Handles rename actions for project media items. */
 import { getSelectedImageName, loadImages, loadPanorama, updateInitialViewForRenamedImage } from '../marzipano-viewer.js';
 import { updateHotspotsForRenamedImage } from './hotspots.js';
 import { showAlert, showPrompt, showTimedAlert } from '../dialog.js';
@@ -18,6 +19,7 @@ export function initRename() {
   });
 }
 
+/* Handles handle rename. */
 async function handleRename() {
   const selectedImageName = getSelectedImageName();
   if (!selectedImageName) {

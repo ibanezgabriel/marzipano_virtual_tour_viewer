@@ -1,3 +1,4 @@
+/* Stores authentication-related configuration values. */
 const SESSION_COOKIE_NAME = 'ipvt_session';
 const SESSION_COOKIE_OPTIONS = {
   httpOnly: true,

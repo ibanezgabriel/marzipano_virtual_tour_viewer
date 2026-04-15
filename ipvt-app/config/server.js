@@ -1,3 +1,4 @@
+/* Loads server settings such as ports and SSL options. */
 const fs = require('fs');
 const path = require('path');
 

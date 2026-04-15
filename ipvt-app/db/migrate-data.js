@@ -1,3 +1,4 @@
+/* Migrates existing project data into the database. */
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
@@ -10,6 +11,7 @@ const { getPool } = require('./pool');
 const { ensureBootstrapSuperAdmin } = require('./users');
 const { syncAllProjects } = require('./project-sync');
 
+/* Handles main. */
 async function main() {
   const bootstrapUser = await ensureBootstrapSuperAdmin();
   const summaries = await syncAllProjects({ createdByUserId: bootstrapUser.id });

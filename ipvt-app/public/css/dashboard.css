@@ -1,3 +1,4 @@
+/* Sets the main dashboard layout and background. */
 .dashboard {
   display: flex;
   flex-direction: column;
@@ -9,6 +10,7 @@
   position: relative;
   z-index: 0;
 }
+/* Adds a decorative layer for the dashboard. */
 .dashboard::before {
   content: "";
   position: absolute;
@@ -18,12 +20,14 @@
 }
 
 /* Logout button styles */
+/* Sets the base styling for the dashboard. */
 #dashboard-title .logout-btn {
   position: absolute;
   right: 1rem;
   top: 50%;
   transform: translateY(-50%);
 }
+/* Sets the base styling for the element. */
 .user-role-wrap {
   position: absolute;
   right: 1rem;
@@ -33,15 +37,18 @@
   align-items: center;
   gap: 0.5rem;
 }
+/* Sets the base styling for the dashboard. */
 #dashboard-title .user-role-wrap .logout-btn {
   position: static;
   transform: none;
 }
+/* Sets the base styling for the element. */
 .user-role-label {
   color: #fff;
   font-weight: 600;
   letter-spacing: 0.3px;
 }
+/* Styles the logout action button. */
 .logout-btn {
   padding: 8px 10px;
   background: #c62828;
@@ -53,10 +60,12 @@
   gap: 0.5rem;
   transition: background 0.5s;
 }
+/* Hover state for the button. */
 .logout-btn:hover {
   background: #9d1818;
 }
 
+/* Styles the top header bar. */
 #pano-header {
     display: flex;
     align-items: center;
@@ -66,11 +75,13 @@
     color: white;
 }
 
+/* Sets the base styling for the header. */
 #pano-header > * {
     margin: 0;
 }
 
 /* Home title logout button positioning */
+/* Centers the dashboard title and header content. */
 #dashboard-title {
   position: relative;
   color: white;
@@ -81,11 +92,13 @@
   background-color: #0d3d52;
   padding: 1rem;
 }
+/* Sets the base styling for the dashboard. */
 #dashboard-title > img {
   height: 3rem;
   width: 3rem;
   margin: 0 1rem;
 }
+/* Wraps the dashboard content and column sizing. */
 #project-container {
   width: calc(90% - 2rem);
   flex: 1;
@@ -104,6 +117,7 @@
   --dashboard-col-actions: clamp(160px, 18vw, 240px);
   --dashboard-row-height: 64px;
 }
+/* Sets the base styling for the toolbar. */
 #project-toolbar {
     display: flex;
     width: 100%;
@@ -111,6 +125,7 @@
     /* padding: 0 10px; */
     align-items: center;
 }
+/* Sets the base styling for the button. */
 .settings-btn {
   display: inline-flex;
   align-items: center;
@@ -125,19 +140,23 @@
   background-color: #1a5974;
   transition: background-color 0.5s;
 }
+/* Sets the base styling for the button. */
 .settings-icon-btn {
   padding: 0.6rem;
 }
 
+/* Shares the same styling across related elements. */
 .modal.settings-mode #edit-admin-name-group,
 .modal.settings-mode #edit-admin-status-group {
   display: none;
 }
+/* Sets the base styling for the element. */
 .action-bar {
   display: flex;
   padding: 1rem 0;
   gap: .5rem;
 }
+/* Builds the fixed header row for the project table. */
 #project-container-header {
   display: grid;
   grid-template-columns: var(--dashboard-col-number) var(--dashboard-col-name) var(--dashboard-col-status) var(--dashboard-col-actions);
@@ -152,11 +171,13 @@
   top: 0;
   z-index: 2;
 }
+/* Sets the base styling for the header. */
 #header-action {
   margin-right: 0;
 }
 
 /* cells inside a row */
+/* Shares the same styling across related elements. */
 .project-number-cell,
 .project-name-cell,
 .project-status-cell,
@@ -169,6 +190,7 @@
 }
 
 /* preserve previous display styles on the inner elements */
+/* Shares the same styling across related elements. */
 .project-number-display,
 .project-name-display,
 .project-status-display {
@@ -180,15 +202,19 @@
     cursor: pointer;
     /* text-transform: uppercase; */
 }
+/* Sets the base styling for the project status control. */
 .project-status-text {
   cursor: default;
 }
+/* Sets the base styling for the project status control. */
 .project-status-text.status-completed {
   color: #28a745;
 }
+/* Sets the base styling for the project status control. */
 .project-status-text.status-ongoing {
   color: #d6813a;
 }
+/* Sets the base styling for the modal. */
 .modal-status-select {
   width: 100%;
   padding: 10px 12px;
@@ -198,15 +224,18 @@
   background: #fff;
   color: #333;
 }
+/* Sets the base styling for the element. */
 .project-number-display {
   font-weight: 600;
 }
 
+/* Sets the base styling for the element. */
 .project-actions-cell > button {
     margin: 0 4px;
     justify-content: flex-start;
 }
 
+/* Sets the base styling for the header. */
 #project-container-header p {
   color: white;
   height: 100%;
@@ -218,6 +247,7 @@
   margin: 0;
   min-width: 0;
 }
+/* Sets the base styling for the button. */
 .action-btn {
     padding: 1rem;
     color: #fff;
@@ -230,19 +260,23 @@
     background-color: #0d3d52;
     transition: background-color 0.5s;
 }
+/* Hover state for the button. */
 .action-btn:hover {
     background-color: #1a5974;
 
 }
+/* Sets the base styling for the search control. */
 .project-search-wrap {
   padding: 1rem;
   position: sticky;
 }
+/* Sets the base styling for the search control. */
 .project-search-icon > img {
   height: 1rem;
   width: 1rem;
   margin-left: 1rem;
 }
+/* Sets the base styling for the search control. */
 .project-search-icon {
   position: absolute;
   left: 12px;
@@ -254,6 +288,7 @@
   align-items: center;
   justify-content: center;
 }
+/* Sets the base styling for the search control. */
 .project-search-input {
   width: 100%;
   padding: 10px 14px 10px 40px;
@@ -264,12 +299,15 @@
   color: #333;
   outline: none;
 }
+/* Styles the placeholder text. */
 .project-search-input::placeholder {
   color: #9ca3af;
 }
+/* Focus state for the search control. */
 .project-search-input:focus {
   border-color: #115272;
 }
+/* Stacks project rows with consistent spacing. */
 .project-list {
     display: flex;
     flex-direction: column;
@@ -280,6 +318,7 @@
 }
 
 /* Scroll container for header + rows (keeps columns aligned with scrollbar) */
+/* Creates a scroll area for the project table. */
 .project-table-scroll {
     width: 100%;
     max-height: 65vh;
@@ -290,6 +329,7 @@
 }
 
 /* User management (admin list) column alignment */
+/* Sets the base styling for the element. */
 #admin-table-scroll {
   --admin-col-id: clamp(140px, 18vw, 220px);
   --admin-col-user: minmax(0, 1fr);
@@ -297,10 +337,12 @@
   --admin-col-actions: clamp(180px, 20vw, 260px);
 }
 
+/* Sets the base styling for the header. */
 #admin-table-scroll #project-container-header {
   grid-template-columns: var(--admin-col-id) var(--admin-col-user) var(--admin-col-status) var(--admin-col-actions);
 }
 
+/* Sets the base styling for the project list. */
 #admin-list .project-row {
   display: grid;
   grid-template-columns: var(--admin-col-id) var(--admin-col-user) var(--admin-col-status) var(--admin-col-actions);
@@ -310,6 +352,7 @@
   min-height: var(--dashboard-row-height);
 }
 
+/* Shares the same styling across related elements. */
 #admin-list .project-number-display,
 #admin-list .project-name-display {
   overflow: hidden;
@@ -318,6 +361,7 @@
 }
 
 /* In the main dashboard list, the wrapper scrolls (not the list itself) */
+/* Sets the base styling for the project list. */
 #project-table-scroll #project-list {
     max-height: none;
     overflow: visible;
@@ -326,12 +370,14 @@
 }
 
 /* Open Project modal layout */
+/* Shows the modal when it becomes active. */
 .open-project-modal {
   display: flex;
   flex-direction: column;
   width: 900px;
 }
 
+/* Shows the modal when it becomes active. */
 .open-project-modal-header {
   display: flex;
   align-items: center;
@@ -340,19 +386,23 @@
   margin-bottom: 16px;
 }
 
+/* Shows the modal when it becomes active. */
 .open-project-modal-header .open-project-header-element {
   margin-bottom: 0;
 }
 
+/* Shows the modal when it becomes active. */
 .open-project-modal-header .project-search-wrap {
   padding: 0;
   position: relative;
 }
 
+/* Shows the modal when it becomes active. */
 .open-project-modal-header .project-search-input {
   width: 240px;
 }
 
+/* Sets the base styling for the modal. */
 #open-project-modal .project-list {
   flex: 1;  
   max-height: none;
@@ -362,12 +412,15 @@
   align-items: stretch;
   padding: 0.5rem 0.25rem;
 }
+/* Sets the base styling for the search control. */
 .project-list.search-fade-out {
     opacity: 0;
 }
+/* Sets the base styling for the search control. */
 .project-list.search-fade-in {
     opacity: 1;
 }
+/* Styles each project row card. */
 .project-row {
   display: flex;
   justify-content: space-around;
@@ -381,6 +434,7 @@
 }
 
 /* Main dashboard list: keep columns fixed so long names don't shift alignment */
+/* Sets the base styling for the project list. */
 #project-list .project-row {
   display: grid;
   grid-template-columns: var(--dashboard-col-number) var(--dashboard-col-name) var(--dashboard-col-status) var(--dashboard-col-actions);
@@ -390,6 +444,7 @@
   min-height: var(--dashboard-row-height);
 }
 
+/* Shares the same styling across related elements. */
 #project-list .project-number-cell,
 #project-list .project-name-cell,
 #project-list .project-status-cell,
@@ -397,6 +452,7 @@
   min-width: 0;
 }
 
+/* Shares the same styling across related elements. */
 #project-list .project-number-display,
 #project-list .project-name-display {
   overflow: hidden;
@@ -405,27 +461,32 @@
 }
 
 /* Slightly tighter inner spacing so the row height is consistent */
+/* Shares the same styling across related elements. */
 #project-list .project-number-display,
 #project-list .project-name-display {
   padding: 8px 16px;
 }
 
+/* Sets the base styling for the project list. */
 #project-list .project-status-select {
   height: 36px;
   padding: 0 12px;
 }
 
+/* Shares the same styling across related elements. */
 #project-list .btn-open,
 #project-list .btn-edit,
 #project-list .btn-delete {
   padding: 8px 14px;
 }
+/* Hover state for the project list. */
 .project-row:hover {
   transform: translateY(-3px);
   background-color: #d1d1d1;
   box-shadow: 0 4px 10px rgba(0,0,0,0.12);
 }
 
+/* Shares the same styling across related elements. */
 .project-number-cell,
 .project-name-cell,
 .project-status-cell,
@@ -436,10 +497,12 @@
     align-items: center;
     gap: 12px;
 }
+/* Sets the base styling for the element. */
 .project-actions-cell {
   position: relative;
   overflow: visible;
 }
+/* Sets the base styling for the project name field. */
 .project-name-input {
     flex: 1;
     min-width: 0;
@@ -448,6 +511,7 @@
     font-size: 1rem;
     color: #333;
 }
+/* Sets the base styling for the project status control. */
 .project-status-select {
   flex: 0 0 140px;
   max-width: 140px;
@@ -460,39 +524,47 @@
   text-align: center;
 }
 
+/* Sets the base styling for the project status control. */
 .project-status-select option {
   text-align: center;
 }
 
+/* Sets the base styling for the project status control. */
 .project-status-select option.status-option-completed {
   color: #1b5e20;
   background: rgb(255, 255, 193);
 }
 
+/* Sets the base styling for the project status control. */
 .project-status-select option.status-option-ongoing {
   color: #7e1c1c;
   background: #b9e0c2;
 }
 
+/* Sets the base styling for the project status control. */
 .project-status-select.status-completed {
   background: #e7f6ea;
   color: #1b5e20;
   border-color: #b9e0c2;
 }
 
+/* Sets the base styling for the project status control. */
 .project-status-select.status-ongoing {
   color: #7e1c1c;
   background: rgb(255, 255, 193);
   border-color: #f2b9b9;
 }
+/* Styles the placeholder text. */
 .project-name-input::placeholder {
     color: #888;
 }
+/* Focus state for the project name field. */
 .project-name-input:focus {
     outline: none;
     border-color: #115272;
     background: #fff;
 }
+/* Sets the base styling for the project list. */
 .project-row .btn-edit {
     padding: 10px 20px;
     color: #fff;
@@ -502,9 +574,11 @@
     cursor: pointer;
     transition: background .7s;
 }
+/* Hover state for the project list. */
 .project-row .btn-edit:hover {
     background: #0d3d52;
 }
+/* Sets the base styling for the project list. */
 .project-row .btn-delete {
     padding: 10px 20px;
     color: #fff;
@@ -513,10 +587,12 @@
     cursor: pointer;
     transition: background 0.7s;
 }
+/* Hover state for the project list. */
 .project-row .btn-delete:hover {
     background: #7e1c1c;
     
 }
+/* Sets the base styling for the project name field. */
 .project-name-display {
     flex: 1;
     min-width: 0;
@@ -528,12 +604,14 @@
     cursor: pointer;
 }
 
+/* Shares the same styling across related elements. */
 #btn-new-project, #btn-open-project, #btn-create-admin {
   display: flex;
   justify-content: center;
   align-items: center;
   width: auto;
 }
+/* Sets the base styling for the project list. */
 .project-row .btn-open {
     padding: 10px 20px;
     /* background: #2e7d32; */
@@ -545,6 +623,7 @@
     transition: background 0.7s;
 }
 
+/* Sets the base styling for the element. */
 .view-menu {
   position: fixed;
   display: none;
@@ -558,10 +637,12 @@
   padding: 6px;
 }
 
+/* Shows the element when it becomes active. */
 .view-menu.open {
   display: flex;
 }
 
+/* Sets the base styling for the element. */
 .view-menu-item {
   text-align: left;
   background: transparent;
@@ -574,16 +655,19 @@
   transition: background 0.2s ease, color 0.2s ease;
 }
 
+/* Shares the same styling across related elements. */
 .view-menu-item:hover,
 .view-menu-item:focus-visible {
   background: #e6f0f4;
   color: #0a2c3c;
   outline: none;
 }
+/* Shares the same styling across related elements. */
 .project-row .btn-open:hover,
 .btn-open-modal:hover {
     background: #1b5e20;
 }
+/* Sets the base styling for the modal. */
 .btn-open-modal {
   background: #328a38 ;
   padding: 10px 20px;
@@ -595,10 +679,12 @@
     transition: background 0.7s;
 }
 
+/* Sets the base styling for the project list. */
 .project-table-wrap {
     max-height: 350px;
     overflow-y: auto;
 }
+/* Sets the base styling for the project list. */
 .project-table-wrap table {
     width: 100%;
     border-collapse: separate;

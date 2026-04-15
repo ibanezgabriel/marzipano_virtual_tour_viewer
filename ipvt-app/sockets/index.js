@@ -1,3 +1,4 @@
+/* Registers websocket listeners for project updates. */
 function registerSocketHandlers(io) {
   io.on('connection', (socket) => {
     socket.on('joinProject', (projectId) => {

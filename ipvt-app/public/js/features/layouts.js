@@ -1,3 +1,4 @@
+/* Manages layout uploads, ordering, and editor-side data. */
 import { appendProjectParams, getLayoutBase, getProjectId } from '../project-context.js';
 import {
   showAlert,
@@ -11,6 +12,7 @@ import {
 } from '../dialog.js';
 import { getImageList, loadPanorama, registerOnSceneLoad, getSelectedImageName } from '../marzipano-viewer.js';
 
+/* Handles select el. */
 function selectEl(id) {
   return document.getElementById(id);
 }
@@ -47,6 +49,7 @@ export function initLayouts() {
   let nextLayoutHotspotId = 0;
   let selectedHotspotId = null;
 
+/* Updates save last layout. */
   function saveLastLayout(filename) {
     const pid = getProjectId();
     if (pid) {
@@ -56,6 +59,7 @@ export function initLayouts() {
     }
   }
 
+/* Gets load layout hotspots from storage. */
   function loadLayoutHotspotsFromStorage() {
     try {
       const raw = localStorage.getItem(LAYOUT_HOTSPOTS_KEY) || localStorage.getItem(LEGACY_LAYOUT_HOTSPOTS_KEY);
@@ -83,6 +87,7 @@ export function initLayouts() {
     }
   }
 
+/* Handles serialize layout hotspots. */
   function serializeLayoutHotspots() {
     const obj = {};
     layoutHotspotsByFile.forEach((list, filename) => {
@@ -96,6 +101,7 @@ export function initLayouts() {
     return obj;
   }
 
+/* Updates save layout hotspots to storage. */
   function saveLayoutHotspotsToStorage() {
     const payload = serializeLayoutHotspots();
     try {
@@ -200,11 +206,13 @@ export function initLayouts() {
   let hotspotPlaceMode = false;
   const layoutCacheBustByFile = new Map();
 
+/* Updates set preview visible. */
   function setPreviewVisible(visible) {
     if (!previewContainer) return;
     previewContainer.classList.toggle('visible', Boolean(visible));
   }
 
+/* Updates update layout list item action icons. */
   function updateLayoutListItemActionIcons(li) {
     if (!li) return;
     const isActive = li.classList.contains('active');
@@ -220,10 +228,12 @@ export function initLayouts() {
     });
   }
 
+/* Handles refresh all layout list action icons. */
   function refreshAllLayoutListActionIcons() {
     floorList.querySelectorAll('li[data-filename]').forEach((li) => updateLayoutListItemActionIcons(li));
   }
 
+/* Gets get layout title from list. */
   function getLayoutTitleFromList(filename) {
     if (!floorList || !filename) return '';
     const items = Array.from(floorList.querySelectorAll('li[data-filename]'));
@@ -233,6 +243,7 @@ export function initLayouts() {
     return (nameEl ? nameEl.textContent : match.textContent || '').trim();
   }
 
+/* Gets get layout image src. */
   function getLayoutImageSrc(filename) {
     const base = getLayoutBase();
     const encoded = encodeURIComponent(filename);
@@ -241,11 +252,13 @@ export function initLayouts() {
     return `${base}/${encoded}?v=${encodeURIComponent(String(token))}`;
   }
 
+/* Handles bump layout image cache. */
   function bumpLayoutImageCache(filename) {
     if (!filename) return;
     layoutCacheBustByFile.set(filename, Date.now());
   }
 
+/* Handles move layout image cache. */
   function moveLayoutImageCache(oldFilename, newFilename) {
     if (!oldFilename || !newFilename || oldFilename === newFilename) return;
     if (!layoutCacheBustByFile.has(oldFilename)) return;
@@ -254,6 +267,7 @@ export function initLayouts() {
     layoutCacheBustByFile.set(newFilename, token);
   }
 
+/* Cleans up close modal. */
   function closeModal() {
     modalOverlay.classList.remove('visible');
     document.body.classList.remove('layout-modal-open');
@@ -263,6 +277,7 @@ export function initLayouts() {
     setPreviewVisible(selectedLayout && isFloorTabActive());
   }
 
+/* Updates sync stage contain. */
   function syncStageContain(imgEl, stageEl, containerEl) {
     if (!imgEl || !stageEl || !containerEl) return;
     const nw = Number(imgEl.naturalWidth || 0);
@@ -280,12 +295,14 @@ export function initLayouts() {
     stageEl.style.height = `${h}px`;
   }
 
+/* Updates sync modal stage size. */
   function syncModalStageSize() {
     if (!modalOverlay.classList.contains('visible')) return;
     syncStageContain(modalImg, modalStageEl, modalImageWrapEl);
   }
 
   // Keep hotspot overlays aligned after image loads or viewport resizes.
+/* Handles rerender hotspots for layout. */
   function rerenderHotspotsForLayout() {
     try {
       if (modalOverlay.classList.contains('visible')) {
@@ -304,6 +321,7 @@ export function initLayouts() {
     }
   });
 
+/* Shows open modal for. */
   function openModalFor(filename) {
     if (!filename || !previewImg || !modalImg) return;
     const src = getLayoutImageSrc(filename);
@@ -331,6 +349,7 @@ export function initLayouts() {
   if (modalImg) modalImg.addEventListener('load', rerenderHotspotsForLayout);
   window.addEventListener('resize', () => requestAnimationFrame(rerenderHotspotsForLayout));
 
+/* Shows show panos. */
   function showPanos() {
     lastSidebarKind = 'pano';
     panoTab.classList.add('active-tab');
@@ -343,6 +362,7 @@ export function initLayouts() {
     setPreviewVisible(false);
   }
 
+/* Shows show layouts. */
   function showLayouts() {
     lastSidebarKind = 'layout';
     panoTab.classList.remove('active-tab');
@@ -354,6 +374,7 @@ export function initLayouts() {
     setPreviewVisible(Boolean(selectedLayout));
   }
 
+/* Shows show audit logs. */
   function showAuditLogs() {
     if (!auditLogsTab || !auditLogsPanel) return;
     panoTab.classList.remove('active-tab');
@@ -373,10 +394,12 @@ export function initLayouts() {
   // Default state
   showPanos();
 
+/* Handles is floor tab active. */
   function isFloorTabActive() {
     return floorTab.classList.contains('active-tab');
   }
 
+/* Shows show preview. */
   function showPreview(filename) {
     if (!previewImg) return;
     previewImg.src = getLayoutImageSrc(filename);
@@ -384,6 +407,7 @@ export function initLayouts() {
     renderRenderedHotspots();
   }
 
+/* Updates set active layout li. */
   function setActiveLayoutLi(filename) {
     const items = Array.from(floorList.querySelectorAll('li'));
     items.forEach((li) => {
@@ -396,6 +420,7 @@ export function initLayouts() {
     });
   }
 
+/* Handles on layout click. */
   function onLayoutClick(filename) {
     selectedLayout = filename;
     saveLastLayout(filename);
@@ -404,12 +429,14 @@ export function initLayouts() {
     document.dispatchEvent(new CustomEvent('layout:selected', { detail: { filename } }));
   }
 
+/* Cleans up clear layout items. */
   function clearLayoutItems() {
     // Remove all existing layout list items; keep the "+" button (which is a <button>, not <li>)
     const items = Array.from(floorList.querySelectorAll('li'));
     items.forEach((li) => li.remove());
   }
 
+/* Gets load layouts. */
   async function loadLayouts() {
     try {
       const res = await fetch(appendProjectParams('/api/layouts'), { cache: 'no-store' });
@@ -614,6 +641,7 @@ export function initLayouts() {
   }
 
   // Layout hotspot rendering inside the modal
+/* Shows render hotspots to layer. */
   function renderHotspotsToLayer(layerEl, { allowDelete, showTitle }) {
     if (!layerEl || !selectedLayout) return;
     layerEl.innerHTML = '';
@@ -669,14 +697,17 @@ export function initLayouts() {
     });
   }
 
+/* Shows render layout hotspots. */
   function renderLayoutHotspots() {
     renderHotspotsToLayer(modalHotspotLayer, { allowDelete: true, showTitle: true });
   }
 
+/* Shows render rendered hotspots. */
   function renderRenderedHotspots() {
     renderHotspotsToLayer(previewHotspotLayer, { allowDelete: false, showTitle: false });
   }
 
+/* Handles add layout hotspot at. */
   async function addLayoutHotspotAt(clientX, clientY) {
     if (!modalImg || !selectedLayout) return;
     syncModalStageSize();
@@ -761,6 +792,7 @@ export function initLayouts() {
     });
   }
 
+/* Handles handle update layout. */
   async function handleUpdateLayout() {
     if (!selectedLayout) {
       await showAlert('Please select a layout to update.', 'Update layout');
@@ -856,6 +888,7 @@ export function initLayouts() {
     input.click();
   }
 
+/* Handles handle rename layout. */
   async function handleRenameLayout() {
     if (!selectedLayout) {
       await showAlert('Please select a layout to rename.', 'Rename layout');

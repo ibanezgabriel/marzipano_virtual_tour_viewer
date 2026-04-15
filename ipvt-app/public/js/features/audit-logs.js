@@ -1,3 +1,4 @@
+/* Loads and renders project audit log activity. */
 import Marzipano from "//cdn.skypack.dev/marzipano";
 import { appendProjectParams, getUploadBase, getLayoutBase } from '../project-context.js';
 import { getSelectedImageName } from '../marzipano-viewer.js';
@@ -11,35 +12,42 @@ const AUDIT_LOG_SOURCE_PROBE_TIMEOUT_MS = 12000;
 const AUDIT_LOG_SOURCE_RETRY_DELAY_MS = 700;
 const AUDIT_LOG_LOADING_MIN_VISIBLE_MS = 220;
 
+/* Handles is layout audit kind. */
 function isLayoutAuditKind(kind) {
   return kind === 'layout' || kind === 'floorplan';
 }
 
+/* Handles select el. */
 function selectEl(id) {
   return document.getElementById(id);
 }
 
+/* Handles is audit logs tab active. */
 function isAuditLogsTabActive() {
   const tab = selectEl('pano-audit-logs');
   return Boolean(tab && tab.classList.contains('active-tab'));
 }
 
+/* Handles format timestamp. */
 function formatTimestamp(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleString();
 }
 
+/* Handles format actor. */
 function formatActor(entry) {
   const userId = entry && entry.meta && entry.meta.createdByUserId ? String(entry.meta.createdByUserId).trim() : '';
   return userId ? userId : '';
 }
 
+/* Gets get active layout from dom. */
 function getActiveLayoutFromDom() {
   const li = document.querySelector('#pano-layout-list li.active[data-filename]');
   return li && li.dataset ? li.dataset.filename : null;
 }
 
+/* Handles parse audit logs fetch error. */
 function parseAuditLogsFetchError(res, text) {
   if (res.status === 404 && /Cannot GET\s+\/api\/audit-logs\//i.test(text || '')) {
     return 'Audit logs API is unavailable on the running server. Please restart the server to load the latest routes.';
@@ -62,17 +70,20 @@ function parseAuditLogsFetchError(res, text) {
   return `Server responded with ${res.status}`;
 }
 
+/* Sets up create audit log image url. */
 function createAuditLogImageUrl(kind, storedFilename) {
   const safeKind = isLayoutAuditKind(kind) ? 'layout' : 'pano';
   return appendProjectParams(`/api/audit-logs/images/${safeKind}/${encodeURIComponent(storedFilename)}`);
 }
 
+/* Sets up create live image url. */
 function createLiveImageUrl(kind, filename) {
   if (!filename) return null;
   const base = isLayoutAuditKind(kind) ? getLayoutBase() : getUploadBase();
   return `${base}/${encodeURIComponent(filename)}`;
 }
 
+/* Handles parse renamed filenames from message. */
 function parseRenamedFilenamesFromMessage(message) {
   const text = String(message || '');
   const legacy = text.match(/renamed\s+from\s+"([^"]+)"\s+to\s+"([^"]+)"/i);
@@ -85,6 +96,7 @@ function parseRenamedFilenamesFromMessage(message) {
   return { oldFilename, newFilename };
 }
 
+/* Handles parse replaced filenames from message. */
 function parseReplacedFilenamesFromMessage(message) {
   const text = String(message || '');
   const legacy = text.match(/replaced\s+"([^"]+)"\s+with\s+"([^"]+)"/i);
@@ -97,6 +109,7 @@ function parseReplacedFilenamesFromMessage(message) {
   return { oldFilename, newFilename };
 }
 
+/* Gets read replaced meta. */
 function readReplacedMeta(entry) {
   const replaced = entry && entry.meta && entry.meta.replaced && typeof entry.meta.replaced === 'object'
     ? entry.meta.replaced
@@ -108,10 +121,12 @@ function readReplacedMeta(entry) {
   return { oldFilename, newFilename };
 }
 
+/* Gets get replaced pair. */
 function getReplacedPair(entry) {
   return readReplacedMeta(entry) || parseReplacedFilenamesFromMessage(entry && entry.message);
 }
 
+/* Sets up create live filename resolver. */
 function createLiveFilenameResolver(entries) {
   const renameMap = new Map();
   const ordered = Array.isArray(entries)
@@ -137,6 +152,7 @@ function createLiveFilenameResolver(entries) {
   };
 }
 
+/* Sets up create archived image resolver. */
 function createArchivedImageResolver(entries, defaultKind) {
   const archiveMap = new Map();
   const fallbackKind = isLayoutAuditKind(defaultKind) ? 'layout' : 'pano';
@@ -168,15 +184,18 @@ function createArchivedImageResolver(entries, defaultKind) {
   };
 }
 
+/* Handles with cache bust. */
 function withCacheBust(url) {
   const separator = String(url || '').includes('?') ? '&' : '?';
   return `${url}${separator}auditLogReady=${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+/* Handles sleep. */
 function sleep(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+/* Handles wait for next paint. */
 function waitForNextPaint() {
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => {
@@ -185,6 +204,7 @@ function waitForNextPaint() {
   });
 }
 
+/* Handles wait for minimum loading duration. */
 async function waitForMinimumLoadingDuration(startedAtMs, minDurationMs = AUDIT_LOG_LOADING_MIN_VISIBLE_MS) {
   const elapsed = Date.now() - startedAtMs;
   const remaining = minDurationMs - elapsed;
@@ -193,12 +213,14 @@ async function waitForMinimumLoadingDuration(startedAtMs, minDurationMs = AUDIT_
   }
 }
 
+/* Sets up make source probe error. */
 function makeSourceProbeError(message, permanent = false) {
   const error = new Error(message);
   error.permanent = Boolean(permanent);
   return error;
 }
 
+/* Gets fetch with timeout. */
 async function fetchWithTimeout(url, options = {}, timeoutMs = AUDIT_LOG_SOURCE_PROBE_TIMEOUT_MS) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -218,6 +240,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = AUDIT_LOG_SOURCE_
   }
 }
 
+/* Handles throw for probe status. */
 function throwForProbeStatus(status) {
   if (status === 404) {
     throw makeSourceProbeError('Audit log image file was not found.', true);
@@ -228,6 +251,7 @@ function throwForProbeStatus(status) {
   throw makeSourceProbeError(`Image source check failed (${status}).`);
 }
 
+/* Handles probe audit log image source. */
 async function probeAuditLogImageSource(imageUrl, timeoutMs = AUDIT_LOG_SOURCE_PROBE_TIMEOUT_MS) {
   const probeUrl = withCacheBust(imageUrl);
   const headRes = await fetchWithTimeout(probeUrl, { method: 'HEAD' }, timeoutMs);
@@ -250,6 +274,7 @@ async function probeAuditLogImageSource(imageUrl, timeoutMs = AUDIT_LOG_SOURCE_P
   throwForProbeStatus(getRes.status);
 }
 
+/* Handles wait for audit log image source. */
 async function waitForAuditLogImageSource(imageUrl, opts = {}) {
   const timeoutMs = Number(opts.timeoutMs) > 0 ? Number(opts.timeoutMs) : AUDIT_LOG_SOURCE_READY_TIMEOUT_MS;
   const retryDelayMs = Number(opts.retryDelayMs) >= 0 ? Number(opts.retryDelayMs) : AUDIT_LOG_SOURCE_RETRY_DELAY_MS;
@@ -269,6 +294,7 @@ async function waitForAuditLogImageSource(imageUrl, opts = {}) {
   throw lastError || new Error('Image source is still not ready.');
 }
 
+/* Handles resolve audit log image source url. */
 async function resolveAuditLogImageSourceUrl(primaryUrl, fallbackUrls = []) {
   const candidates = [primaryUrl, ...fallbackUrls]
     .map((url) => String(url || '').trim())
@@ -295,6 +321,7 @@ async function resolveAuditLogImageSourceUrl(primaryUrl, fallbackUrls = []) {
   throw lastError || new Error('Image source is unavailable.');
 }
 
+/* Sets up create audit log loading screen. */
 function createAuditLogLoadingScreen() {
   const overlay = document.createElement('div');
   overlay.className = 'audit-log-source-loading-overlay';
@@ -309,6 +336,7 @@ function createAuditLogLoadingScreen() {
 
   const textEl = overlay.querySelector('.audit-log-source-loading-text');
 
+/* Shows show. */
   function show(message) {
     if (textEl && typeof message === 'string' && message.trim()) {
       textEl.textContent = message.trim();
@@ -317,6 +345,7 @@ function createAuditLogLoadingScreen() {
     overlay.setAttribute('aria-hidden', 'false');
   }
 
+/* Cleans up hide. */
   function hide() {
     overlay.classList.remove('visible');
     overlay.setAttribute('aria-hidden', 'true');
@@ -325,6 +354,7 @@ function createAuditLogLoadingScreen() {
   return { show, hide };
 }
 
+/* Sets up create audit log viewer modal. */
 function createAuditLogViewerModal() {
   const overlay = document.createElement('div');
   overlay.className = 'audit-log-viewer-modal-overlay';
@@ -350,12 +380,14 @@ function createAuditLogViewerModal() {
 
   let panoViewer = null;
 
+/* Handles reset pano surface. */
   function resetPanoSurface() {
     paneEl.classList.remove('visible');
     paneEl.textContent = '';
     panoViewer = null;
   }
 
+/* Sets up ensure pano viewer. */
   function ensurePanoViewer() {
     if (!panoViewer) {
       panoViewer = new Marzipano.Viewer(paneEl);
@@ -363,6 +395,7 @@ function createAuditLogViewerModal() {
     return panoViewer;
   }
 
+/* Cleans up close. */
   function close() {
     overlay.classList.remove('visible');
     overlay.setAttribute('aria-hidden', 'true');
@@ -371,6 +404,7 @@ function createAuditLogViewerModal() {
     resetPanoSurface();
   }
 
+/* Shows open. */
   function open({ kind, title, imageUrl }) {
     if (!imageUrl) return;
     titleEl.textContent = title || 'Audit log image';
@@ -431,12 +465,14 @@ export function initAuditLogs() {
   let requestSeq = 0;
   let sourceLoadSeq = 0;
 
+/* Updates set target. */
   function setTarget(kind, filename) {
     if (kind !== 'pano' && !isLayoutAuditKind(kind)) return;
     currentKind = isLayoutAuditKind(kind) ? 'layout' : kind;
     currentFilename = filename || null;
   }
 
+/* Shows render empty. */
   function renderEmpty(message) {
     listEl.innerHTML = '';
     const li = document.createElement('li');
@@ -444,6 +480,7 @@ export function initAuditLogs() {
     listEl.appendChild(li);
   }
 
+/* Shows render project empty. */
   function renderProjectEmpty(message) {
     if (!projectListEl) return;
     projectListEl.innerHTML = '';
@@ -452,6 +489,7 @@ export function initAuditLogs() {
     projectListEl.appendChild(li);
   }
 
+/* Updates update target label. */
   function updateTargetLabel() {
     if (!currentFilename) {
       targetEl.textContent = 'Select a panorama or layout to view its audit logs.';
@@ -461,6 +499,7 @@ export function initAuditLogs() {
     targetEl.textContent = `${label}: ${currentFilename}`;
   }
 
+/* Gets fetch audit logs for asset. */
   async function fetchAuditLogsForAsset(kind, filename) {
     const endpoint =
       kind === 'layout'
@@ -475,6 +514,7 @@ export function initAuditLogs() {
     return Array.isArray(data) ? data : [];
   }
 
+/* Gets fetch project audit logs. */
   async function fetchProjectAuditLogs() {
     const res = await fetch(appendProjectParams('/api/audit-logs/project'), { cache: 'no-store' });
     if (!res.ok) {
@@ -485,6 +525,7 @@ export function initAuditLogs() {
     return Array.isArray(data) ? data : [];
   }
 
+/* Sets up create audit log filename button. */
   function createAuditLogFilenameButton(label, { kind, imageUrl, titleName, fallbackImageUrls = [] }) {
     if (!label || !imageUrl) return null;
     const linkBtn = document.createElement('button');
@@ -526,6 +567,7 @@ export function initAuditLogs() {
     return linkBtn;
   }
 
+/* Shows render audit log message. */
   function renderAuditLogMessage(entry, resolveLiveFilename, resolveArchivedImage) {
     const msg = document.createElement('span');
     msg.className = 'audit-log-entry-msg';
@@ -622,6 +664,7 @@ export function initAuditLogs() {
     return msg;
   }
 
+/* Shows render actor line. */
   function renderActorLine(entry) {
     const actor = formatActor(entry);
     if (!actor) return null;
@@ -631,6 +674,7 @@ export function initAuditLogs() {
     return by;
   }
 
+/* Shows render project entry. */
   function renderProjectEntry(entry) {
     const li = document.createElement('li');
     const ts = document.createElement('span');
@@ -647,6 +691,7 @@ export function initAuditLogs() {
     return li;
   }
 
+/* Handles refresh now. */
   async function refreshNow() {
     // If we don't have a filename yet, try to infer it from the UI state.
     if (!currentFilename) {
@@ -735,6 +780,7 @@ export function initAuditLogs() {
     }
   }
 
+/* Handles refresh if visible. */
   function refreshIfVisible() {
     if (!isAuditLogsTabActive()) return;
     refreshNow();

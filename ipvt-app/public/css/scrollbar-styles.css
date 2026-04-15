@@ -1,4 +1,5 @@
 /* Scrollbar styling for image list */
+/* Shares the same styling across related elements. */
 #pano-image-list::-webkit-scrollbar,
 #project-list::-webkit-scrollbar,
 .project-table-scroll::-webkit-scrollbar,
@@ -6,6 +7,7 @@
 #pano-layout-list::-webkit-scrollbar {
     width: 8px;
 }
+/* Shares the same styling across related elements. */
 #pano-image-list::-webkit-scrollbar-track,
 #project-list::-webkit-scrollbar-track,
 .project-table-scroll::-webkit-scrollbar-track,
@@ -14,6 +16,7 @@
     background: #c7c7c7;
     border-radius: 4px;
 }
+/* Shares the same styling across related elements. */
 #pano-image-list::-webkit-scrollbar-thumb,
 #project-list::-webkit-scrollbar-thumb,
 .project-table-scroll::-webkit-scrollbar-thumb,
@@ -22,6 +25,7 @@
     background: #176383;
     border-radius: 4px;
 }
+/* Shares the same styling across related elements. */
 #pano-image-list::-webkit-scrollbar-thumb:hover,
 #project-list::-webkit-scrollbar-thumb:hover,
 .project-table-scroll::-webkit-scrollbar-thumb:hover,

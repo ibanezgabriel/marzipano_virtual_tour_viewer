@@ -1,3 +1,4 @@
+/* Starts the HTTPS server and websocket layer. */
 require('dotenv').config();
 const https = require('https');
 const { Server } = require('socket.io');
@@ -6,6 +7,7 @@ const { createApp } = require('./app');
 const { PORT, sslOptions } = require('./config/server');
 const { registerSocketHandlers } = require('./sockets');
 
+/* Starts the server and attaches realtime updates. */
 async function startServer() {
   const app = createApp();
   const server = https.createServer(sslOptions, app);

@@ -1,3 +1,4 @@
+/* Registers panorama-related API endpoints. */
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -32,6 +33,7 @@ const {
 
 const router = express.Router();
 
+/* Wires HTTP endpoints to their controller handlers. */
 router.post('/upload', panoramaUpload.array('panorama', 20), async (req, res) => {
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ success: false, message: 'no file uploaded' });

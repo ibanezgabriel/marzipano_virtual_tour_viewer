@@ -1,3 +1,4 @@
+/* Drives the project dashboard, modals, and realtime updates. */
 const projectListEl = document.getElementById('project-list');
 const emptyStateEl = document.getElementById('empty-state');
 const projectSearchInput = document.getElementById('project-search-input');
@@ -30,6 +31,7 @@ let searchFadeOutTimer = null;
 let searchFadeInTimer = null;
 let activeViewMenu = null;
 
+/* Closes the floating project view menu. */
 function closeActiveViewMenu() {
   if (!activeViewMenu) return;
   const { menu, button, parent } = activeViewMenu;
@@ -107,16 +109,19 @@ if (renameProjectNumberInput) {
   });
 }
 
+/* Normalizes project names before comparison. */
 function normalizeProjectName(name) {
   return (name || '').trim().toLowerCase();
 }
 
+/* Maps project status values to the allowed set. */
 function normalizeProjectStatus(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'in-progress') return 'on-going';
   return ALLOWED_PROJECT_STATUSES.has(normalized) ? normalized : 'on-going';
 }
 
+/* Keeps incoming project status values consistent. */
 function mergeProjectStatuses(prevList, nextList) {
   if (!Array.isArray(nextList)) return [];
   const prevById = new Map((prevList || []).map((p) => [p.id, p]));
@@ -130,6 +135,7 @@ function mergeProjectStatuses(prevList, nextList) {
   });
 }
 
+/* Checks whether a project name is already in use. */
 function projectNameExists(name, excludeId = null) {
   const n = normalizeProjectName(name);
   if (!n) return false;
@@ -145,12 +151,14 @@ function toProjectId(name) {
     .replace(/[^a-z0-9_-]/g, '');
 }
 
+/* Loads the current project list from the API. */
 async function fetchProjects() {
   const res = await fetch('/api/projects');
   if (!res.ok) throw new Error('Failed to load projects');
   return res.json();
 }
 
+/* Sends a request to create a new project. */
 async function createProject(name, number) {
   const status = 'in-progress';
   const res = await fetch('/api/projects', {
@@ -163,6 +171,7 @@ async function createProject(name, number) {
   return data;
 }
 
+/* Sends a request to update project details. */
 async function renameProject(id, newName, newNumber, status) {
   const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
     method: 'PUT',
@@ -178,6 +187,7 @@ async function renameProject(id, newName, newNumber, status) {
   return data;
 }
 
+/* Applies a status change to an existing project. */
 async function updateProjectStatus(project, nextStatus) {
   const status = normalizeProjectStatus(nextStatus);
   const updated = await renameProject(project.id, project.name, project.number || '', status);
@@ -188,6 +198,7 @@ async function updateProjectStatus(project, nextStatus) {
   };
 }
 
+/* Opens the selected project in the editor. */
 function openProject(project) {
   // Prefer project number in shared URLs when available.
   const projectToken = (project.number && String(project.number).trim()) || project.id;
@@ -195,6 +206,7 @@ function openProject(project) {
   window.location.href = `project-editor.html?${params}`;
 }
 
+/* Validates the project name before submission. */
 function validateProjectName(name, currentName = null) {
   const trimmed = name.trim();
   if (!trimmed) return 'Project name is required.';
@@ -203,6 +215,7 @@ function validateProjectName(name, currentName = null) {
   return null;
 }
 
+/* Validates the project number before submission. */
 function validateProjectNumber(number, requiredMessage = 'Project number is required.') {
   const trimmed = (number || '').trim();
   if (!trimmed) return requiredMessage;
@@ -213,6 +226,7 @@ function validateProjectNumber(number, requiredMessage = 'Project number is requ
   return null;
 }
 
+/* Opens the rename modal with the current project values. */
 function showRenameModal(project, nameDisplayEl) {
   renameProjectErrorEl.textContent = '';
   if (renameProjectNumberInput) {
@@ -299,6 +313,7 @@ function showRenameModal(project, nameDisplayEl) {
   };
 }
 
+/* Shows render project row. */
 function renderProjectRow(project) {
   const row = document.createElement('div');
   row.className = 'project-row';
@@ -461,11 +476,13 @@ function renderProjectRow(project) {
   return row;
 }
 
+/* Updates update empty state. */
 function updateEmptyState() {
   const count = projectListEl.querySelectorAll('.project-row').length;
   emptyStateEl.style.display = count === 0 ? 'block' : 'none';
 }
 
+/* Renders the dashboard project list. */
 function renderProjectList(projects) {
   projectListEl.innerHTML = '';
   for (const p of projects) {
@@ -474,6 +491,7 @@ function renderProjectList(projects) {
   updateEmptyState();
 }
 
+/* Renders the project list inside the open modal. */
 function renderOpenProjectList(projects) {
   if (!openProjectListEl) return;
   openProjectListEl.innerHTML = '';
@@ -503,6 +521,7 @@ function renderOpenProjectList(projects) {
   }
 }
 
+/* Shows render project list with search animation. */
 function renderProjectListWithSearchAnimation(projects) {
   if (!projectListEl) {
     renderProjectList(projects);
@@ -535,6 +554,7 @@ function renderProjectListWithSearchAnimation(projects) {
   }, SEARCH_FADE_MS);
 }
 
+/* Handles apply project search. */
 function applyProjectSearch(options = {}) {
   const { animate = false } = options;
   const query = (projectSearchInput && projectSearchInput.value.trim()) || '';
@@ -558,6 +578,7 @@ function applyProjectSearch(options = {}) {
   }
 }
 
+/* Handles apply open project search. */
 function applyOpenProjectSearch() {
   const query = (openProjectSearchInput && openProjectSearchInput.value.trim()) || '';
   let projectsToRender = openProjectProjects;
@@ -574,6 +595,7 @@ function applyOpenProjectSearch() {
   renderOpenProjectList(projectsToRender);
 }
 
+/* Gets load projects. */
 async function loadProjects() {
   try {
     const fetched = await fetchProjects();

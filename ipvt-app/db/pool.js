@@ -1,3 +1,4 @@
+/* Creates the shared database connection pool. */
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
@@ -9,6 +10,7 @@ dotenv.config({ path: fs.existsSync(appEnvPath) ? appEnvPath : repoEnvPath });
 
 let pool;
 
+/* Sets up create pool. */
 function createPool() {
   const rawPassword = process.env.DATABASE_URL ? undefined : process.env.PGPASSWORD;
   const password = rawPassword === undefined ? undefined : String(rawPassword);
@@ -23,6 +25,7 @@ function createPool() {
   });
 }
 
+/* Gets get pool. */
 function getPool() {
   if (!pool) {
     pool = createPool();
@@ -30,6 +33,7 @@ function getPool() {
   return pool;
 }
 
+/* Handles query. */
 async function query(text, params) {
   return getPool().query(text, params);
 }

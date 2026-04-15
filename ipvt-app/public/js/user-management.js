@@ -1,3 +1,4 @@
+/* Handles the admin account dashboard and modal flows. */
 const adminListEl = document.getElementById('admin-list');
 const emptyStateEl = document.getElementById('admin-empty-state');
 const searchInput = document.getElementById('admin-search-input');
@@ -32,6 +33,7 @@ let currentPageUser = null;
 let currentEditId = null;
 let currentEditMode = 'admin';
 
+/* Handles format admin id. */
 function formatAdminId(id) {
   const normalized = String(id || '').trim();
   if (/^ADM-\d+$/i.test(normalized)) {
@@ -44,16 +46,19 @@ function formatAdminId(id) {
   return normalized;
 }
 
+/* Shows open modal. */
 function openModal(modal) {
   if (!modal) return;
   modal.classList.add('visible');
 }
 
+/* Cleans up close modal. */
 function closeModal(modal) {
   if (!modal) return;
   modal.classList.remove('visible');
 }
 
+/* Handles reset create form. */
 function resetCreateForm() {
   createUsername.value = '';
   createName.value = '';
@@ -61,6 +66,7 @@ function resetCreateForm() {
   createError.textContent = '';
 }
 
+/* Handles reset edit form. */
 function resetEditForm() {
   editUsername.value = '';
   editName.value = '';
@@ -69,11 +75,13 @@ function resetEditForm() {
   editError.textContent = '';
 }
 
+/* Updates set empty state. */
 function setEmptyState(list) {
   if (!emptyStateEl) return;
   emptyStateEl.style.display = list.length === 0 ? 'block' : 'none';
 }
 
+/* Handles matches search. */
 function matchesSearch(admin, query) {
   if (!query) return true;
   const q = query.toLowerCase();
@@ -85,11 +93,13 @@ function matchesSearch(admin, query) {
   );
 }
 
+/* Gets get filtered admins. */
 function getFilteredAdmins() {
   const query = searchInput ? searchInput.value.trim() : '';
   return admins.filter((admin) => matchesSearch(admin, query));
 }
 
+/* Sets up create action button. */
 function createActionButton(className, title, iconSrc) {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -110,6 +120,7 @@ function createActionButton(className, title, iconSrc) {
   return btn;
 }
 
+/* Shows render admin list. */
 function renderAdminList(list) {
   if (!adminListEl) return;
   adminListEl.innerHTML = '';
@@ -161,14 +172,17 @@ function renderAdminList(list) {
   setEmptyState(list);
 }
 
+/* Handles refresh list. */
 function refreshList() {
   renderAdminList(getFilteredAdmins());
 }
 
+/* Gets find admin by id. */
 function findAdminById(id) {
   return admins.find((admin) => admin.id === id);
 }
 
+/* Handles request json. */
 async function requestJson(url, options) {
   const response = await fetch(url, options);
   const data = await response.json().catch(() => ({}));
@@ -178,6 +192,7 @@ async function requestJson(url, options) {
   return data;
 }
 
+/* Gets load current user. */
 async function loadCurrentUser() {
   const data = await requestJson('/api/auth/me', { cache: 'no-store' });
   currentPageUser = data.user || null;
@@ -187,17 +202,20 @@ async function loadCurrentUser() {
   }
 }
 
+/* Gets load admins. */
 async function loadAdmins() {
   const data = await requestJson('/api/users?role=admin', { cache: 'no-store' });
   admins = Array.isArray(data) ? data : [];
   refreshList();
 }
 
+/* Shows open create modal. */
 function openCreateModal() {
   resetCreateForm();
   openModal(createModal);
 }
 
+/* Shows open edit modal. */
 function openEditModal(id) {
   const admin = findAdminById(id);
   if (!admin) return;
@@ -213,6 +231,7 @@ function openEditModal(id) {
   openModal(editModal);
 }
 
+/* Shows open settings edit modal. */
 function openSettingsEditModal() {
   if (!currentPageUser) return;
   currentEditMode = 'self';
@@ -227,6 +246,7 @@ function openSettingsEditModal() {
   openModal(editModal);
 }
 
+/* Handles handle create submit. */
 async function handleCreateSubmit() {
   createError.textContent = '';
 
@@ -258,6 +278,7 @@ async function handleCreateSubmit() {
   }
 }
 
+/* Handles handle edit save. */
 async function handleEditSave() {
   editError.textContent = '';
   if (!currentEditId) return;
@@ -300,6 +321,7 @@ async function handleEditSave() {
   }
 }
 
+/* Sets up initialize page. */
 async function initializePage() {
   try {
     await loadCurrentUser();

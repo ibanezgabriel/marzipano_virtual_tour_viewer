@@ -1,3 +1,4 @@
+/* Implements database helpers for user records and sessions. */
 const crypto = require('crypto');
 const { query } = require('./pool');
 const { hashPassword } = require('./passwords');
@@ -11,24 +12,29 @@ const USER_ID_PREFIX = 'ADM-';
 const USER_ID_PAD = 3;
 const USER_ID_PATTERN = /^ADM-(\d+)$/i;
 
+/* Updates normalize username. */
 function normalizeUsername(value) {
   // Preserve exact casing as entered; use lower(...) only for comparisons.
   return String(value || '').trim();
 }
 
+/* Updates normalize name. */
 function normalizeName(value) {
   return String(value || '').trim();
 }
 
+/* Updates normalize role. */
 function normalizeRole(value) {
   const role = String(value || '').trim().toLowerCase();
   return VALID_ROLES.has(role) ? role : 'admin';
 }
 
+/* Updates normalize bootstrap password. */
 function normalizeBootstrapPassword(value) {
   return String(value || '').trim();
 }
 
+/* Validates validate username. */
 function validateUsername(username) {
   const normalized = normalizeUsername(username);
   if (!normalized) return 'Username is required.';
@@ -41,6 +47,7 @@ function validateUsername(username) {
   return null;
 }
 
+/* Validates validate name. */
 function validateName(name) {
   const normalized = normalizeName(name);
   if (!normalized) return 'Name is required.';
@@ -50,6 +57,7 @@ function validateName(name) {
   return null;
 }
 
+/* Validates validate password. */
 function validatePassword(password) {
   if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
     return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
@@ -57,6 +65,7 @@ function validatePassword(password) {
   return null;
 }
 
+/* Handles extract user number. */
 function extractUserNumber(value) {
   const normalized = String(value || '').trim();
   if (!normalized) return null;
@@ -66,6 +75,7 @@ function extractUserNumber(value) {
   return null;
 }
 
+/* Handles format user id. */
 function formatUserId(value) {
   const number = extractUserNumber(value);
   if (!Number.isInteger(number) || number <= 0) {
@@ -74,11 +84,13 @@ function formatUserId(value) {
   return `${USER_ID_PREFIX}${String(number).padStart(USER_ID_PAD, '0')}`;
 }
 
+/* Handles has active session. */
 function hasActiveSession(user) {
   if (!user || !user.active_session_id || !user.active_session_expires_at) return false;
   return new Date(user.active_session_expires_at).getTime() > Date.now();
 }
 
+/* Handles map user row. */
 function mapUserRow(row) {
   if (!row) return null;
   return {
@@ -91,6 +103,7 @@ function mapUserRow(row) {
   };
 }
 
+/* Gets find user by username. */
 async function findUserByUsername(username) {
   const raw = normalizeUsername(username);
   if (!raw) return null;
@@ -104,6 +117,7 @@ async function findUserByUsername(username) {
   return result.rows[0] || null;
 }
 
+/* Gets find user by id. */
 async function findUserById(id) {
   const result = await query(
     `SELECT id, username, name, role, password_hash, active_session_id, active_session_expires_at, is_active, created_at
@@ -114,6 +128,7 @@ async function findUserById(id) {
   return result.rows[0] || null;
 }
 
+/* Gets list users. */
 async function listUsers({ role } = {}) {
   const params = [];
   let sql = `
@@ -129,6 +144,7 @@ async function listUsers({ role } = {}) {
   return result.rows.map(mapUserRow);
 }
 
+/* Handles count active super admins. */
 async function countActiveSuperAdmins() {
   const result = await query(
     `SELECT COUNT(*)::int AS total
@@ -139,6 +155,7 @@ async function countActiveSuperAdmins() {
   return Number(result.rows[0] && result.rows[0].total) || 0;
 }
 
+/* Gets get next user id. */
 async function getNextUserId() {
   const result = await query(
     `SELECT id
@@ -156,6 +173,7 @@ async function getNextUserId() {
   return formatUserId((lastNumber || 0) + 1);
 }
 
+/* Sets up create user. */
 async function createUser({ username, name, role = 'admin', password }) {
   const normalizedUsername = normalizeUsername(username);
   const normalizedName = normalizeName(name);
@@ -179,6 +197,7 @@ async function createUser({ username, name, role = 'admin', password }) {
   return mapUserRow(result.rows[0]);
 }
 
+/* Updates update user. */
 async function updateUser(id, updates = {}) {
   const existing = await findUserById(id);
   if (!existing) {
@@ -235,6 +254,7 @@ async function updateUser(id, updates = {}) {
   return mapUserRow(result.rows[0]);
 }
 
+/* Cleans up delete user. */
 async function deleteUser(id) {
   const existing = await findUserById(id);
   if (!existing) return false;
@@ -250,6 +270,7 @@ async function deleteUser(id) {
   return result.rowCount > 0;
 }
 
+/* Sets up create session for user. */
 async function createSessionForUser(userId, { ttlHours = SESSION_TTL_HOURS } = {}) {
   const sessionId = crypto.randomBytes(24).toString('hex');
   const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
@@ -266,6 +287,7 @@ async function createSessionForUser(userId, { ttlHours = SESSION_TTL_HOURS } = {
   };
 }
 
+/* Cleans up clear session for user. */
 async function clearSessionForUser(userId) {
   await query(
     `UPDATE users
@@ -276,6 +298,7 @@ async function clearSessionForUser(userId) {
   );
 }
 
+/* Cleans up clear all sessions. */
 async function clearAllSessions() {
   await query(
     `UPDATE users
@@ -284,6 +307,7 @@ async function clearAllSessions() {
   );
 }
 
+/* Gets find user by session. */
 async function findUserBySession(sessionId) {
   if (!sessionId) return null;
   const result = await query(
@@ -298,6 +322,7 @@ async function findUserBySession(sessionId) {
   return result.rows[0] || null;
 }
 
+/* Sets up ensure bootstrap super admin. */
 async function ensureBootstrapSuperAdmin() {
   const username = normalizeUsername(process.env.SUPERADMIN_USERNAME || 'superadmin');
   const name = normalizeName(process.env.SUPERADMIN_NAME || 'System Super Admin');

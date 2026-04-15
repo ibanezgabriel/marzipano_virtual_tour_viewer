@@ -8,17 +8,21 @@
     <link rel="stylesheet" href="css/main.css">
 </head>
 <body class="viewer viewer-fixed" data-view-mode="panoramas">
+    <!-- Viewer header with the project title and sidebar toggle. -->
     <header id="pano-header">
         <div id="pano-header-title">
             <span id="pano-header-text"></span>
         </div>
         <img id="dep_logo" src="assets/icons/NEW-LOGO-QCDE.png"> 
+        <!-- Sidebar locked to panorama mode for this page. -->
         <div id="pano-sidebar-wrapper">
             <aside id="pano-sidebar-container">
+                <!-- Viewer tabs allow switching between panorama and layout pages. -->
                 <div id="pano-sidebar-tabs" class="viewer-tabs">
                     <button id="viewer-pano-toggle" type="button">Panoramas</button>
                     <button id="pano-layout-toggle" type="button">Layout</button>
                 </div>
+                <!-- Available panoramas are listed here. -->
                 <div id="pano-sidebar-content">
                     <ul id="pano-image-list"></ul>
                 </div>
@@ -28,10 +32,12 @@
             </button>
         </div>
     </header>
+    <!-- Main viewing surface for the selected panorama. -->
     <main id="pano-panel">
         <div id="pano-viewer"></div>
     </main>
 
+    <!-- Modal used to show the full project name when needed. -->
     <div class="modal-overlay" id="project-name-modal">
         <div class="modal viewer-project-name-modal">
             <h2>PROJECT NAME</h2>
@@ -41,9 +47,9 @@
             </div>
         </div>
     </div>
+    <!-- Loads viewer interactions and shared login checks. -->
     <script type="module" src="js/project-viewer.js"></script>
     <script src="js/login.js"></script>
 </body>
 </html>
-
 

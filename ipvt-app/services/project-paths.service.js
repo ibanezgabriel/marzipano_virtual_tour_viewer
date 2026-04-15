@@ -1,3 +1,4 @@
+/* Builds the filesystem paths for each project. */
 const path = require('path');
 const fs = require('fs');
 const {
@@ -5,6 +6,7 @@ const {
   projectsDir,
 } = require('./project-manifest.service');
 
+/* Handles migrate legacy floorplan artifacts. */
 function migrateLegacyFloorplanArtifacts(base) {
   if (!base || !fs.existsSync(base)) return;
   const oldDir = path.join(base, 'floorplans');
@@ -49,6 +51,7 @@ function migrateLegacyFloorplanArtifacts(base) {
   }
 }
 
+/* Gets get project paths. */
 function getProjectPaths(projectId) {
   if (!projectId || projectId.includes('..') || /[\/\\]/.test(projectId)) return null;
   const base = path.join(projectsDir, projectId);
@@ -62,6 +65,7 @@ function getProjectPaths(projectId) {
   };
 }
 
+/* Sets up ensure project dirs. */
 function ensureProjectDirs(projectId) {
   const projectPaths = getProjectPaths(projectId);
   if (!projectPaths) return null;
@@ -71,6 +75,7 @@ function ensureProjectDirs(projectId) {
   return projectPaths;
 }
 
+/* Handles resolve paths. */
 function resolvePaths(req) {
   const projectToken = req.query.project || (req.body && req.body.project);
   const project = findProjectByIdOrNumber(projectToken);
@@ -91,6 +96,7 @@ function resolvePaths(req) {
   };
 }
 
+/* Gets get project id from query. */
 function getProjectIdFromQuery(req) {
   if (req.query && typeof req.query === 'object') {
     let token = null;

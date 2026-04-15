@@ -1,3 +1,4 @@
+/* Saves hotspot changes from the editor experience. */
 import {
   getCurrentScene,
   getSelectedImageName,
@@ -38,6 +39,7 @@ function serializeHotspots() {
   return obj;
 }
 
+/* Updates save hotspots to storage. */
 function saveHotspotsToStorage() {
   const payload = serializeHotspots();
   try {
@@ -168,6 +170,7 @@ export function initHotspots() {
   registerOnSceneLoad(restoreHotspotsForCurrentScene);
 }
 
+/* Handles toggle place mode. */
 function togglePlaceMode() {
   placeMode = !placeMode;
   if (placeMode) {
@@ -193,6 +196,7 @@ function togglePlaceMode() {
   document.dispatchEvent(new CustomEvent('app-hotspot-place-mode-changed'));
 }
 
+/* Handles restore hotspots for current scene. */
 function restoreHotspotsForCurrentScene() {
   const scene = getCurrentScene();
   const imageName = getSelectedImageName();
@@ -212,6 +216,7 @@ function restoreHotspotsForCurrentScene() {
   });
 }
 
+/* Sets up create hotspot element. */
 function createHotspotElement(entry) {
   const wrapper = document.createElement('div');
   wrapper.className = HOTSPOT_CLASS;
@@ -243,6 +248,7 @@ function createHotspotElement(entry) {
   return wrapper;
 }
 
+/* Handles bind hotspot click. */
 function bindHotspotClick(el, entry, imageName) {
   const pin = el.querySelector('.app-hotspot-pin-dot');
   const removeBtn = el.querySelector(`.${HOTSPOT_REMOVE_CLASS}`);
@@ -261,6 +267,7 @@ function bindHotspotClick(el, entry, imageName) {
   });
 
   // Visually disable the remove button in place mode
+/* Updates update remove btn state. */
   function updateRemoveBtnState() {
     if (placeMode) {
       removeBtn.disabled = true;
@@ -289,6 +296,7 @@ function bindHotspotClick(el, entry, imageName) {
   }
 }
 
+/* Cleans up remove hotspot. */
 function removeHotspot(entry, imageName) {
   const scene = getCurrentScene();
   if (!scene) return;
@@ -306,10 +314,12 @@ function removeHotspot(entry, imageName) {
   saveHotspotsToStorage();
 }
 
+/* Gets get viewer rect. */
 function getViewerRect() {
   return panoViewerEl ? panoViewerEl.getBoundingClientRect() : null;
 }
 
+/* Handles screen to view coords. */
 function screenToViewCoords(clientX, clientY) {
   const scene = getCurrentScene();
   if (!scene) return null;
@@ -327,6 +337,7 @@ function screenToViewCoords(clientX, clientY) {
   return view.screenToCoordinates({ x, y });
 }
 
+/* Handles add hotspot at. */
 async function addHotspotAt(clientX, clientY) {
   const imageName = getSelectedImageName();
   const scene = getCurrentScene();
@@ -387,10 +398,12 @@ async function addHotspotAt(clientX, clientY) {
   saveHotspotsToStorage();
 }
 
+/* Handles is hotspot element. */
 function isHotspotElement(target) {
   return target.closest && target.closest(`.${HOTSPOT_CLASS}`);
 }
 
+/* Handles on viewer click. */
 function onViewerClick(e) {
   if (!placeMode) return;
   if (!getCurrentScene()) return;

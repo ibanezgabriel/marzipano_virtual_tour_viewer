@@ -1,9 +1,11 @@
+/* Builds and writes audit log entries for project activity. */
 const fs = require('fs');
 const path = require('path');
 
 const AUDIT_LOG_MAX_ENTRIES = 250;
 let lastAuditTimestampMs = 0;
 
+/* Handles next audit timestamp iso. */
 function nextAuditTimestampIso() {
   const now = Date.now();
   const next = now <= lastAuditTimestampMs ? lastAuditTimestampMs + 1 : now;
@@ -11,6 +13,7 @@ function nextAuditTimestampIso() {
   return new Date(next).toISOString();
 }
 
+/* Gets get audit dirs. */
 function getAuditDirs(paths) {
   const dataDir = path.dirname(paths.hotspotsPath);
   const base = path.join(dataDir, 'audit');
@@ -30,10 +33,12 @@ function normalizeAuditKind(kind) {
   return kind === 'floorplan' ? 'layout' : kind;
 }
 
+/* Sets up ensure dir sync. */
 function ensureDirSync(dirPath) {
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
 }
 
+/* Handles audit log path. */
 function auditLogPath(paths, kind, filename) {
   const dirs = getAuditDirs(paths);
   const safe = encodeURIComponent(String(filename || ''));
@@ -47,6 +52,7 @@ function auditLogPath(paths, kind, filename) {
   return path.join(baseDir, `${safe}.json`);
 }
 
+/* Handles audit image path. */
 function auditImagePath(paths, kind, storedFilename) {
   const dirs = getAuditDirs(paths);
   const k = normalizeAuditKind(kind);
@@ -54,6 +60,7 @@ function auditImagePath(paths, kind, storedFilename) {
   return path.join(baseDir, storedFilename);
 }
 
+/* Handles safe decode uri component. */
 function safeDecodeURIComponent(value) {
   try {
     return decodeURIComponent(value);
@@ -62,6 +69,7 @@ function safeDecodeURIComponent(value) {
   }
 }
 
+/* Handles resolve archive image path. */
 function resolveArchiveImagePath(paths, kind, storedFilename) {
   const dirs = getAuditDirs(paths);
   const k = normalizeAuditKind(kind);
@@ -94,12 +102,14 @@ function resolveArchiveImagePath(paths, kind, storedFilename) {
   return null;
 }
 
+/* Sets up create audit image stored filename. */
 function createAuditImageStoredFilename(filename) {
   const encoded = encodeURIComponent(String(filename || 'image'));
   const nonce = Math.random().toString(36).slice(2, 8);
   return `${Date.now()}-${nonce}-${encoded}`;
 }
 
+/* Updates store replaced image in audit. */
 function storeReplacedImageInAudit(paths, kind, originalFilename, sourcePath) {
   if (!paths || !sourcePath || !fs.existsSync(sourcePath)) return null;
   const dirs = getAuditDirs(paths);
@@ -116,6 +126,7 @@ function storeReplacedImageInAudit(paths, kind, originalFilename, sourcePath) {
   };
 }
 
+/* Gets read json file or default. */
 function readJsonFileOrDefault(filePath, defaultValue) {
   try {
     const raw = fs.readFileSync(filePath, 'utf8');
@@ -128,12 +139,14 @@ function readJsonFileOrDefault(filePath, defaultValue) {
   }
 }
 
+/* Gets read audit entries. */
 function readAuditEntries(paths, kind, filename) {
   const filePath = auditLogPath(paths, kind, filename);
   const parsed = readJsonFileOrDefault(filePath, null);
   return Array.isArray(parsed) ? parsed : null;
 }
 
+/* Updates write audit entries. */
 function writeAuditEntries(paths, kind, filename, entries) {
   const dirs = getAuditDirs(paths);
   ensureDirSync(dirs.base);
@@ -149,6 +162,7 @@ function writeAuditEntries(paths, kind, filename, entries) {
   fs.writeFileSync(filePath, JSON.stringify(entries, null, 2), 'utf8');
 }
 
+/* Appends append audit entry. */
 function appendAuditEntry(paths, kind, filename, { action, message, meta } = {}, { dedupeWindowMs = 0 } = {}) {
   if (!paths || !filename) return;
   try {
@@ -189,6 +203,7 @@ function appendAuditEntry(paths, kind, filename, { action, message, meta } = {},
   }
 }
 
+/* Sets up build audit meta. */
 function buildAuditMeta(meta, user) {
   const nextMeta = meta && typeof meta === 'object' ? { ...meta } : {};
   const userId = user && String(user.id || '').trim();
@@ -198,6 +213,7 @@ function buildAuditMeta(meta, user) {
   return Object.keys(nextMeta).length > 0 ? nextMeta : undefined;
 }
 
+/* Sets up init audit log if missing. */
 function initAuditLogIfMissing(paths, kind, filename) {
   if (!paths || !filename) return;
   const existing = readAuditEntries(paths, kind, filename);
@@ -216,6 +232,7 @@ function initAuditLogIfMissing(paths, kind, filename) {
   }
 }
 
+/* Handles parse replaced filenames from audit message. */
 function parseReplacedFilenamesFromAuditMessage(message) {
   const text = String(message || '');
   const match = text.match(/replaced\s+"([^"]+)"\s+with\s+"([^"]+)"/i);
@@ -226,6 +243,7 @@ function parseReplacedFilenamesFromAuditMessage(message) {
   return { oldFilename, newFilename };
 }
 
+/* Handles repair archive meta in entry. */
 function repairArchiveMetaInEntry(paths, kind, entry) {
   if (!entry || typeof entry !== 'object') return { entry, changed: false };
   const replaced = parseReplacedFilenamesFromAuditMessage(entry.message);
@@ -279,6 +297,7 @@ function repairArchiveMetaInEntry(paths, kind, entry) {
   };
 }
 
+/* Gets read and repair audit entries. */
 function readAndRepairAuditEntries(paths, kind, filename) {
   const existing = readAuditEntries(paths, kind, filename) || [];
   if (!Array.isArray(existing) || existing.length === 0) return Array.isArray(existing) ? existing : [];
@@ -298,6 +317,7 @@ function readAndRepairAuditEntries(paths, kind, filename) {
   return repaired;
 }
 
+/* Handles rename audit log. */
 function renameAuditLog(paths, kind, oldFilename, newFilename) {
   if (!paths || !oldFilename || !newFilename || oldFilename === newFilename) return;
   try {
@@ -322,6 +342,7 @@ function renameAuditLog(paths, kind, oldFilename, newFilename) {
   }
 }
 
+/* Handles sort deep. */
 function sortDeep(value) {
   if (Array.isArray(value)) return value.map(sortDeep);
   if (value && typeof value === 'object') {
@@ -336,6 +357,7 @@ function sortDeep(value) {
   return value;
 }
 
+/* Handles stable stringify. */
 function stableStringify(value) {
   if (value === undefined) return 'undefined';
   try {
@@ -345,6 +367,7 @@ function stableStringify(value) {
   }
 }
 
+/* Handles diff changed top level keys. */
 function diffChangedTopLevelKeys(beforeObj, afterObj) {
   const before = beforeObj && typeof beforeObj === 'object' ? beforeObj : {};
   const after = afterObj && typeof afterObj === 'object' ? afterObj : {};
@@ -356,6 +379,7 @@ function diffChangedTopLevelKeys(beforeObj, afterObj) {
   return changed;
 }
 
+/* Updates normalize top level array map. */
 function normalizeTopLevelArrayMap(obj) {
   const source = obj && typeof obj === 'object' ? obj : {};
   const normalized = {};
@@ -367,11 +391,13 @@ function normalizeTopLevelArrayMap(obj) {
   return normalized;
 }
 
+/* Gets get array count by key. */
 function getArrayCountByKey(obj, key) {
   if (!obj || typeof obj !== 'object') return 0;
   return Array.isArray(obj[key]) ? obj[key].length : 0;
 }
 
+/* Sets up build collection change message. */
 function buildCollectionChangeMessage(labelSingular, labelPlural, beforeCount, afterCount) {
   const before = Math.max(0, Number(beforeCount) || 0);
   const after = Math.max(0, Number(afterCount) || 0);
@@ -386,12 +412,14 @@ function buildCollectionChangeMessage(labelSingular, labelPlural, beforeCount, a
   return `${labelPlural.charAt(0).toUpperCase()}${labelPlural.slice(1)} updated (${after}).`;
 }
 
+/* Handles quote audit value. */
 function quoteAuditValue(value) {
   const raw = String(value || '').trim();
   // Avoid breaking the intended message template when filenames contain quotes.
   return raw.replace(/'/g, '’');
 }
 
+/* Handles format editor audit message. */
 function formatEditorAuditMessage(action, payload = {}) {
   const a = String(action || '').trim();
   const filename = quoteAuditValue(payload.filename || payload.name || '');

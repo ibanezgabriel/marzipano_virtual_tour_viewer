@@ -1,3 +1,4 @@
+/* Validates project access before project pages are served. */
 const fs = require('fs');
 const path = require('path');
 const {
@@ -5,6 +6,7 @@ const {
   getProjectPaths,
 } = require('../services/project-paths.service');
 
+/* Handles escape html. */
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -14,6 +16,7 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+/* Handles has ready tiles. */
 function hasReadyTiles(tilesRoot) {
   try {
     if (!fs.existsSync(tilesRoot)) return false;
@@ -29,6 +32,7 @@ function hasReadyTiles(tilesRoot) {
   return false;
 }
 
+/* Handles guard project pages. */
 function guardProjectPages(req, res, next) {
   const requestPath = req.path || '';
   if (

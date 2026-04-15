@@ -1,3 +1,4 @@
+/* Handles media upload flows in the project editor. */
 import { loadImages } from '../marzipano-viewer.js';
 import { showAlert, showTimedAlert, showProgressDialog, hideProgressDialog, updateProgressDialog, setProgressDialogMessage } from '../dialog.js';
 import { appendProjectParams } from '../project-context.js';
@@ -9,6 +10,7 @@ export function initUpload() {
   addPanoEl.addEventListener('change', handleUpload);
 }
 
+/* Handles handle upload. */
 async function handleUpload() {
   const files = addPanoEl.files;
   if (!files || files.length === 0) {

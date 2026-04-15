@@ -1,3 +1,4 @@
+/* Builds and reads tiled panorama assets. */
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
@@ -5,32 +6,38 @@ const sharp = require('sharp');
 const DEFAULT_TILE_SIZE = 512;
 const DEFAULT_MAX_FACE_SIZE = 4096;
 
+/* Sets up ensure dir sync. */
 function ensureDirSync(dirPath) {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
   }
 }
 
+/* Handles tile id from filename. */
 function tileIdFromFilename(filename) {
   const base = path.basename(filename, path.extname(filename));
   // keep stable, filesystem-safe ids (also safe for URLs)
   return base.replace(/[^a-z0-9_-]/gi, '_');
 }
 
+/* Handles is power of two. */
 function isPowerOfTwo(n) {
   return n > 0 && (n & (n - 1)) === 0;
 }
 
+/* Handles floor power of two. */
 function floorPowerOfTwo(n) {
   if (n <= 0) return 0;
   return 2 ** Math.floor(Math.log2(n));
 }
 
+/* Gets read image meta. */
 async function readImageMeta(imagePath) {
   const meta = await sharp(imagePath).metadata();
   return { width: meta.width || 0, height: meta.height || 0 };
 }
 
+/* Handles choose face size. */
 function chooseFaceSize(equirectWidth, { tileSize = DEFAULT_TILE_SIZE, maxFaceSize = DEFAULT_MAX_FACE_SIZE } = {}) {
   // For a 2:1 equirect, a common cube face size is ~width/4.
   const candidate = Math.floor(equirectWidth / 4);
@@ -50,6 +57,7 @@ function chooseFaceSize(equirectWidth, { tileSize = DEFAULT_TILE_SIZE, maxFaceSi
   return faceSize;
 }
 
+/* Sets up build level sizes. */
 function buildLevelSizes(faceSize, tileSize) {
   const levels = [];
   for (let size = tileSize; size <= faceSize; size *= 2) {
@@ -58,14 +66,17 @@ function buildLevelSizes(faceSize, tileSize) {
   return levels;
 }
 
+/* Handles clamp. */
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
+/* Handles mod. */
 function mod(n, m) {
   return ((n % m) + m) % m;
 }
 
+/* Handles face direction. */
 function faceDirection(face, u, v) {
   // u, v in [-1, 1]
   // Returns a direction vector for the given cube face.
@@ -88,6 +99,7 @@ function faceDirection(face, u, v) {
   }
 }
 
+/* Handles dir to equirect uv. */
 function dirToEquirectUV(dir, width, height) {
   // Normalize
   const len = Math.hypot(dir.x, dir.y, dir.z) || 1;
@@ -104,6 +116,7 @@ function dirToEquirectUV(dir, width, height) {
   return { uf, vf };
 }
 
+/* Handles sample bilinear rgba. */
 function sampleBilinearRGBA(src, srcW, srcH, x, y) {
   // Wrap horizontally (longitude), clamp vertically.
   const x0 = Math.floor(x);
@@ -137,6 +150,7 @@ function sampleBilinearRGBA(src, srcW, srcH, x, y) {
   return out;
 }
 
+/* Handles equirect to cubemap faces rgba. */
 async function equirectToCubemapFacesRGBA(imagePath, faceSize) {
   // Resize source to something reasonable for sampling.
   const srcW = faceSize * 4;
@@ -177,10 +191,12 @@ async function equirectToCubemapFacesRGBA(imagePath, faceSize) {
   return faces;
 }
 
+/* Updates write meta. */
 async function writeMeta(metaPath, metaObj) {
   await fs.promises.writeFile(metaPath, JSON.stringify(metaObj, null, 2), 'utf8');
 }
 
+/* Cleans up remove dir if exists. */
 async function removeDirIfExists(dirPath) {
   if (!fs.existsSync(dirPath)) return;
   await fs.promises.rm(dirPath, { recursive: true, force: true });
@@ -198,6 +214,7 @@ async function removeDirIfExists(dirPath) {
  *  - z is 0-based level index (0 is the lowest)
  *  - f is one of: l, f, r, b, u, d
  */
+/* Sets up build tiles for image. */
 async function buildTilesForImage({
   imagePath,
   filename,
@@ -299,6 +316,7 @@ async function buildTilesForImage({
   };
 }
 
+/* Gets read tiles meta. */
 async function readTilesMeta({ tilesRootDir, filename }) {
   const tileId = tileIdFromFilename(filename);
   const metaPath = path.join(tilesRootDir, tileId, 'meta.json');

@@ -1,3 +1,4 @@
+/* Manages the saved initial camera view for panoramas. */
 import { getSelectedImageName, saveInitialViewForCurrentImage } from '../marzipano-viewer.js';
 import { showAlert, showTimedAlert } from '../dialog.js';
 

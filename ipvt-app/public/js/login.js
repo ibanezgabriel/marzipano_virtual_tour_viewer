@@ -1,3 +1,4 @@
+/* Handles login state, form submission, and logout behavior. */
 const REDIRECT_KEY = 'ipvt_redirect_url';
 const PUBLIC_PAGES = new Set(['login.html', 'project-viewer.html', 'project-viewer-panoramas.html', 'project-viewer-layout.html']);
 const SUPERADMIN_HOME_PAGE = 'user-management.html';
@@ -6,10 +7,12 @@ const ADMIN_HOME_PAGE = 'dashboard.html';
 let currentUser = null;
 let currentUserPromise = null;
 
+/* Gets get current page. */
 function getCurrentPage() {
   return window.location.pathname.split('/').pop() || 'dashboard.html';
 }
 
+/* Updates sanitize redirect target. */
 function sanitizeRedirectTarget(value) {
   if (!value) return null;
   try {
@@ -21,6 +24,7 @@ function sanitizeRedirectTarget(value) {
   }
 }
 
+/* Updates set stored redirect. */
 function setStoredRedirect(value) {
   const target = sanitizeRedirectTarget(value);
   if (target) {
@@ -30,6 +34,7 @@ function setStoredRedirect(value) {
   }
 }
 
+/* Gets get stored redirect. */
 function getStoredRedirect() {
   const fromQuery = sanitizeRedirectTarget(new URLSearchParams(window.location.search).get('redirect'));
   if (fromQuery) {
@@ -39,6 +44,7 @@ function getStoredRedirect() {
   return sanitizeRedirectTarget(localStorage.getItem(REDIRECT_KEY));
 }
 
+/* Updates update current user ui. */
 function updateCurrentUserUi(user) {
   const roleLabel = document.querySelector('.user-role-label');
   if (roleLabel) {
@@ -47,12 +53,14 @@ function updateCurrentUserUi(user) {
   document.body.dataset.authRole = user && user.role ? user.role : '';
 }
 
+/* Gets get home page for user. */
 function getHomePageForUser(user) {
   if (!user) return ADMIN_HOME_PAGE;
   if (user.homePath) return user.homePath.replace(/^\//, '');
   return user.role === 'superadmin' ? SUPERADMIN_HOME_PAGE : ADMIN_HOME_PAGE;
 }
 
+/* Gets fetch current user. */
 async function fetchCurrentUser() {
   const response = await fetch('/api/auth/me', { cache: 'no-store' });
   if (!response.ok) {
@@ -62,6 +70,7 @@ async function fetchCurrentUser() {
   return data && data.user ? data.user : null;
 }
 
+/* Gets fetch auth status. */
 async function fetchAuthStatus() {
   const response = await fetch('/api/auth/status', { cache: 'no-store' });
   if (!response.ok) {
@@ -71,6 +80,7 @@ async function fetchAuthStatus() {
   return data || { authenticated: false, user: null };
 }
 
+/* Gets get current user. */
 async function getCurrentUser() {
   if (currentUser) return currentUser;
   if (!currentUserPromise) {
@@ -92,10 +102,12 @@ async function getCurrentUser() {
   return currentUserPromise;
 }
 
+/* Handles is authenticated. */
 async function isAuthenticated() {
   return Boolean(await getCurrentUser());
 }
 
+/* Validates check authentication. */
 async function checkAuthentication() {
   const currentPage = getCurrentPage();
   if (PUBLIC_PAGES.has(currentPage)) return null;
@@ -123,11 +135,13 @@ async function checkAuthentication() {
   return user;
 }
 
+/* Handles handle successful login. */
 async function handleSuccessfulLogin() {
   currentUser = null;
   await redirectToStoredPage();
 }
 
+/* Handles redirect to stored page. */
 async function redirectToStoredPage() {
   const user = await getCurrentUser();
   const homePage = getHomePageForUser(user);
@@ -148,6 +162,7 @@ async function redirectToStoredPage() {
   window.location.href = redirectUrl;
 }
 
+/* Shows show error. */
 function showError(message) {
   const errorElement = document.getElementById('login-error');
   if (errorElement) {
@@ -156,6 +171,7 @@ function showError(message) {
   }
 }
 
+/* Handles logout. */
 async function logout() {
   try {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -172,6 +188,7 @@ const DIALOG_TITLE_ID = 'app-dialog-title';
 const DIALOG_MESSAGE_ID = 'app-dialog-message';
 const DIALOG_ACTIONS_ID = 'app-dialog-actions';
 
+/* Gets get or create dialog. */
 function getOrCreateDialog() {
   let overlay = document.getElementById(DIALOG_OVERLAY_ID);
   if (overlay) return overlay;
@@ -220,6 +237,7 @@ function getOrCreateDialog() {
   return overlay;
 }
 
+/* Shows show logout confirm. */
 function showLogoutConfirm(message, title = 'Logout') {
   return new Promise((resolve) => {
     const overlay = getOrCreateDialog();

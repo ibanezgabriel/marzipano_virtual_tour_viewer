@@ -1,3 +1,4 @@
+/* Builds the Express application and shared middleware stack. */
 const express = require('express');
 const path = require('path');
 const {
@@ -20,6 +21,7 @@ const panoramaRoutes = require('./routes/panorama.routes');
 const layoutRoutes = require('./routes/layout.routes');
 const editorRoutes = require('./routes/editor.routes');
 
+/* Sets up create app. */
 function createApp() {
   const app = express();
 

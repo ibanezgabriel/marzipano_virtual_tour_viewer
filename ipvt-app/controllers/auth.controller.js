@@ -1,3 +1,4 @@
+/* Handles authentication requests and session responses. */
 const {
   clearSessionForUser,
   createSessionForUser,
@@ -11,6 +12,7 @@ const {
   setSessionCookie,
 } = require('../services/auth.service');
 
+/* Handles login. */
 async function login(req, res) {
   try {
     const username = String((req.body && req.body.username) || '').trim();
@@ -48,6 +50,7 @@ async function login(req, res) {
   }
 }
 
+/* Handles status. */
 function status(req, res) {
   return res.json({
     authenticated: Boolean(req.authUser),
@@ -55,6 +58,7 @@ function status(req, res) {
   });
 }
 
+/* Handles me. */
 function me(req, res) {
   if (!req.authUser) {
     clearSessionCookie(res);
@@ -63,6 +67,7 @@ function me(req, res) {
   return res.json({ user: serializeUserForClient(req.authUser) });
 }
 
+/* Handles logout. */
 async function logout(req, res) {
   try {
     if (req.authUser) {

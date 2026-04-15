@@ -1,5 +1,7 @@
+/* Provides reusable dialog and confirmation UI helpers. */
 // Show a non-dismissible progress dialog (e.g., for uploads)
 let progressDialogActive = false;
+/* Sets up ensure progress ui. */
 function ensureProgressUI() {
   const box = getBox();
   if (!box) return null;
@@ -90,6 +92,7 @@ const DIALOG_ACTIONS_ID = 'app-dialog-actions';
 let previousActiveElement = null;
 let autoDismissTimerId = null;
 
+/* Cleans up clear auto dismiss timer. */
 function clearAutoDismissTimer() {
   if (autoDismissTimerId !== null) {
     window.clearTimeout(autoDismissTimerId);
@@ -97,6 +100,7 @@ function clearAutoDismissTimer() {
   }
 }
 
+/* Gets get or create dialog. */
 function getOrCreateDialog() {
   let overlay = document.getElementById(DIALOG_OVERLAY_ID);
   if (overlay) return overlay;
@@ -147,6 +151,7 @@ function getOrCreateDialog() {
   return overlay;
 }
 
+/* Shows show overlay. */
 function showOverlay() {
   clearAutoDismissTimer();
   previousActiveElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -155,6 +160,7 @@ function showOverlay() {
   overlay.classList.add('app-dialog-visible');
 }
 
+/* Cleans up hide overlay. */
 function hideOverlay() {
   clearAutoDismissTimer();
   const overlay = document.getElementById(DIALOG_OVERLAY_ID);
@@ -173,26 +179,32 @@ function hideOverlay() {
   }
 }
 
+/* Gets get box. */
 function getBox() {
   return document.getElementById(DIALOG_BOX_ID);
 }
 
+/* Gets get title. */
 function getTitle() {
   return document.getElementById(DIALOG_TITLE_ID);
 }
 
+/* Gets get message. */
 function getMessage() {
   return document.getElementById(DIALOG_MESSAGE_ID);
 }
 
+/* Gets get input. */
 function getInput() {
   return document.getElementById(DIALOG_INPUT_ID);
 }
 
+/* Gets get actions. */
 function getActions() {
   return document.getElementById(DIALOG_ACTIONS_ID);
 }
 
+/* Gets get select wrap. */
 function getSelectWrap() {
   return document.querySelector(`#${DIALOG_BOX_ID} .app-dialog-select-wrap`);
 }
@@ -455,11 +467,13 @@ export function showSelectWithPreview(title, options, onPreview) {
     });
     selectWrap.appendChild(select);
 
+/* Cleans up hide preview bar. */
     function hidePreviewBar() {
       const bar = document.getElementById(PREVIEW_BAR_ID);
       if (bar) bar.remove();
     }
 
+/* Handles finish. */
     function finish(value) {
       hidePreviewBar();
       hideOverlay();

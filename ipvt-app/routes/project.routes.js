@@ -1,3 +1,4 @@
+/* Registers project CRUD API endpoints. */
 const express = require('express');
 const projectController = require('../controllers/project.controller');
 const {
@@ -7,6 +8,7 @@ const {
 
 const router = express.Router();
 
+/* Wires HTTP endpoints to their controller handlers. */
 router.get('/', projectController.list);
 router.post('/', attachAuthenticatedUser, requireAuthenticatedApi, projectController.create);
 router.put('/:id', attachAuthenticatedUser, requireAuthenticatedApi, projectController.update);

@@ -8,7 +8,9 @@
     <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
+    <!-- Main user management screen. -->
     <main class="dashboard">
+        <!-- Top bar with title, settings, and logout controls. -->
         <section id="dashboard-title">
             <img src="assets/icons/NEW-LOGO-QCDE.png">
             <h1>QCDE - IPVT (User Management)</h1>
@@ -23,7 +25,9 @@
             </div>
         </section>
 
+        <!-- Content wrapper for admin actions and the account table. -->
         <div id="project-container">
+            <!-- Toolbar for creating accounts and filtering the list. -->
             <section id="project-toolbar">
                 <div class="action-bar">
                     <button type="button" class="action-btn" id="btn-create-admin">
@@ -38,6 +42,7 @@
                 </div>
             </section>
 
+            <!-- Scrollable admin table with shared dashboard styling. -->
             <div class="project-table-scroll" id="admin-table-scroll">
                 <section id="project-container-header">
                     <p>ID</p>
@@ -45,13 +50,16 @@
                     <p>Status</p>
                     <p id="header-action">Actions</p>
                 </section>
+                <!-- Admin rows are rendered here dynamically. -->
                 <section class="project-list" id="admin-list"></section>
             </div>
         </div>
 
+        <!-- Empty-state message shown when no admin accounts exist. -->
         <p class="empty-state" id="admin-empty-state">No admin accounts yet. Create one to get started.</p>
     </main>
 
+    <!-- Modal for creating a new administrator account. -->
     <div class="modal-overlay" id="create-admin-modal">
         <div class="modal">
             <h2>CREATE ADMIN ACCOUNT</h2>
@@ -75,6 +83,7 @@
         </div>
     </div>
 
+    <!-- Modal for editing account details or profile settings. -->
     <div class="modal-overlay" id="edit-admin-modal">
         <div class="modal" id="edit-admin-modal-content">
             <h2 id="edit-admin-title">UPDATE ADMIN ACCOUNT</h2>
@@ -105,6 +114,7 @@
         </div>
     </div>
 
+    <!-- Loads account management logic and shared login checks. -->
     <script src="js/user-management.js"></script>
     <script src="js/login.js"></script>
 </body>

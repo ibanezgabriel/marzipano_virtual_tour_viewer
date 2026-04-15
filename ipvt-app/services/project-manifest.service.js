@@ -1,3 +1,4 @@
+/* Reads and writes the project manifest file. */
 const fs = require('fs');
 const path = require('path');
 
@@ -10,12 +11,14 @@ if (!fs.existsSync(projectsDir)) {
   fs.mkdirSync(projectsDir, { recursive: true });
 }
 
+/* Maps project status values to the allowed set. */
 function normalizeProjectStatus(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'in-progress') return 'on-going';
   return ALLOWED_PROJECT_STATUSES.has(normalized) ? normalized : 'on-going';
 }
 
+/* Gets get projects manifest. */
 function getProjectsManifest() {
   try {
     const raw = fs.readFileSync(projectsManifestPath, 'utf8');
@@ -38,6 +41,7 @@ function getProjectsManifest() {
   }
 }
 
+/* Updates write projects manifest. */
 function writeProjectsManifest(projects) {
   const normalized = Array.isArray(projects)
     ? projects.map((project) => {
@@ -48,6 +52,7 @@ function writeProjectsManifest(projects) {
   fs.writeFileSync(projectsManifestPath, JSON.stringify(normalized, null, 2), 'utf8');
 }
 
+/* Gets find project by id or number. */
 function findProjectByIdOrNumber(token) {
   if (!token) return null;
   const value = String(token).trim();
@@ -59,6 +64,7 @@ function findProjectByIdOrNumber(token) {
   )) || null;
 }
 
+/* Updates sanitize project id. */
 function sanitizeProjectId(name) {
   return name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '') || 'project';
 }

@@ -1,8 +1,10 @@
+/* Registers project asset API endpoints. */
 const express = require('express');
 const fs = require('fs');
 const { findProjectByIdOrNumber } = require('../services/project-manifest.service');
 const { getProjectPaths } = require('../services/project-paths.service');
 
+/* Sets up create static project dir middleware. */
 function createStaticProjectDirMiddleware(dirKey) {
   return (req, res, next) => {
     const token = req.params.projectId;
@@ -16,6 +18,7 @@ function createStaticProjectDirMiddleware(dirKey) {
   };
 }
 
+/* Sets up create project assets router. */
 function createProjectAssetsRouter() {
   const router = express.Router({ mergeParams: true });
   router.use('/upload', createStaticProjectDirMiddleware('upload'));

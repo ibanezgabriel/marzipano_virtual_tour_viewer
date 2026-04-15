@@ -1,3 +1,4 @@
+/* Keeps project records aligned between files and the database. */
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
@@ -15,6 +16,7 @@ const projectsDir = storageProjectsDir;
 const projectsManifestPath = path.join(projectsDir, 'projects.json');
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.jfif']);
 
+/* Gets read json. */
 function readJson(filePath, fallback) {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -26,6 +28,7 @@ function readJson(filePath, fallback) {
   }
 }
 
+/* Maps project status values to the allowed set. */
 function normalizeProjectStatus(value) {
   const status = String(value || '').trim().toLowerCase();
   if (status === 'in-progress') return 'on-going';
@@ -33,6 +36,7 @@ function normalizeProjectStatus(value) {
   return 'on-going';
 }
 
+/* Gets list files. */
 function listFiles(dirPath, allowedExtensions = null) {
   try {
     const entries = fs.readdirSync(dirPath, { withFileTypes: true });
@@ -52,11 +56,13 @@ function listFiles(dirPath, allowedExtensions = null) {
   }
 }
 
+/* Gets get projects manifest. */
 function getProjectsManifest() {
   const manifest = readJson(projectsManifestPath, []);
   return Array.isArray(manifest) ? manifest : [];
 }
 
+/* Gets find manifest project by token. */
 function findManifestProjectByToken(token) {
   const value = String(token || '').trim();
   if (!value) return null;
@@ -69,6 +75,7 @@ function findManifestProjectByToken(token) {
   ) || null;
 }
 
+/* Gets get audit entries. */
 function getAuditEntries(projectPath, kind, fallbackUserId) {
   const dirPath = path.join(projectPath, 'data', 'audit', kind);
   const files = listFiles(dirPath, null).filter((name) => name.endsWith('.json'));
@@ -95,12 +102,14 @@ function getAuditEntries(projectPath, kind, fallbackUserId) {
   });
 }
 
+/* Gets read snapshot value. */
 function readSnapshotValue(container, key) {
   if (!container || typeof container !== 'object') return '';
   const value = container[key];
   return value === undefined || value === null ? '' : String(value).trim();
 }
 
+/* Handles resolve project snapshot entries. */
 function resolveProjectSnapshotEntries(auditEntries, fallbackProjectNumber, fallbackProjectName) {
   if (!Array.isArray(auditEntries) || auditEntries.length === 0) return [];
 
@@ -205,6 +214,7 @@ function resolveProjectSnapshotEntries(auditEntries, fallbackProjectNumber, fall
     });
 }
 
+/* Handles gather panorama filenames. */
 function gatherPanoramaFilenames(projectPath) {
   const uploadDir = path.join(projectPath, 'upload');
   const initialViews = readJson(path.join(projectPath, 'data', 'initial-views.json'), {});
@@ -235,6 +245,7 @@ function gatherPanoramaFilenames(projectPath) {
   return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
+/* Handles layout images dir. */
 function layoutImagesDir(projectPath) {
   const nextDir = path.join(projectPath, 'layouts');
   const legacyDir = path.join(projectPath, 'floorplans');
@@ -242,6 +253,7 @@ function layoutImagesDir(projectPath) {
   return legacyDir;
 }
 
+/* Gets read layout hotspots merged. */
 function readLayoutHotspotsMerged(projectPath) {
   const nextPath = path.join(projectPath, 'data', 'layout-hotspots.json');
   const legacyPath = path.join(projectPath, 'data', 'floorplan-hotspots.json');
@@ -249,6 +261,7 @@ function readLayoutHotspotsMerged(projectPath) {
   return readJson(legacyPath, {});
 }
 
+/* Handles gather layout filenames. */
 function gatherLayoutFilenames(projectPath) {
   const layoutDir = layoutImagesDir(projectPath);
   const layoutHotspots = readLayoutHotspotsMerged(projectPath);
@@ -259,6 +272,7 @@ function gatherLayoutFilenames(projectPath) {
   return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
+/* Cleans up clear project data. */
 async function clearProjectData(client, projectId) {
   // IMPORTANT: audit logs are append-only "paper trail" records.
   // Never delete them during sync, otherwise earlier entries (e.g. Project_Create)
@@ -270,10 +284,12 @@ async function clearProjectData(client, projectId) {
   await client.query('DELETE FROM panoramas WHERE project_id = $1', [projectId]);
 }
 
+/* Sets up make audit row key. */
 function makeAuditRowKey({ action, message, createdAtIso }) {
   return `${String(action || '')}||${String(message || '')}||${String(createdAtIso || '')}`;
 }
 
+/* Handles to iso or empty. */
 function toIsoOrEmpty(value) {
   if (!value) return '';
   try {
@@ -285,6 +301,7 @@ function toIsoOrEmpty(value) {
   }
 }
 
+/* Gets load existing audit row keys. */
 async function loadExistingAuditRowKeys(client, projectId) {
   const existing = await client.query(
     `SELECT action, message, created_at
@@ -300,6 +317,7 @@ async function loadExistingAuditRowKeys(client, projectId) {
   return keys;
 }
 
+/* Handles upsert project row. */
 async function upsertProjectRow(client, { legacyId, projectNumber, projectName, status }, opts = {}) {
   let existingProjectId = null;
 
@@ -359,6 +377,7 @@ async function upsertProjectRow(client, { legacyId, projectNumber, projectName, 
   return projectId;
 }
 
+/* Updates sync project with client. */
 async function syncProjectWithClient(client, project, { createdByUserId, previousProjectToken, previousProjectNumber } = {}) {
   const legacyId = String(project && project.id || '').trim();
   const projectName = String(project && project.name || '').trim();
@@ -574,6 +593,7 @@ async function syncProjectWithClient(client, project, { createdByUserId, previou
   };
 }
 
+/* Updates sync project by token. */
 async function syncProjectByToken(token, { createdByUserId } = {}) {
   const project = findManifestProjectByToken(token);
   if (!project) {
@@ -594,6 +614,7 @@ async function syncProjectByToken(token, { createdByUserId } = {}) {
   }
 }
 
+/* Updates sync project by token with previous. */
 async function syncProjectByTokenWithPrevious(token, { createdByUserId, previousProjectToken, previousProjectNumber } = {}) {
   const project = findManifestProjectByToken(token);
   if (!project) {
@@ -618,6 +639,7 @@ async function syncProjectByTokenWithPrevious(token, { createdByUserId, previous
   }
 }
 
+/* Updates sync all projects. */
 async function syncAllProjects({ createdByUserId } = {}) {
   const manifest = getProjectsManifest();
   const client = await getPool().connect();

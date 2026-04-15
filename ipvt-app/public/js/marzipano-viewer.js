@@ -1,4 +1,5 @@
-﻿import Marzipano from "//cdn.skypack.dev/marzipano";
+/* Wraps Marzipano viewer setup and scene helpers. */
+import Marzipano from "//cdn.skypack.dev/marzipano";
 import { getUploadBase, getTilesBase, appendProjectParams, getProjectId } from './project-context.js';
 
 const LAST_PANO_KEY_PREFIX = 'marzipano-last-pano-';
@@ -29,6 +30,7 @@ let initialViewsByImage = {};
 let initialViewsLoaded = false;
 const INITIAL_VIEWS_STORAGE_KEY = 'marzipano-initial-views';
 
+/* Gets load initial views from storage. */
 function loadInitialViewsFromStorage() {
   try {
     const raw = localStorage.getItem(INITIAL_VIEWS_STORAGE_KEY);
@@ -42,6 +44,7 @@ function loadInitialViewsFromStorage() {
   }
 }
 
+/* Updates save initial views to storage. */
 function saveInitialViewsToStorage() {
   try {
     localStorage.setItem(INITIAL_VIEWS_STORAGE_KEY, JSON.stringify(initialViewsByImage));
@@ -50,6 +53,7 @@ function saveInitialViewsToStorage() {
   }
 }
 
+/* Sets up ensure initial views loaded. */
 async function ensureInitialViewsLoaded() {
   if (initialViewsLoaded) return;
   // Try server first so views are shared across devices; fall back to localStorage on failure.
@@ -77,6 +81,7 @@ const panoViewerEl = document.getElementById('pano-viewer');
 const headerTextEl = document.getElementById('pano-header-text');
 const headerEl = document.getElementById('pano-header');
 
+/* Updates set list item filename. */
 function setListItemFilename(li, filename) {
   li.dataset.filename = filename;
   const nameEl = li.querySelector('.pano-item-name');
@@ -86,6 +91,7 @@ function setListItemFilename(li, filename) {
   }
 }
 
+/* Updates update list item action icons. */
 function updateListItemActionIcons(li) {
   if (!li) return;
   const isActive = li.classList.contains('active');
@@ -101,10 +107,12 @@ function updateListItemActionIcons(li) {
   });
 }
 
+/* Handles refresh all list action icons. */
 function refreshAllListActionIcons() {
   document.querySelectorAll('#pano-image-list li').forEach((li) => updateListItemActionIcons(li));
 }
 
+/* Updates sync active highlight for delete mode. */
 function syncActiveHighlightForDeleteMode() {
   const items = Array.from(document.querySelectorAll('#pano-image-list li'));
   if (deleteSelectionMode) {
@@ -118,6 +126,7 @@ function syncActiveHighlightForDeleteMode() {
   refreshAllListActionIcons();
 }
 
+/* Updates sync multi selection classes. */
 function syncMultiSelectionClasses() {
   document.querySelectorAll('#pano-image-list li').forEach((li) => {
     const selected = deleteSelectionMode && multiSelectedImageNames.has(li.dataset.filename);
@@ -125,6 +134,7 @@ function syncMultiSelectionClasses() {
   });
 }
 
+/* Updates update header text. */
 function updateHeaderText() {
   if (headerTextEl && headerEl) {
     headerTextEl.textContent = projectName || '';
@@ -145,6 +155,7 @@ export function initViewer() {
   return viewer;
 }
 
+/* Updates save last panorama. */
 function saveLastPanorama(imageName) {
   const pid = getProjectId();
   if (pid && imageName) {
@@ -280,6 +291,7 @@ export async function loadImages(onImagesLoaded) {
     }
 
     // Helper to create a draggable list item for an image
+/* Sets up create image list item. */
     function createImageListItem(filename) {
       const li = document.createElement('li');
       const nameEl = document.createElement('span');

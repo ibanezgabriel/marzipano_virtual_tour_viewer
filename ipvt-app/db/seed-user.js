@@ -1,3 +1,4 @@
+/* Seeds a default user account for local setup. */
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
@@ -9,6 +10,7 @@ dotenv.config({ path: fs.existsSync(appEnvPath) ? appEnvPath : repoEnvPath });
 const { ensureBootstrapSuperAdmin } = require('./users');
 const { getPool } = require('./pool');
 
+/* Handles main. */
 async function main() {
   const superAdmin = await ensureBootstrapSuperAdmin();
   console.log(`OK: bootstrap super admin is ready (${superAdmin.username})`);

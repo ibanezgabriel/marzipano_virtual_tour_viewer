@@ -1,8 +1,10 @@
+/* Configures upload handling for project media files. */
 const fs = require('fs');
 const multer = require('multer');
 const { findProjectByIdOrNumber } = require('../services/project-manifest.service');
 const { getProjectPaths } = require('../services/project-paths.service');
 
+/* Sets up create project storage. */
 function createProjectStorage(dirKey) {
   return multer.diskStorage({
     destination: (req, _file, cb) => {

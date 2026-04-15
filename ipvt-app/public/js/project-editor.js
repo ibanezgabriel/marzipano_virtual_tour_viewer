@@ -1,3 +1,4 @@
+/* Bootstraps the project editor and its feature modules. */
 import { initViewer, loadImages, setProjectName, updateInitialViewForRenamedImage } from './marzipano-viewer.js';
 import { getProjectId } from './project-context.js';
 import { initLayouts, layoutApi } from './features/layouts.js';
@@ -12,6 +13,7 @@ import { initInitialView } from './features/initial-view.js';
 import { reloadInitialViews } from './marzipano-viewer.js';
 import { io } from '/socket.io/socket.io.esm.min.js';
 
+/* Handles resolve project id. */
 function resolveProjectId(projects, token) {
   const value = (token || '').trim();
   if (!value || !Array.isArray(projects)) return value;
@@ -23,6 +25,7 @@ function resolveProjectId(projects, token) {
   return match ? match.id : value;
 }
 
+/* Handles cleanup scene linked data. */
 function cleanupSceneLinkedData(validImageNames) {
   try { cleanupHotspotsForDeletedImages(validImageNames); } catch (e) {}
   try { cleanupBlurMasksForDeletedImages(validImageNames); } catch (e) {}

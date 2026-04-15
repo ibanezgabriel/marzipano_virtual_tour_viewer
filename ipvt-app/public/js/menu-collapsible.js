@@ -1,3 +1,4 @@
+/* Manages the collapsible sidebar menu behavior. */
 export function initMenuCollapsible() {
   const sidebarBTN = document.getElementById("pano-sidebar-btn");
   const sidebarIMG = sidebarBTN ? sidebarBTN.querySelector('img') : null;

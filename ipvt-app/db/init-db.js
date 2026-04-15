@@ -1,3 +1,4 @@
+/* Initializes the database schema and required tables. */
 const fs = require("fs");
 const path = require("path");
 const dotenv = require("dotenv");
@@ -9,6 +10,7 @@ const { Client } = require("pg");
 const { getPool } = require("./pool");
 const { formatUserId } = require("./users");
 
+/* Handles quote identifier. */
 function quoteIdentifier(identifier) {
   const value = String(identifier || "").trim();
   if (!/^[a-zA-Z0-9_]+$/.test(value)) {
@@ -20,6 +22,7 @@ function quoteIdentifier(identifier) {
   return `"${value}"`;
 }
 
+/* Gets get target database name. */
 function getTargetDatabaseName() {
   if (process.env.DATABASE_URL) {
     try {
@@ -33,6 +36,7 @@ function getTargetDatabaseName() {
   return String(process.env.PGDATABASE || "").trim();
 }
 
+/* Sets up build admin connection options. */
 function buildAdminConnectionOptions(targetDbName) {
   if (process.env.DATABASE_URL) {
     const url = new URL(process.env.DATABASE_URL);
@@ -51,6 +55,7 @@ function buildAdminConnectionOptions(targetDbName) {
   };
 }
 
+/* Sets up ensure database exists. */
 async function ensureDatabaseExists() {
   const targetDbName = getTargetDatabaseName();
   if (!targetDbName) return;
@@ -90,6 +95,7 @@ async function ensureDatabaseExists() {
   }
 }
 
+/* Handles split sql. */
 function splitSql(sql) {
   const noLineComments = sql
     .split("\n")
@@ -102,6 +108,7 @@ function splitSql(sql) {
     .filter(Boolean);
 }
 
+/* Gets get column type. */
 async function getColumnType(client, tableName, columnName) {
   const result = await client.query(
     `SELECT data_type
@@ -114,6 +121,7 @@ async function getColumnType(client, tableName, columnName) {
   return result.rows[0] ? result.rows[0].data_type : null;
 }
 
+/* Handles table exists. */
 async function tableExists(client, tableName) {
   const result = await client.query(
     `SELECT 1
@@ -126,6 +134,7 @@ async function tableExists(client, tableName) {
   return result.rowCount > 0;
 }
 
+/* Handles column exists. */
 async function columnExists(client, tableName, columnName) {
   const result = await client.query(
     `SELECT 1
@@ -139,6 +148,7 @@ async function columnExists(client, tableName, columnName) {
   return result.rowCount > 0;
 }
 
+/* Gets get column position. */
 async function getColumnPosition(client, tableName, columnName) {
   const result = await client.query(
     `SELECT ordinal_position
@@ -151,6 +161,7 @@ async function getColumnPosition(client, tableName, columnName) {
   return result.rows[0] ? Number(result.rows[0].ordinal_position) : null;
 }
 
+/* Handles reset serial sequence. */
 async function resetSerialSequence(client, tableName, columnName = "id") {
   await client.query(
     `SELECT setval(
@@ -162,6 +173,7 @@ async function resetSerialSequence(client, tableName, columnName = "id") {
   );
 }
 
+/* Handles recreate panorama hotspots table. */
 async function recreatePanoramaHotspotsTable(client) {
   if (!(await tableExists(client, "panorama_hotspots"))) return;
 
@@ -200,6 +212,7 @@ async function recreatePanoramaHotspotsTable(client) {
   await resetSerialSequence(client, "panorama_hotspots");
 }
 
+/* Handles recreate layout hotspots table. */
 async function recreateLayoutHotspotsTable(client) {
   if (!(await tableExists(client, "layout_hotspots"))) return;
 
@@ -238,6 +251,7 @@ async function recreateLayoutHotspotsTable(client) {
   await resetSerialSequence(client, "layout_hotspots");
 }
 
+/* Handles recreate blur masks table. */
 async function recreateBlurMasksTable(client) {
   if (!(await tableExists(client, "blur_masks"))) return;
 
@@ -274,6 +288,7 @@ async function recreateBlurMasksTable(client) {
   await resetSerialSequence(client, "blur_masks");
 }
 
+/* Handles drop projects legacy id column if exists. */
 async function dropProjectsLegacyIdColumnIfExists(client) {
   if (await columnExists(client, "projects", "legacy_id")) {
     await client.query("DROP INDEX IF EXISTS idx_projects_legacy_id");
@@ -281,6 +296,7 @@ async function dropProjectsLegacyIdColumnIfExists(client) {
   }
 }
 
+/* Handles migrate user ids to varchar. */
 async function migrateUserIdsToVarchar(client) {
   await client.query("ALTER TABLE layouts DROP CONSTRAINT IF EXISTS layouts_created_by_fkey");
   await client.query("ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_created_by_fkey");
@@ -347,6 +363,7 @@ async function migrateUserIdsToVarchar(client) {
   );
 }
 
+/* Handles main. */
 async function main() {
   const schemaPath = path.join(__dirname, "..", "db", "schema.sql");
   const sql = fs.readFileSync(schemaPath, "utf8");

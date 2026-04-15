@@ -1,3 +1,4 @@
+/* Registers routes for the project editor pages. */
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -17,12 +18,14 @@ const {
 
 const router = express.Router();
 
+/* Handles round hotspot number. */
 function roundHotspotNumber(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return 0;
   return Math.round(num * 10000) / 10000;
 }
 
+/* Handles hotspot entry key. */
 function hotspotEntryKey(entry, kind) {
   if (!entry || typeof entry !== 'object') return null;
   const id = Number(entry.id);
@@ -35,6 +38,7 @@ function hotspotEntryKey(entry, kind) {
   return `legacy:${linkTo}:${label}:${roundHotspotNumber(entry.yaw)}:${roundHotspotNumber(entry.pitch)}`;
 }
 
+/* Handles diff hotspot entry keys. */
 function diffHotspotEntryKeys(beforeList, afterList, kind) {
   const beforeCounts = new Map();
   const afterCounts = new Map();
@@ -63,6 +67,7 @@ function diffHotspotEntryKeys(beforeList, afterList, kind) {
   return { created, deleted };
 }
 
+/* Handles blur mask entry key. */
 function blurMaskEntryKey(entry) {
   if (!entry || typeof entry !== 'object') return null;
   const id = Number(entry.id);
@@ -70,11 +75,13 @@ function blurMaskEntryKey(entry) {
   return `legacy:${roundHotspotNumber(entry.yaw)}:${roundHotspotNumber(entry.pitch)}:${roundHotspotNumber(entry.radiusRatio)}`;
 }
 
+/* Handles blur mask entry fingerprint. */
 function blurMaskEntryFingerprint(entry) {
   if (!entry || typeof entry !== 'object') return '';
   return `${roundHotspotNumber(entry.yaw)}|${roundHotspotNumber(entry.pitch)}|${roundHotspotNumber(entry.radiusRatio)}`;
 }
 
+/* Handles diff blur mask entries. */
 function diffBlurMaskEntries(beforeList, afterList) {
   const beforeMap = new Map();
   const afterMap = new Map();
@@ -110,6 +117,7 @@ function diffBlurMaskEntries(beforeList, afterList) {
   return { created, deleted, updated };
 }
 
+/* Gets read object file. */
 function readObjectFile(res, filePath, errorMessage) {
   fs.readFile(filePath, 'utf8', (error, data) => {
     if (error) {
@@ -125,6 +133,7 @@ function readObjectFile(res, filePath, errorMessage) {
   });
 }
 
+/* Wires HTTP endpoints to their controller handlers. */
 router.get('/api/hotspots', (req, res) => {
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });

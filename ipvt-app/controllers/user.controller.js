@@ -1,3 +1,4 @@
+/* Handles administrator account requests and updates. */
 const {
   createUser,
   listUsers,
@@ -6,6 +7,7 @@ const {
 } = require('../db/users');
 const { serializeUserForClient } = require('../services/auth.service');
 
+/* Returns the requested collection or record. */
 async function list(req, res) {
   try {
     const role = req.query && typeof req.query.role === 'string'
@@ -19,6 +21,7 @@ async function list(req, res) {
   }
 }
 
+/* Creates a new record from the request data. */
 async function create(req, res) {
   try {
     const user = await createUser({
@@ -36,6 +39,7 @@ async function create(req, res) {
   }
 }
 
+/* Updates an existing record from the request data. */
 async function update(req, res) {
   try {
     const id = String(req.params.id || '').trim();
@@ -65,6 +69,7 @@ async function update(req, res) {
   }
 }
 
+/* Deletes the requested record and its related data. */
 function remove(_req, res) {
   return res.status(403).json({ message: 'Account deletion is disabled.' });
 }

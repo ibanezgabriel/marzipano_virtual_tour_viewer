@@ -1,3 +1,4 @@
+/* Anchors the editor sidebar to the viewport. */
 #pano-sidebar-wrapper {
   position: fixed;
   top: 0;
@@ -7,6 +8,7 @@
   transition: transform 0.4s ease;
   z-index: 1;
 }
+/* Defines the size and layout of the sidebar. */
 #pano-sidebar-container {
   width: 320px;
   max-height: 400px;
@@ -15,6 +17,7 @@
   display: flex;
   flex-direction: column;
 }
+/* Styles the top header bar. */
 #pano-header {
   position: fixed;
   top: 0;
@@ -34,12 +37,14 @@
   position: relative;
 }
 
+/* Sets the base styling for the header. */
 #pano-header-text {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   white-space: nowrap;
 }
+/* Sets the base styling for the sidebar. */
 #pano-sidebar-btn {
   height: 44px;
   width: 44px;
@@ -49,13 +54,16 @@
   justify-content: center;
   align-items: center;
 }
+/* Sets the base styling for the sidebar. */
 #pano-sidebar-btn > img {
   height: 40px;
   width: 40px;
 }
+/* Moves the sidebar into its collapsed position. */
 #pano-sidebar-wrapper.collapsed {
   transform: translateX(-320px);
 }
+/* Sets the base styling for the button. */
 #pano-menu-btn {
   display: flex;
   justify-content: center;
@@ -70,6 +78,7 @@
 }
 
 /* wrapper for the login/logout and menu links so they stay together */
+/* Sets the base styling for the header. */
 #header-controls {
   position: fixed;
   right: 12px;
@@ -77,10 +86,12 @@
   align-items: center;
   gap: 0.5rem;
 }
+/* Sets the base styling for the button. */
 #pano-menu-btn > img {
   height: 15px;
   width: 15px;
 }
+/* Sets the base styling for the element. */
 #pano-panel {
   position: absolute;
   top: 0;
@@ -90,6 +101,7 @@
   display: flex;
   border: 1px solid #1e4452;
 }
+/* Sets the base styling for the element. */
 #pano-title {
   color: white;
   background-color: #18719e;
@@ -99,10 +111,12 @@
 }
 
 /* Tabs for Panoramic Scenes / Layout */
+/* Sets the base styling for the sidebar. */
 #pano-sidebar-tabs {
   display: flex;
 }
 
+/* Sets the base styling for the sidebar. */
 #pano-sidebar-tabs button {
   flex: 1;
   padding: 8px 10px;
@@ -115,17 +129,21 @@
   height: 44px;
 }
 
+/* Sets the base styling for the sidebar. */
 #pano-sidebar-tabs button + button {
   border-left: 1px solid rgba(255, 255, 255, 0.35);
 }
 
+/* Highlights the active sidebar. */
 #pano-sidebar-tabs button.active-tab {
   background-color: #0b4f6c;
 }
 
+/* Sets the base styling for the sidebar. */
 #pano-sidebar-content {
   padding: 4px;
 }
+/* Pins the main editor actions to the corner. */
 #pano-action {
   padding: 10px 15px;
   position: fixed;
@@ -138,6 +156,7 @@
   background-color: #115272;
 }
 
+/* Shares the same styling across related elements. */
 #pano-upload-btn,
 #pano-hotspot-btn,
 #pano-blur-btn,
@@ -156,21 +175,26 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   transition: transform 0.2s;
 }
+/* Sets the base styling for the button. */
 #pano-upload-btn {
     background-color: rgb(0, 0, 193);
 }
+/* Sets the base styling for the button. */
 #pano-blur-btn {
     background-color: rgb(79, 120, 141);
     color: #fff;
 }
+/* Sets the base styling for the button. */
 #pano-blur-add-btn {
     background-color: rgb(56, 149, 96);
     color: #fff;
     display: none;
 }
+/* Sets the base styling for the button. */
 #pano-initial-view-btn {
     background-color: rgb(203, 80, 80);
 }
+/* Styles the scrollable panorama list. */
 #pano-image-list {
   overflow-y: auto;
   overflow-x: hidden;
@@ -182,6 +206,7 @@
   max-height: 340px;
   display: block; /* shown when Panoramic Scenes tab is active */
 }
+/* Sets the base styling for the element. */
 #pano-image-list li {
     padding: 5px 10px;
     margin: .2rem;
@@ -194,6 +219,7 @@
     transition: background 0.2s ease, color 0.2s ease;
     cursor: pointer;
 }
+/* Sets the base styling for the element. */
 .pano-item-name {
   flex: 1;
   min-width: 0;
@@ -201,6 +227,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Sets the base styling for the element. */
 .pano-item-actions {
   display: inline-flex;
   align-items: center;
@@ -210,12 +237,14 @@
   pointer-events: none;
   transition: opacity 0.15s ease;
 }
+/* Shares the same styling across related elements. */
 #pano-image-list li:hover .pano-item-actions,
 #pano-image-list li.active .pano-item-actions {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
 }
+/* Sets the base styling for the button. */
 .pano-item-action-btn {
   width: 22px;
   height: 22px;
@@ -228,37 +257,46 @@
   padding: 0;
   transition: background 0.15s ease;
 }
+/* Sets the base styling for the button. */
 .pano-item-action-btn img {
   width: 14px;
   height: 14px;
 }
+/* Hover state for the button. */
 .pano-item-action-btn:hover {
   background: rgba(0, 0, 0, 0.12);
 }
+/* Hover state for the element. */
 #pano-image-list li:hover {
     background: #c5d4db;
 }
+/* Highlights the active element. */
 #pano-image-list li.active {
     background-color: #115272;
     color: #fff;
 }
+/* Highlights the active form control. */
 #pano-image-list li.multi-selected:not(.active) {
     background-color: #d43f3f;
     color: #fff;
 }
+/* Highlights the active form control. */
 #pano-image-list li.multi-selected.active {
     background-color: #b71c1c;
     color: #fff;
 }
 
+/* Sets the base styling for the element. */
 #pano-image-list li.drag-over {
   outline: 2px dashed rgba(17,82,114,0.9);
 }
+/* Sets the base styling for the element. */
 #pano-image-list li.dragging {
   opacity: 0.5;
 }
 
 /* Layout list: separate content from pano-image-list */
+/* Styles the scrollable layout list. */
 #pano-layout-list {
   overflow-y: auto;
   overflow-x: hidden;
@@ -270,6 +308,7 @@
   display: none; /* hidden by default; shown when Layout tab is active */
 }
 
+/* Sets the base styling for the layout view. */
 #pano-layout-list > li {
   padding: 5px 10px;
   margin: 0.2rem;
@@ -286,6 +325,7 @@
   text-overflow: ellipsis;
 }
 
+/* Sets the base styling for the layout view. */
 .layout-item-name {
   flex: 1;
   min-width: 0;
@@ -294,6 +334,7 @@
   text-overflow: ellipsis;
 }
 
+/* Sets the base styling for the layout view. */
 .layout-item-actions {
   display: inline-flex;
   align-items: center;
@@ -304,6 +345,7 @@
   transition: opacity 0.15s ease;
 }
 
+/* Shares the same styling across related elements. */
 #pano-layout-list li:hover .layout-item-actions,
 #pano-layout-list li.active .layout-item-actions {
   opacity: 1;
@@ -311,6 +353,7 @@
   pointer-events: auto;
 }
 
+/* Sets the base styling for the button. */
 .layout-item-action-btn {
   width: 22px;
   height: 22px;
@@ -325,26 +368,31 @@
   transition: background 0.15s ease;
 }
 
+/* Sets the base styling for the button. */
 .layout-item-action-btn img {
   width: 14px;
   height: 14px;
   display: block;
 }
 
+/* Hover state for the button. */
 .layout-item-action-btn:hover {
   background: rgba(0, 0, 0, 0.12);
 }
 
+/* Hover state for the layout view. */
 #pano-layout-list li:hover {
   background: #c5d4db;
 }
 
+/* Highlights the active layout view. */
 #pano-layout-list li.active {
   background-color: #115272;
   color: #fff;
 }
 
 /* Audit logs panel */
+/* Sets the base styling for the audit log view. */
 #pano-audit-logs-panel {
   overflow-y: auto;
   overflow-x: hidden;
@@ -356,6 +404,7 @@
   padding: 10px;
 }
 
+/* Sets the base styling for the audit log view. */
 .audit-logs-project-title {
   font-weight: 700;
   font-size: 0.8rem;
@@ -363,6 +412,7 @@
   margin-bottom: 6px;
 }
 
+/* Sets the base styling for the project list. */
 #pano-audit-logs-project-list {
   list-style: none;
   margin: 0 0 10px 0;
@@ -372,6 +422,7 @@
   gap: 6px;
 }
 
+/* Sets the base styling for the project list. */
 #pano-audit-logs-project-list li {
   padding: 8px;
   border-radius: 4px;
@@ -381,6 +432,7 @@
   line-height: 1.15rem;
 }
 
+/* Sets the base styling for the audit log view. */
 .audit-log-entry-by {
   color: rgba(0, 0, 0, 0.7);
   font-weight: 600;
@@ -388,6 +440,7 @@
   margin-top: 2px;
 }
 
+/* Sets the base styling for the audit log view. */
 #pano-audit-logs-target {
   font-weight: 600;
   font-size: 0.85rem;
@@ -398,6 +451,7 @@
   text-overflow: ellipsis;
 }
 
+/* Sets the base styling for the audit log view. */
 #pano-audit-logs-list {
   list-style: none;
   margin: 0;
@@ -407,6 +461,7 @@
   gap: 6px;
 }
 
+/* Sets the base styling for the audit log view. */
 #pano-audit-logs-list li {
   padding: 8px;
   border-radius: 4px;
@@ -416,6 +471,7 @@
   line-height: 1.15rem;
 }
 
+/* Sets the base styling for the audit log view. */
 .audit-log-entry-ts {
   display: block;
   font-size: 0.72rem;
@@ -423,10 +479,12 @@
   margin-bottom: 2px;
 }
 
+/* Sets the base styling for the audit log view. */
 .audit-log-entry-msg {
   display: block;
 }
 
+/* Sets the base styling for the audit log view. */
 #pano-audit-logs-list li .audit-log-entry-image-link {
   border: none;
   background: none;
@@ -439,16 +497,19 @@
   font-size: inherit;
 }
 
+/* Hover state for the audit log view. */
 #pano-audit-logs-list li .audit-log-entry-image-link:hover {
   color: #083c52;
 }
 
+/* Disabled state for the audit log view. */
 #pano-audit-logs-list li .audit-log-entry-image-link:disabled {
   cursor: wait;
   opacity: 0.62;
   text-decoration: none;
 }
 
+/* Sets the base styling for the overlay. */
 .audit-log-source-loading-overlay {
   position: fixed;
   inset: 0;
@@ -460,10 +521,12 @@
   padding: 16px;
 }
 
+/* Shows the overlay when it becomes active. */
 .audit-log-source-loading-overlay.visible {
   display: flex;
 }
 
+/* Sets the base styling for the audit log view. */
 .audit-log-source-loading-box {
   min-width: 220px;
   max-width: min(90vw, 380px);
@@ -478,6 +541,7 @@
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
 }
 
+/* Sets the base styling for the audit log view. */
 .audit-log-source-loading-spinner {
   width: 22px;
   height: 22px;
@@ -488,18 +552,22 @@
   animation: audit-log-source-spin 0.8s linear infinite;
 }
 
+/* Sets the base styling for the audit log view. */
 .audit-log-source-loading-text {
   font-size: 0.88rem;
   font-weight: 600;
   line-height: 1.2;
 }
 
+/* Defines the animation used by this effect. */
 @keyframes audit-log-source-spin {
+/* Ending state of the animation. */
   to {
     transform: rotate(360deg);
   }
 }
 
+/* Sets the base styling for the modal. */
 .audit-log-viewer-modal-overlay {
   position: fixed;
   inset: 0;
@@ -511,10 +579,12 @@
   padding: 16px;
 }
 
+/* Shows the modal when it becomes active. */
 .audit-log-viewer-modal-overlay.visible {
   display: flex;
 }
 
+/* Sets the base styling for the modal. */
 .audit-log-viewer-modal {
   width: min(1100px, 96vw);
   height: min(720px, 90vh);
@@ -526,6 +596,7 @@
   flex-direction: column;
 }
 
+/* Sets the base styling for the modal. */
 .audit-log-viewer-modal-header {
   display: flex;
   align-items: center;
@@ -536,6 +607,7 @@
   padding: 10px 12px;
 }
 
+/* Sets the base styling for the modal. */
 .audit-log-viewer-modal-title {
   min-width: 0;
   font-size: 0.9rem;
@@ -545,6 +617,7 @@
   text-overflow: ellipsis;
 }
 
+/* Sets the base styling for the audit log view. */
 .audit-log-viewer-close {
   border: none;
   border-radius: 4px;
@@ -554,10 +627,12 @@
   cursor: pointer;
 }
 
+/* Hover state for the audit log view. */
 .audit-log-viewer-close:hover {
   background: #2f799a;
 }
 
+/* Sets the base styling for the modal. */
 .audit-log-viewer-modal-body {
   flex: 1;
   min-height: 0;
@@ -565,6 +640,7 @@
   position: relative;
 }
 
+/* Shares the same styling across related elements. */
 .audit-log-viewer-pano,
 .audit-log-viewer-image {
   width: 100%;
@@ -572,17 +648,20 @@
   display: none;
 }
 
+/* Shares the same styling across related elements. */
 .audit-log-viewer-pano.visible,
 .audit-log-viewer-image.visible {
   display: block;
 }
 
+/* Sets the base styling for the audit log view. */
 .audit-log-viewer-image {
   object-fit: contain;
   background: #0d1720;
 }
 
 /* Circle "+" button for adding layouts */
+/* Sets the base styling for the button. */
 #add-plan-btn {
   width: 32px;
   height: 32px;
@@ -596,6 +675,7 @@
   max-height: 350px;
 }
 
+/* Sets the base styling for the element. */
 #pano-viewer-wrap {
   flex: 1;
   position: relative;
@@ -603,6 +683,7 @@
   min-width: 0;
 }
 
+/* Fills the viewer area with the panorama canvas. */
 #pano-viewer {
   position: absolute;
   inset: 0;
@@ -610,6 +691,7 @@
 }
 
 /* Bottom-left layout preview (image only, no title) */
+/* Shows the floating layout preview panel. */
 .layout-preview {
   position: absolute;
   /* left: .5rem; */
@@ -627,6 +709,7 @@
   transition: opacity 280ms ease, transform 280ms ease, visibility 0s linear 280ms;
 }
 
+/* Shows the preview panel when it becomes active. */
 .layout-preview.visible {
   opacity: 1;
   visibility: visible;
@@ -634,10 +717,12 @@
   transform: translateY(0);
   transition: opacity 280ms ease, transform 280ms ease;
 }
+/* Hover state for the preview panel. */
 .layout-preview.visible:hover {
   transform: translateY(0) scale(1.05);
 }
 
+/* Sets the base styling for the preview panel. */
 .layout-preview img {
   display: block;
   width: 100%;
@@ -647,12 +732,14 @@
 }
 
 /* Ensure rendered display hotspot layer positions correctly */
+/* Sets the base styling for the preview panel. */
 .layout-preview .layout-image-wrap {
   position: relative;
   width: 100%;
 }
 
 /* Expanded layout modal */
+/* Sets the base styling for the modal. */
 .layout-modal-overlay {
   position: fixed;
   inset: 0;
@@ -668,6 +755,7 @@
   transition: opacity 280ms ease, visibility 0s linear 280ms;
 }
 
+/* Shows the modal when it becomes active. */
 .layout-modal-overlay.visible {
   opacity: 1;
   visibility: visible;
@@ -675,6 +763,7 @@
   transition: opacity 280ms ease;
 }
 
+/* Styles the expanded layout viewer. */
 .layout-modal {
   background: #ffffff;
   max-width: 80vw;
@@ -691,17 +780,20 @@
   transition: opacity 280ms ease, transform 280ms ease;
 }
 
+/* Shows the modal when it becomes active. */
 .layout-modal-overlay.visible .layout-modal {
   opacity: 1;
   transform: translateY(0);
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-header {
   padding: 10px 12px;
   background: #ffffff;
   border-bottom: 1px solid #e0e0e0;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-title {
   font-weight: 700;
   font-size: 0.95rem;
@@ -712,6 +804,7 @@
   text-overflow: ellipsis;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-body {
   flex: 1;
   min-height: 0;
@@ -725,6 +818,7 @@
   width: 100%;
 }
 
+/* Sets the base styling for the layout view. */
 .layout-image-wrap {
   position: relative;
   width: 100%;
@@ -734,11 +828,13 @@
   justify-content: center;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-body .layout-image-wrap {
   width: 100%;
   height: 100%;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-body .layout-image-stage {
   position: relative;
   display: inline-block;
@@ -749,6 +845,7 @@
   max-height: 100%;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-body img {
   width: 100%;
   height: 100%;
@@ -758,6 +855,7 @@
   display: block;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -767,6 +865,7 @@
   border-top: 1px solid #e0e0e0;
 }
 
+/* Sets the base styling for the button. */
 .layout-action-btn {
   padding: 6px 12px;
   font-size: 0.85rem;
@@ -778,39 +877,46 @@
   transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
+/* Hover state for the button. */
 .layout-action-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.25);
 }
 
+/* Sets the base styling for the layout view. */
 .layout-hotspot {
   background: #3c7b8e;
   color: #fff;
 }
 
+/* Highlights the active layout view. */
 .layout-hotspot.active {
   background: #ffffff;
   color: #0d3d52;
 }
 
 /* Blur main content slightly while modal is open */
+/* Sets the base styling for the modal. */
 body.layout-modal-open #pano-panel {
   filter: blur(2px);
 }
 
 /* Hotspots inside expanded layout */
+/* Sets the base styling for the layout view. */
 .layout-hotspot-layer {
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
 
+/* Sets the base styling for the layout view. */
 .layout-hotspot-pin {
   position: absolute;
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
 
+/* Sets the base styling for the layout view. */
 .layout-hotspot-pin-dot {
   width: 15px;
   height: 15px;
@@ -825,27 +931,32 @@ body.layout-modal-open #pano-panel {
 }
 
 /* Per-view hotspot sizes */
+/* Sets the base styling for the preview panel. */
 .layout-hotspot-pin-dot.hotspot-preview {
   width: 14px;
   height: 14px;
 }
 
+/* Sets the base styling for the modal. */
 .layout-hotspot-pin-dot.hotspot-modal {
   width: 20px;
   height: 20px;
 }
 
+/* Hover state for the layout view. */
 .layout-hotspot-pin-dot:hover {
   transform: scale(1.1);
   background: #5a8ac8;
 }
 
 /* Selected layout hotspot: highlight in light green */
+/* Highlights the selected layout view. */
 .layout-hotspot-pin-dot.selected {
   background: rgb(222, 222, 21);
   border-color: #c8e6c9;
 }
 
+/* Sets the base styling for the layout view. */
 .layout-hotspot-pin-remove {
   position: absolute;
   top: -6px;
@@ -870,20 +981,24 @@ body.layout-modal-open #pano-panel {
   pointer-events: auto;
 }
 
+/* Shares the same styling across related elements. */
 .layout-hotspot-pin-dot:hover ~ .layout-hotspot-pin-remove,
 .layout-hotspot-pin-remove:hover {
   opacity: 1;
 }
 
+/* Hover state for the layout view. */
 .layout-hotspot-pin-remove:hover {
   background: #8b3a3a;
   transform: scale(1.1);
 }
 
+/* Adds a decorative layer for the layout view. */
 .layout-hotspot-pin-remove::before {
   content: '×';
   font-weight: bold;
 }
+/* Sets the base styling for the element. */
 .no-pano-msg {
     margin: 0;
     padding: 1rem;
@@ -896,6 +1011,7 @@ body.layout-modal-open #pano-panel {
     height: 100%;
     box-sizing: border-box;
 }
+/* Sets the base styling for the button. */
 .no-pano-home-btn {
     padding: 10px 20px;
     background: #115272;
@@ -905,11 +1021,13 @@ body.layout-modal-open #pano-panel {
     font-weight: 600;
     transition: background 0.2s;
 }
+/* Hover state for the button. */
 .no-pano-home-btn:hover {
     background: #0d3d52;
 }
 
 /* Hotspot link icon - bottom right floating button */
+/* Sets the base styling for the button. */
 #pano-hotspot-btn {
   /* border: none; */
   background-color: #3c7b8e;
@@ -920,6 +1038,7 @@ body.layout-modal-open #pano-panel {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   transition: transform 0.5s;
 }
+/* Shares the same styling across related elements. */
 #pano-upload-btn:hover,
 #pano-delete-selection-btn:hover,
 #pano-hotspot-btn:hover,
@@ -929,36 +1048,44 @@ body.layout-modal-open #pano-panel {
   transform: scale(1.05);
 }
 
+/* Highlights the active button. */
 #pano-hotspot-btn.active {
   background-color: #ffffff;
   color: #0d3d52;
 }
+/* Highlights the active button. */
 #pano-blur-btn.active {
   background-color: #ffffff;
   color: #0d3d52;
 }
+/* Highlights the active button. */
 #pano-blur-add-btn.active {
   background-color: #ffffff;
   color: #0d3d52;
 }
+/* Sets the base styling for the blur control. */
 #pano-action.blur-mode {
   padding: 8px 10px;
   gap: 8px;
 }
+/* Shares the same styling across related elements. */
 #pano-action.blur-mode .action-btn,
 #pano-action.blur-mode label.action-btn {
   display: none;
 }
+/* Shares the same styling across related elements. */
 #pano-action.blur-mode #pano-blur-btn,
 #pano-action.blur-mode #pano-blur-add-btn {
   display: flex;
   margin-bottom: 0;
 }
 
+/* Sets the base styling for the element. */
 #pano-action.delete-mode {
   padding: 8px 10px;
   gap: 8px;
 }
+/* Shares the same styling across related elements. */
 #pano-action.delete-mode #pano-upload-btn,
 #pano-action.delete-mode #pano-delete-selection-btn,
 #pano-action.delete-mode #pano-hotspot-btn,
@@ -967,20 +1094,25 @@ body.layout-modal-open #pano-panel {
 #pano-action.delete-mode #pano-initial-view-btn {
   display: none;
 }
+/* Shares the same styling across related elements. */
 #pano-action.delete-mode #pano-delete-confirm-btn,
 #pano-action.delete-mode #pano-delete-back-btn {
   display: flex;
   margin-bottom: 0;
 }
+/* Highlights the active button. */
 #pano-hotspot-btn.active img {
   content: url('../assets/hotspot-icon2.png');
 }
+/* Sets the base styling for the hotspot marker. */
 #pano-viewer.app-hotspot-place-mode {
     cursor: crosshair !important;
 }
+/* Sets the base styling for the blur control. */
 #pano-viewer.app-blur-place-mode {
     cursor: none !important;
 }
+/* Sets the base styling for the preview panel. */
 .app-blur-cursor-preview {
     position: absolute;
     left: 0;
@@ -996,9 +1128,11 @@ body.layout-modal-open #pano-panel {
     z-index: 11;
     transition: opacity 80ms ease;
 }
+/* Shows the preview panel when it becomes active. */
 .app-blur-cursor-preview.visible {
     opacity: 1;
 }
+/* Sets the base styling for the blur control. */
 .app-blur-mask {
     position: absolute;
     left: 0;
@@ -1006,13 +1140,16 @@ body.layout-modal-open #pano-panel {
     display: block;
     pointer-events: none;
 }
+/* Sets the base styling for the blur control. */
 .app-blur-mask-confirmed {
     pointer-events: none;
 }
+/* Sets the base styling for the blur control. */
 #pano-viewer.app-blur-edit-mode .app-blur-mask-confirmed {
     pointer-events: auto;
     cursor: pointer;
 }
+/* Sets the base styling for the blur control. */
 .app-blur-mask-core {
     width: 100%;
     height: 100%;
@@ -1023,18 +1160,22 @@ body.layout-modal-open #pano-panel {
     -webkit-backdrop-filter: blur(14px);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
+/* Sets the base styling for the blur control. */
 .app-blur-mask-pending {
     pointer-events: auto;
 }
+/* Sets the base styling for the blur control. */
 .app-blur-mask-pending .app-blur-mask-core {
     border-style: dashed;
     border-color: rgba(255, 255, 255, 0.95);
 }
+/* Marks the blur control as editable. */
 .app-blur-mask-confirmed.editing .app-blur-mask-core {
     border-color: #ffffff;
     border-style: dashed;
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.45), 0 4px 16px rgba(0, 0, 0, 0.25);
 }
+/* Shares the same styling across related elements. */
 .app-blur-confirm-btn,
 .app-blur-cancel-btn {
     position: absolute;
@@ -1053,20 +1194,25 @@ body.layout-modal-open #pano-panel {
     color: #fff;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
+/* Sets the base styling for the button. */
 .app-blur-confirm-btn {
     left: -6px;
     background: #2e7d32;
 }
+/* Sets the base styling for the button. */
 .app-blur-cancel-btn {
     right: -6px;
     background: #c62828;
 }
+/* Hover state for the button. */
 .app-blur-confirm-btn:hover {
     background: #1b5e20;
 }
+/* Hover state for the button. */
 .app-blur-cancel-btn:hover {
     background: #8e0000;
 }
+/* Sets the base styling for the button. */
 .app-blur-delete-btn {
     position: absolute;
     top: -16px;
@@ -1086,12 +1232,15 @@ body.layout-modal-open #pano-panel {
     background: #c62828;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
+/* Marks the button as editable. */
 .app-blur-mask-confirmed.editing .app-blur-delete-btn {
     display: flex;
 }
+/* Hover state for the button. */
 .app-blur-delete-btn:hover {
     background: #8e0000;
 }
+/* Sets the base styling for the hotspot marker. */
 .app-hotspot-pin {
     position: relative;
     display: inline-block;
@@ -1099,6 +1248,7 @@ body.layout-modal-open #pano-panel {
     margin-left: -22px;
     margin-top: -22px;
 }
+/* Sets the base styling for the hotspot marker. */
 .app-hotspot-pin-dot {
     display: block;
     width: 30px;
@@ -1114,9 +1264,11 @@ body.layout-modal-open #pano-panel {
     cursor: pointer;
     transition: transform 0.15s ease;
 }
+/* Hover state for the hotspot marker. */
 .app-hotspot-pin-dot:hover {
     transform: scale(1.1);
 }
+/* Sets the base styling for the hotspot marker. */
 .app-hotspot-remove {
     position: absolute;
     top: -6px;
@@ -1141,16 +1293,19 @@ body.layout-modal-open #pano-panel {
 }
 
 /* Show remove button when hovering the pin dot (or the remove button itself so it stays visible to click) */
+/* Shares the same styling across related elements. */
 .app-hotspot-pin-dot:hover ~ .app-hotspot-remove,
 .app-hotspot-remove:hover {
     opacity: 1;
 }
 
+/* Hover state for the hotspot marker. */
 .app-hotspot-remove:hover {
     background: #8b3a3a;
     transform: scale(1.1);
 }
 
+/* Adds a decorative layer for the hotspot marker. */
 .app-hotspot-remove::before {
     content: '×';
     font-weight: bold;

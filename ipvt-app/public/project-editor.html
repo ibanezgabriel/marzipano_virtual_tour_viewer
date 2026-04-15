@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
+    <!-- Header bar for project title and navigation back to the dashboard. -->
     <header id="pano-header">
         <span id="pano-header-text"></span>
         <!-- group the logout button and menu link so they sit next to each other -->
@@ -16,18 +17,22 @@
                 <img src="assets/icons/dashboard.png" class="icons">Menu
             </a>
         </div>
+        <!-- Collapsible sidebar for scenes, layouts, and audit logs. -->
         <div id="pano-sidebar-wrapper">
             <aside id="pano-sidebar-container">
+                <!-- Tab buttons switch the sidebar content. -->
                 <div id="pano-sidebar-tabs">
                     <button id="pano-scenes" type="button">Panoramic Scenes</button>
                     <button id="pano-layout" type="button">Layout</button>
                     <button id="pano-audit-logs" type="button">Audit Logs</button>
                 </div>
+                <!-- Lists and audit details are populated here. -->
                 <div id="pano-sidebar-content">
                     <ul id="pano-image-list"></ul>
                     <ul id="pano-layout-list">
                     <button id="add-plan-btn" type="button">+</button>
                     </ul>
+                    <!-- Audit log panel for project and item activity. -->
                     <div id="pano-audit-logs-panel">
                         <div id="pano-audit-logs-project">
                             <div class="audit-logs-project-title">Project activity</div>
@@ -43,7 +48,9 @@
             </button>
         </div>
     </header>
+    <!-- Main editor canvas and floating action controls. -->
     <main id="pano-panel">
+        <!-- Action bar for uploads, hotspot editing, and blur tools. -->
         <div id="pano-action">
             <input type="file" id="add-scene" accept="image/*" multiple hidden>
             <!-- separate input for layout images; list is independent of pano-image-list -->
@@ -64,10 +71,12 @@
                 <img src="assets/initial-view.png" class="icons"> Set initial view
             </button>
         </div>
+        <!-- Panorama viewer mounts inside this container. -->
         <div id="pano-viewer-wrap">
             <div id="pano-viewer"></div>
         </div>
     </main>
+    <!-- Loads editor logic and shared login handling. -->
     <script type="module" src="js/project-editor.js" defer></script>
     <script src="js/login.js"></script>
 </body>

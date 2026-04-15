@@ -1,3 +1,4 @@
+/* Checks authentication before protected requests continue. */
 const {
   AUTH_REQUIRED_PAGE_PATHS,
   SUPERADMIN_ONLY_PAGE_PATHS,
@@ -9,6 +10,7 @@ const {
   getAuthenticatedUserFromRequest,
 } = require('../services/auth.service');
 
+/* Attaches attach authenticated user. */
 async function attachAuthenticatedUser(req, _res, next) {
   if (req.authUser !== undefined) return next();
   try {
@@ -20,12 +22,14 @@ async function attachAuthenticatedUser(req, _res, next) {
   }
 }
 
+/* Validates require authenticated api. */
 function requireAuthenticatedApi(req, res, next) {
   if (req.authUser) return next();
   clearSessionCookie(res);
   return res.status(401).json({ message: 'Authentication required.' });
 }
 
+/* Validates require super admin api. */
 function requireSuperAdminApi(req, res, next) {
   if (!req.authUser) {
     clearSessionCookie(res);
@@ -37,6 +41,7 @@ function requireSuperAdminApi(req, res, next) {
   return next();
 }
 
+/* Handles is protected mutation request. */
 function isProtectedMutationRequest(req) {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return false;
   const requestPath = req.path || '';
@@ -60,6 +65,7 @@ function isProtectedMutationRequest(req) {
   );
 }
 
+/* Handles protect html pages. */
 async function protectHtmlPages(req, res, next) {
   const requestPath = req.path || '';
   if (!AUTH_REQUIRED_PAGE_PATHS.has(requestPath)) return next();
@@ -89,6 +95,7 @@ async function protectHtmlPages(req, res, next) {
   }
 }
 
+/* Handles protect mutation requests. */
 async function protectMutationRequests(req, res, next) {
   if (!isProtectedMutationRequest(req)) return next();
 

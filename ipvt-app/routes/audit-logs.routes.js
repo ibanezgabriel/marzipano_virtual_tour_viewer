@@ -1,3 +1,4 @@
+/* Registers the audit log API endpoints. */
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -10,6 +11,7 @@ const {
 
 const router = express.Router();
 
+/* Handles map image kind token. */
 function mapImageKindToken(kindToken) {
   const t = String(kindToken || '').toLowerCase();
   if (t === 'floorplan' || t === 'floorplans' || t === 'layout' || t === 'layouts') return 'layout';
@@ -17,6 +19,7 @@ function mapImageKindToken(kindToken) {
   return null;
 }
 
+/* Wires HTTP endpoints to their controller handlers. */
 router.get('/api/audit-logs/project', (req, res) => {
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });

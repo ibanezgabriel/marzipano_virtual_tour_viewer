@@ -1,12 +1,18 @@
-
+/* Loads another stylesheet for this page. */
 @import url("dashboard.css");
+/* Loads another stylesheet for this page. */
 @import url("project-editor.css");
+/* Loads another stylesheet for this page. */
 @import url("project-viewer.css");
+/* Loads another stylesheet for this page. */
 @import url("dialog.css");
+/* Loads another stylesheet for this page. */
 @import url("scrollbar-styles.css");
+/* Loads another stylesheet for this page. */
 @import url("login.css");
 
 /* global styles */
+/* Shares the same styling across related elements. */
 *, *::before, *::after {
     margin: 0;
     border: 0;
@@ -14,26 +20,31 @@
     font-weight: 400;
     box-sizing: border-box;
 }
+/* Makes the custom font available globally. */
 @font-face {
     font-family: "Poppins";
     src: url('../assets/Poppins/Poppins-Regular.ttf');
 }
+/* Sets the base styling for the element. */
 body {
     font-family: 'Poppins';
     overflow: hidden;
     background-color: #c2c2c2;
 }
+/* Sets the base styling for the element. */
 .icons {
   height: 15px;
   width: 15px;
   margin: 0 5px;
 }
+/* Sets the base styling for the element. */
 .empty-state {
     color: #888;
     font-size: 1rem;
     padding: 24px 0;
     text-align: center;
 }
+/* Dims the page behind a modal. */
 .modal-overlay {
     display: flex;
     position: fixed;
@@ -47,12 +58,14 @@ body {
     pointer-events: none;
     transition: opacity 280ms ease, visibility 0s linear 280ms;
 }
+/* Shows the modal when it becomes active. */
 .modal-overlay.visible {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
     transition: opacity 280ms ease;
 }
+/* Styles the shared modal window. */
 .modal {
     background: #fff;
     padding: 24px;
@@ -63,22 +76,26 @@ body {
     transform: translateY(12px);
     transition: opacity 280ms ease, transform 280ms ease;
 }
+/* Shows the modal when it becomes active. */
 .modal-overlay.visible .modal {
     opacity: 1;
     transform: translateY(0);
 }
 .modal h2 { margin-bottom: 16px; font-size: 1.25rem; }
+/* Sets the base styling for the element. */
 .form-group {
     display: flex;
     flex-direction: column;
     margin-bottom: 16px;
 }
+/* Sets the base styling for the element. */
 .form-group label {
     margin-bottom: 6px;
     font-weight: 600;
     color: #000;
     font-size: 0.95rem;
 }
+/* Sets the base styling for the modal. */
 .modal input {
     width: 100%;
     padding: 10px 12px;
@@ -86,6 +103,7 @@ body {
     border: 1px solid #ccc;
     border-radius: 4px;
 }
+/* Sets the base styling for the modal. */
 .modal select {
     width: 100%;
     padding: 10px 12px;
@@ -94,6 +112,7 @@ body {
     border: 1px solid #ccc;
     background: #fff;
 }
+/* Sets the base styling for the project name field. */
 #new-project-name {
     border: 1px solid #ccc;
     border-radius: 4px;
@@ -101,12 +120,14 @@ body {
     padding: 10px 12px;
     font-size: 1rem;
 }
+/* Sets the base styling for the modal. */
 .modal-actions {
     display: flex;
     gap: 8px;
     justify-content: flex-end;
     padding-top: .5rem;
 }
+/* Sets the base styling for the modal. */
 .modal-actions button {
     padding: 8px 16px;
     border: none;
@@ -114,14 +135,17 @@ body {
     font-weight: 600;
     cursor: pointer;
 }
+/* Sets the base styling for the modal. */
 .modal-actions .btn-primary {
     background: #115272;
     color: #fff;
 }
+/* Sets the base styling for the modal. */
 .modal-actions .btn-secondary {
     background: #e0e0e0;
     color: #333;
 }
+/* Sets the base styling for the modal. */
 .modal-error {
     color: #c62828;
     font-size: 0.9rem;

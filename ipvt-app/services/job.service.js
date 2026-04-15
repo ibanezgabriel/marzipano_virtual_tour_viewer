@@ -1,5 +1,7 @@
+/* Tracks background jobs and exposes their status. */
 const jobs = new Map();
 
+/* Sets up create job. */
 function createJob(filenames, projectId) {
   const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
   const job = {
@@ -15,6 +17,7 @@ function createJob(filenames, projectId) {
   return job;
 }
 
+/* Gets get job. */
 function getJob(id) {
   return jobs.get(id) || null;
 }

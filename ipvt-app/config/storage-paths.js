@@ -1,5 +1,7 @@
+/* Centralizes the filesystem paths used for project storage. */
 const path = require('path');
 
+/* Handles resolve storage root dir. */
 function resolveStorageRootDir() {
   const fromEnv = String(process.env.IPVT_STORAGE_ROOT || '').trim();
   if (fromEnv) return path.resolve(fromEnv);

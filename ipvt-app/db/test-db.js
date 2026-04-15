@@ -1,3 +1,4 @@
+/* Runs a quick database connectivity check. */
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
@@ -8,6 +9,7 @@ dotenv.config({ path: fs.existsSync(appEnvPath) ? appEnvPath : repoEnvPath });
 
 const { getPool } = require('./pool');
 
+/* Handles main. */
 async function main() {
   const result = await getPool().query(
     `SELECT

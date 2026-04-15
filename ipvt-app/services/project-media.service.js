@@ -1,3 +1,4 @@
+/* Handles project media files, ordering, and metadata. */
 const fs = require('fs');
 const path = require('path');
 const {
@@ -7,11 +8,13 @@ const {
 
 const IMAGE_PATTERN = /\.(jpg|jpeg|png|gif|webp|jfif)$/i;
 
+/* Returns uploaded panorama image filenames. */
 async function listUploadedImages(uploadsDir) {
   const files = await fs.promises.readdir(uploadsDir);
   return files.filter((file) => IMAGE_PATTERN.test(file));
 }
 
+/* Returns uploaded layout image filenames. */
 async function listLayoutImages(layoutsDir) {
   try {
     const files = await fs.promises.readdir(layoutsDir);
@@ -22,6 +25,7 @@ async function listLayoutImages(layoutsDir) {
   }
 }
 
+/* Reads the saved layout display order. */
 function readLayoutOrder(layoutOrderPath) {
   try {
     const raw = fs.readFileSync(layoutOrderPath, 'utf8');
@@ -33,12 +37,14 @@ function readLayoutOrder(layoutOrderPath) {
   }
 }
 
+/* Writes the saved layout display order. */
 function writeLayoutOrder(layoutOrderPath, order) {
   const dir = path.dirname(layoutOrderPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(layoutOrderPath, JSON.stringify(order, null, 2), 'utf8');
 }
 
+/* Reads saved hotspot positions for layouts. */
 function readLayoutHotspots(layoutHotspotsPath) {
   try {
     const raw = fs.readFileSync(layoutHotspotsPath, 'utf8');
@@ -50,12 +56,14 @@ function readLayoutHotspots(layoutHotspotsPath) {
   }
 }
 
+/* Writes saved hotspot positions for layouts. */
 function writeLayoutHotspots(layoutHotspotsPath, hotspots) {
   const dir = path.dirname(layoutHotspotsPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(layoutHotspotsPath, JSON.stringify(hotspots, null, 2), 'utf8');
 }
 
+/* Reads saved blur mask data. */
 function readBlurMasks(blurMasksPath) {
   try {
     const raw = fs.readFileSync(blurMasksPath, 'utf8');
@@ -67,12 +75,14 @@ function readBlurMasks(blurMasksPath) {
   }
 }
 
+/* Writes saved blur mask data. */
 function writeBlurMasks(blurMasksPath, blurMasks) {
   const dir = path.dirname(blurMasksPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(blurMasksPath, JSON.stringify(blurMasks, null, 2), 'utf8');
 }
 
+/* Moves blur mask data to a renamed panorama. */
 function renameBlurMasksForPano(paths, oldFilename, newFilename) {
   if (!oldFilename || !newFilename || oldFilename === newFilename) {
     return { changed: false, blurMasks: null };
@@ -89,6 +99,7 @@ function renameBlurMasksForPano(paths, oldFilename, newFilename) {
   return { changed: true, blurMasks };
 }
 
+/* Removes blur masks for deleted panorama files. */
 function clearBlurMasksForFilenames(paths, filenames) {
   const names = Array.from(new Set((filenames || []).filter(Boolean)));
   if (names.length === 0) return { changed: false, blurMasks: null };
@@ -104,6 +115,7 @@ function clearBlurMasksForFilenames(paths, filenames) {
   return { changed, blurMasks };
 }
 
+/* Removes layout hotspots for deleted files. */
 function clearLayoutHotspotsForFilenames(paths, filenames) {
   const names = Array.from(new Set((filenames || []).filter(Boolean)));
   if (names.length === 0) return { changed: false, hotspots: null };
@@ -119,6 +131,7 @@ function clearLayoutHotspotsForFilenames(paths, filenames) {
   return { changed, hotspots };
 }
 
+/* Replaces a filename inside the saved layout order. */
 function layoutOrderReplace(paths, oldFilename, newFilename) {
   const order = readLayoutOrder(paths.layoutOrderPath);
   const index = order.indexOf(oldFilename);
@@ -135,6 +148,7 @@ function layoutOrderReplace(paths, oldFilename, newFilename) {
   return deduped;
 }
 
+/* Returns layouts in their saved display order. */
 async function getOrderedLayoutFilenames(paths) {
   const existing = await listLayoutImages(paths.layoutsDir);
   const existingSet = new Set(existing);
@@ -149,6 +163,7 @@ async function getOrderedLayoutFilenames(paths) {
   return result;
 }
 
+/* Appends new layouts to the saved order. */
 function layoutOrderAppend(paths, filenames) {
   const order = readLayoutOrder(paths.layoutOrderPath);
   const set = new Set(order);
@@ -163,6 +178,7 @@ function layoutOrderAppend(paths, filenames) {
   return order;
 }
 
+/* Returns panoramas in their saved display order. */
 async function getOrderedFilenames(paths) {
   const existing = await listUploadedImages(paths.uploadsDir);
   const existingSet = new Set(existing);
@@ -190,6 +206,7 @@ async function getOrderedFilenames(paths) {
   return result;
 }
 
+/* Reads the saved panorama display order. */
 function readPanoramaOrder(panoramaOrderPath) {
   try {
     const raw = fs.readFileSync(panoramaOrderPath, 'utf8');
@@ -201,10 +218,12 @@ function readPanoramaOrder(panoramaOrderPath) {
   }
 }
 
+/* Writes the saved panorama display order. */
 function writePanoramaOrder(panoramaOrderPath, order) {
   fs.writeFileSync(panoramaOrderPath, JSON.stringify(order, null, 2), 'utf8');
 }
 
+/* Replaces a filename inside the panorama order. */
 function panoramaOrderReplace(paths, oldFilename, newFilename) {
   const order = readPanoramaOrder(paths.panoramaOrderPath);
   const replaced = order.map((filename) => (filename === oldFilename ? newFilename : filename));
@@ -219,6 +238,7 @@ function panoramaOrderReplace(paths, oldFilename, newFilename) {
   writePanoramaOrder(paths.panoramaOrderPath, deduped);
 }
 
+/* Handles panorama order append. */
 function panoramaOrderAppend(paths, filenames) {
   const order = readPanoramaOrder(paths.panoramaOrderPath);
   const set = new Set(order);
@@ -231,6 +251,7 @@ function panoramaOrderAppend(paths, filenames) {
   writePanoramaOrder(paths.panoramaOrderPath, order);
 }
 
+/* Sets up ensure tiles for filename. */
 async function ensureTilesForFilename(paths, filename) {
   const meta = await readTilesMeta({ tilesRootDir: paths.tilesDir, filename });
   if (meta) return meta;

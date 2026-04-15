@@ -1,3 +1,4 @@
+/* Provides password hashing and verification helpers. */
 const crypto = require('crypto');
 const { promisify } = require('util');
 
@@ -5,6 +6,7 @@ const scrypt = promisify(crypto.scrypt);
 const SCRYPT_KEY_LENGTH = 64;
 const HASH_PREFIX = 'scrypt';
 
+/* Handles hash password. */
 async function hashPassword(password) {
   const secret = String(password || '');
   const salt = crypto.randomBytes(16).toString('hex');
@@ -12,6 +14,7 @@ async function hashPassword(password) {
   return `${HASH_PREFIX}$${salt}$${Buffer.from(derivedKey).toString('hex')}`;
 }
 
+/* Validates verify password. */
 async function verifyPassword(password, storedHash) {
   if (!storedHash || typeof storedHash !== 'string') return false;
   const [prefix, salt, expectedHex] = storedHash.split('$');

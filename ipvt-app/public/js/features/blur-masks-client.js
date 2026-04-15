@@ -1,3 +1,4 @@
+/* Controls blur mask editing inside the client viewer. */
 import {
   getCurrentScene,
   getSelectedImageName,
@@ -15,25 +16,30 @@ const panoViewerEl = document.getElementById('pano-viewer');
 const blurMasksByImage = new Map();
 let blurClientInitialized = false;
 
+/* Handles clamp. */
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+/* Gets get viewer rect. */
 function getViewerRect() {
   return panoViewerEl ? panoViewerEl.getBoundingClientRect() : null;
 }
 
+/* Gets get viewer base size. */
 function getViewerBaseSize() {
   const rect = getViewerRect();
   if (!rect) return 1;
   return Math.max(1, Math.min(rect.width, rect.height));
 }
 
+/* Handles ratio to radius px. */
 function ratioToRadiusPx(radiusRatio) {
   const px = Number(radiusRatio) * getViewerBaseSize();
   return clamp(px, MIN_BLUR_RADIUS_PX, MAX_BLUR_RADIUS_PX);
 }
 
+/* Handles apply mask size. */
 function applyMaskSize(maskEl, radiusRatio) {
   if (!maskEl) return;
   const radiusPx = ratioToRadiusPx(radiusRatio);
@@ -44,6 +50,7 @@ function applyMaskSize(maskEl, radiusRatio) {
   maskEl.style.marginTop = `${-radiusPx}px`;
 }
 
+/* Handles parse blur masks payload. */
 function parseBlurMasksPayload(obj) {
   if (typeof obj !== 'object' || obj === null) return;
   Object.entries(obj).forEach(([imageName, list]) => {
@@ -61,6 +68,7 @@ function parseBlurMasksPayload(obj) {
   });
 }
 
+/* Gets load blur masks from local storage. */
 function loadBlurMasksFromLocalStorage() {
   try {
     const raw = localStorage.getItem(BLUR_STORAGE_KEY);
@@ -71,6 +79,7 @@ function loadBlurMasksFromLocalStorage() {
   }
 }
 
+/* Gets load blur masks. */
 async function loadBlurMasks() {
   blurMasksByImage.clear();
   try {
@@ -86,6 +95,7 @@ async function loadBlurMasks() {
   loadBlurMasksFromLocalStorage();
 }
 
+/* Sets up create client blur mask element. */
 function createClientBlurMaskElement(entry) {
   const wrapper = document.createElement('div');
   wrapper.className = `${BLUR_MASK_CLASS} app-blur-mask-confirmed`;
@@ -99,6 +109,7 @@ function createClientBlurMaskElement(entry) {
   return wrapper;
 }
 
+/* Handles restore blur masks for current scene. */
 function restoreBlurMasksForCurrentScene() {
   const scene = getCurrentScene();
   const imageName = getSelectedImageName();

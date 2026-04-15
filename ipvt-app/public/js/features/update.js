@@ -1,3 +1,4 @@
+/* Coordinates editor refreshes after data changes. */
 import { getSelectedImageName, loadImages, loadPanorama, clearCurrentPath } from '../marzipano-viewer.js';
 import { cleanupHotspotsForDeletedImages } from './hotspots.js';
 import { showAlert, showTimedAlert, showProgressDialog, hideProgressDialog, updateProgressDialog, setProgressDialogMessage } from '../dialog.js';
@@ -18,6 +19,7 @@ export function initUpdate() {
   });
 }
 
+/* Handles handle update. */
 async function handleUpdate() {
   const selectedImageName = getSelectedImageName();
   if (!selectedImageName) {

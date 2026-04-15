@@ -1,3 +1,4 @@
+/* Handles layout previews and interactions in the viewer. */
 import { appendProjectParams, getLayoutBase, getProjectId } from '../project-context.js';
 import { loadPanorama, registerOnSceneLoad, getSelectedImageName } from '../marzipano-viewer.js';
 
@@ -44,21 +45,25 @@ let activeMagnifierPointerId = null;
 let lastMagnifierClientX = null;
 let lastMagnifierClientY = null;
 
+/* Handles clamp. */
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+/* Cleans up hide magnifier lens. */
 function hideMagnifierLens() {
   if (!magnifierLens) return;
   magnifierLens.classList.remove('visible');
 }
 
+/* Updates sync magnifier lens image. */
 function syncMagnifierLensImage() {
   if (!magnifierLens || !modalImg) return;
   const src = modalImg.currentSrc || modalImg.src || '';
   magnifierLens.style.backgroundImage = src ? `url("${src}")` : 'none';
 }
 
+/* Updates update magnifier level ui. */
 function updateMagnifierLevelUi() {
   if (!magnifierLevelBtns.length) return;
   magnifierLevelBtns.forEach((btn) => {
@@ -70,6 +75,7 @@ function updateMagnifierLevelUi() {
   });
 }
 
+/* Updates set magnifier level. */
 function setMagnifierLevel(level) {
   const numericLevel = Number(level);
   magnifierLevel = MAGNIFIER_LEVEL_OPTIONS.includes(numericLevel)
@@ -81,6 +87,7 @@ function setMagnifierLevel(level) {
   }
 }
 
+/* Updates set magnifier enabled. */
 function setMagnifierEnabled(enabled) {
   magnifierEnabled = Boolean(enabled);
   if (magnifierToggleBtn) {
@@ -115,16 +122,19 @@ function setMagnifierEnabled(enabled) {
   updateMagnifierLevelUi();
 }
 
+/* Handles reset magnifier state. */
 function resetMagnifierState() {
   setMagnifierLevel(MAGNIFIER_DEFAULT_LEVEL);
   setMagnifierEnabled(false);
 }
 
+/* Gets get layout index. */
 function getLayoutIndex(name) {
   if (!name) return -1;
   return layoutFiles.indexOf(name);
 }
 
+/* Updates update layout nav. */
 function updateLayoutNav() {
   if (!layoutPrevBtn || !layoutNextBtn) return;
   const idx = getLayoutIndex(selectedLayout);
@@ -137,6 +147,7 @@ function updateLayoutNav() {
   layoutNextBtn.style.display = showNav ? 'inline-flex' : 'none';
 }
 
+/* Updates set active layout. */
 function setActiveLayout(filename) {
   if (!filename) return;
   selectedLayout = filename;
@@ -149,6 +160,7 @@ function setActiveLayout(filename) {
   updateLayoutNav();
 }
 
+/* Updates update magnifier lens. */
 function updateMagnifierLens(clientX, clientY, { forceVisible = false } = {}) {
   if (!magnifierEnabled || !magnifierLens || !modalImg || !modalImageWrap) return;
   const imgRect = modalImg.getBoundingClientRect();
@@ -187,17 +199,20 @@ function updateMagnifierLens(clientX, clientY, { forceVisible = false } = {}) {
   magnifierLens.classList.add('visible');
 }
 
+/* Updates set preview visible. */
 function setPreviewVisible(visible) {
   if (!previewContainer) return;
   previewContainer.classList.toggle('visible', Boolean(visible));
 }
 
+/* Updates set preview collapsed. */
 function setPreviewCollapsed(collapsed) {
   previewCollapsed = Boolean(collapsed);
   if (!previewContainer) return;
   previewContainer.classList.toggle('layout-preview-collapsed', previewCollapsed);
 }
 
+/* Handles is phone viewport. */
 function isPhoneViewport() {
   try {
     return window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
@@ -206,6 +221,7 @@ function isPhoneViewport() {
   }
 }
 
+/* Updates sync stage contain. */
 function syncStageContain(imgEl, stageEl, containerEl) {
   if (!imgEl || !stageEl || !containerEl) return;
   const naturalW = Number(imgEl.naturalWidth || 0);
@@ -223,11 +239,13 @@ function syncStageContain(imgEl, stageEl, containerEl) {
   stageEl.style.height = `${renderedH}px`;
 }
 
+/* Updates sync modal stage size. */
 function syncModalStageSize() {
   if (!modalOverlay || !modalOverlay.classList.contains('visible')) return;
   syncStageContain(modalImg, modalStageEl, modalImageWrap);
 }
 
+/* Handles rerender hotspots for layout. */
 function rerenderHotspotsForLayout() {
   try {
     if (modalOverlay && modalOverlay.classList.contains('visible')) {
@@ -240,6 +258,7 @@ function rerenderHotspotsForLayout() {
   } catch (e) {}
 }
 
+/* Gets load layout hotspots from storage. */
 function loadLayoutHotspotsFromStorage() {
   try {
     const raw = localStorage.getItem(LAYOUT_HOTSPOTS_KEY) || localStorage.getItem(LEGACY_LAYOUT_HOTSPOTS_KEY);
@@ -267,6 +286,7 @@ function loadLayoutHotspotsFromStorage() {
   }
 }
 
+/* Handles apply server layout hotspots. */
 function applyServerLayoutHotspots(data) {
   if (!data || typeof data !== 'object') return;
   layoutHotspotsByFile.clear();
@@ -288,6 +308,7 @@ function applyServerLayoutHotspots(data) {
   if (maxId >= 0) nextLayoutHotspotId = maxId + 1;
 }
 
+/* Gets load layout hotspots from server. */
 async function loadLayoutHotspotsFromServer() {
   try {
     const res = await fetch(appendProjectParams('/api/layout-hotspots'), { cache: 'no-store' });
@@ -299,6 +320,7 @@ async function loadLayoutHotspotsFromServer() {
   }
 }
 
+/* Sets up ensure preview elements. */
 function ensurePreviewElements() {
   if (previewContainer) return;
   previewContainer = document.createElement('div');
@@ -423,6 +445,7 @@ function ensurePreviewElements() {
   });
 }
 
+/* Sets up ensure modal elements. */
 function ensureModalElements() {
   if (modalOverlay) return;
   modalOverlay = document.createElement('div');
@@ -607,6 +630,7 @@ function ensureModalElements() {
   resetMagnifierState();
 }
 
+/* Cleans up close modal. */
 function closeModal() {
   if (!modalOverlay) return;
   resetMagnifierState();
@@ -615,6 +639,7 @@ function closeModal() {
   setPreviewVisible(Boolean(selectedLayout));
 }
 
+/* Shows open modal for. */
 function openModalFor(filename) {
   if (!filename) return;
   ensurePreviewElements();
@@ -639,6 +664,7 @@ function openModalFor(filename) {
   });
 }
 
+/* Shows show preview. */
 function showPreview(filename) {
   ensurePreviewElements();
   if (!previewImg) return;
@@ -648,6 +674,7 @@ function showPreview(filename) {
   renderRenderedHotspots();
 }
 
+/* Shows render hotspots to layer. */
 function renderHotspotsToLayer(layerEl, { allowClickToPanorama, showTitle, sizeClass }) {
   if (!layerEl || !selectedLayout) return;
   layerEl.innerHTML = '';
@@ -684,6 +711,7 @@ function renderHotspotsToLayer(layerEl, { allowClickToPanorama, showTitle, sizeC
   });
 }
 
+/* Shows render layout hotspots. */
 function renderLayoutHotspots() {
   if (!modalHotspotLayer) return;
   renderHotspotsToLayer(modalHotspotLayer, {
@@ -693,6 +721,7 @@ function renderLayoutHotspots() {
   });
 }
 
+/* Shows render rendered hotspots. */
 function renderRenderedHotspots() {
   if (!previewHotspotLayer) return;
   renderHotspotsToLayer(previewHotspotLayer, {
@@ -702,6 +731,7 @@ function renderRenderedHotspots() {
   });
 }
 
+/* Updates save last layout. */
 function saveLastLayout(filename) {
   const pid = getProjectId();
   if (pid) {
@@ -711,6 +741,7 @@ function saveLastLayout(filename) {
   }
 }
 
+/* Gets load layouts. */
 async function loadLayouts() {
   if (!floorList) return;
   try {

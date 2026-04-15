@@ -1,9 +1,11 @@
-﻿#dep_logo {
+/* Sets the base styling for the element. */
+#dep_logo {
   height: 2rem;
   width: 2rem;
   position: absolute;
   right: 25px;
 }
+/* Shares the same styling across related elements. */
 #viewer-pano-toggle,
 #pano-layout-toggle {
   height: 43px;
@@ -13,42 +15,52 @@
   cursor: pointer;
 }
 
+/* Sets the base styling for the sidebar. */
 .viewer #pano-sidebar-tabs.viewer-tabs {
   display: flex;
 }
 
+/* Sets the base styling for the sidebar. */
 .viewer #pano-sidebar-tabs.viewer-tabs button {
   flex: 1;
 }
 
+/* Sets the base styling for the layout view. */
 .viewer.viewer-fixed.viewer-mode-panoramas #pano-layout-toggle {
   display: none;
 }
 
+/* Sets the base styling for the layout view. */
 .viewer.viewer-fixed.viewer-mode-layout #viewer-pano-toggle {
   display: none;
 }
 
+/* Sets the base styling for the element. */
 .viewer.viewer-mode-panoramas #pano-image-list {
   display: block;
 }
 
+/* Sets the base styling for the layout view. */
 .viewer.viewer-mode-panoramas #pano-layout-list {
   display: none !important;
 }
 
+/* Sets the base styling for the layout view. */
 .viewer.viewer-mode-layout #pano-image-list {
   display: none;
 }
 
+/* Sets the base styling for the layout view. */
 .viewer.viewer-mode-layout #pano-layout-list {
   display: block;
 }
 
+/* Sets the base styling for the preview panel. */
 .viewer.viewer-mode-panoramas .layout-preview {
   display: none !important;
 }
 
+/* Sets the base styling for the modal. */
 .viewer.viewer-mode-panoramas .layout-modal-overlay-client {
   display: none !important;
 }
@@ -57,18 +69,21 @@
 /* Viewer: match panorama list styling to the Layout list look */
 
 /* Viewer: keep list panels on the same blue background */
+/* Sets the base styling for the layout view. */
 .viewer #pano-layout-list {
   background-color: #115272;
   margin: 0;
   border-radius: 0;
 }
 
+/* Highlights the active layout view. */
 .viewer #pano-layout-list li.active {
   background-color: #0b4f6c;
   color: #fff;
 }
 
 
+/* Sets the base styling for the element. */
 .viewer #pano-image-list {
   overflow-y: auto;
   overflow-x: hidden;
@@ -80,6 +95,7 @@
   display: none; /* visibility controlled by viewer-mode-* classes */
 }
 
+/* Sets the base styling for the element. */
 .viewer #pano-image-list > li {
   padding: 5px 10px;
   margin: 0.2rem;
@@ -96,10 +112,12 @@
   text-overflow: ellipsis;
 }
 
+/* Hover state for the element. */
 .viewer #pano-image-list > li:hover {
   background: #c5d4db;
 }
 
+/* Highlights the active element. */
 .viewer #pano-image-list > li.active {
   background-color: #0b4f6c;
   color: #fff;
@@ -108,11 +126,13 @@
 
 
 /* Viewer: remove inner padding so list background reaches the edge */
+/* Sets the base styling for the sidebar. */
 .viewer #pano-sidebar-content {
   padding: 0;
 }
 
 /* Viewer-only responsive overrides (scoped with body.viewer) */
+/* Sets the base styling for the element. */
 .viewer {
   --pano-header-height: 3rem;
   --pano-sidebar-width: 320px;
@@ -120,6 +140,7 @@
   --layout-preview-toggle-half: 22px;
 }
 
+/* Sets the base styling for the header. */
 .viewer #pano-header-title {
   position: absolute;
   left: 50%;
@@ -131,6 +152,7 @@
   min-width: 0;
 }
 
+/* Sets the base styling for the header. */
 .viewer #pano-header-text {
   position: static;
   left: auto;
@@ -141,17 +163,20 @@
   white-space: nowrap;
 }
 
+/* Sets the base styling for the header. */
 .viewer #pano-header-text.project-name-link {
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 4px;
 }
 
+/* Sets the base styling for the modal. */
 .viewer .viewer-project-name-modal {
   min-width: 0;
   width: min(92vw, 520px);
 }
 
+/* Sets the base styling for the element. */
 .viewer #project-fullname-text {
   padding: 10px 0 2px;
   color: #111;
@@ -161,31 +186,38 @@
 }
 
 /* Sidebar sizing (viewer only) */
+/* Sets the base styling for the sidebar. */
 .viewer #pano-sidebar-container {
   width: var(--pano-sidebar-width);
   max-height: min(70vh, 520px);
   background-color: #115272;
 }
+/* Moves the sidebar into its collapsed position. */
 .viewer #pano-sidebar-wrapper.collapsed {
   transform: translateX(calc(-1 * var(--pano-sidebar-width)));
 }
 
 /* Viewer: layout list slide-in/out (mobile) */
+/* Sets the base styling for the sidebar. */
 .viewer #pano-sidebar-container:not(.layout-list-open) #pano-layout-list {
   display: none;
 }
 
+/* Sets the base styling for the sidebar. */
 .viewer #pano-sidebar-container.layout-list-open #pano-layout-list {
   display: block;
 }
 
+/* Adjusts the layout for smaller screens. */
 @media (max-width: 600px) {
+/* Sets the base styling for the sidebar. */
   .viewer #pano-sidebar-container {
     position: relative;
     overflow: visible;
   background-color: #115272;
 }
 
+/* Sets the base styling for the sidebar. */
   .viewer #pano-sidebar-container #pano-layout-list {
     display: block;
     position: absolute;
@@ -200,6 +232,7 @@
     z-index: 3;
   }
 
+/* Sets the base styling for the sidebar. */
   .viewer #pano-sidebar-container.layout-list-open #pano-layout-list {
     transform: translateX(0);
     opacity: 1;
@@ -209,11 +242,14 @@
   }
 }
 
+/* Adjusts the layout for smaller screens. */
 @media (max-width: 1024px) {
+/* Sets the base styling for the element. */
   .viewer {
     --pano-sidebar-width: min(82vw, 320px);
   }
 
+/* Sets the base styling for the sidebar. */
   .viewer #pano-sidebar-container {
     max-height: calc(100vh - var(--pano-header-height));
   background-color: #115272;
@@ -221,11 +257,14 @@
 }
 
 /* Mobile/tablet: collapsible bottom-left layout preview with toggle + swipe */
+/* Sets the base styling for the preview panel. */
 .viewer .layout-preview-toggle {
   display: none;
 }
 
+/* Adjusts the layout for smaller screens. */
 @media (max-width: 1024px) {
+/* Sets the base styling for the preview panel. */
   .viewer .layout-preview {
     max-width: min(76vw, 340px);
     background: rgba(0, 0, 0, 0.45);
@@ -233,19 +272,23 @@
     transform: translateX(0);
     transition: opacity 280ms ease, transform 280ms ease, background-color 280ms ease, visibility 0s linear 280ms;
   }
+/* Anchors the editor sidebar to the viewport. */
   #pano-sidebar-wrapper {
     top: 3rem;
   }
 
+/* Shows the preview panel when it becomes active. */
   .viewer .layout-preview.visible {
     transform: translateX(0);
     transition: opacity 280ms ease, transform 280ms ease, background-color 280ms ease;
   }
 
+/* Hover state for the preview panel. */
   .viewer .layout-preview.visible:hover {
     transform: translateX(0);
   }
 
+/* Shows the preview panel when it becomes active. */
   .viewer .layout-preview.visible.layout-preview-collapsed {
     padding: 0;
     background: transparent;
@@ -253,6 +296,7 @@
     transform: translateX(calc(-100% + var(--layout-preview-toggle-size)));
   }
 
+/* Sets the base styling for the preview panel. */
   .viewer .layout-preview-toggle {
     display: flex;
     align-items: center;
@@ -273,12 +317,14 @@
     z-index: 6;
   }
 
+/* Sets the base styling for the preview panel. */
   .viewer .layout-preview .layout-image-wrap {
     opacity: 1;
     visibility: visible;
     transition: opacity 280ms ease, visibility 0s linear 0s;
   }
 
+/* Shows the preview panel when it becomes active. */
   .viewer .layout-preview.visible.layout-preview-collapsed .layout-image-wrap {
     opacity: 0;
     visibility: hidden;
@@ -286,10 +332,12 @@
     transition: opacity 280ms ease, visibility 0s linear 280ms;
   }
 
+/* Shows the preview panel when it becomes active. */
   .viewer .layout-preview.visible.layout-preview-collapsed .layout-preview-toggle {
     right: 0;
   }
 
+/* Sets the base styling for the preview panel. */
   .viewer .layout-preview-toggle .arrow {
     display: block;
     width: 0;
@@ -300,6 +348,7 @@
     transform: translateX(1px);
   }
 
+/* Sets the base styling for the preview panel. */
   .viewer .layout-preview:not(.layout-preview-collapsed) .layout-preview-toggle .arrow {
     border-left: 0;
     border-right: 10px solid #fff; /* points left when expanded */
@@ -308,16 +357,20 @@
 }
 
 /* Viewer: expanded layout modal shouldn't show a filename header */
+/* Sets the base styling for the modal. */
 .viewer .layout-modal-overlay-client .layout-modal-header {
   display: none;
 }
 
 /* Phone: layout modal becomes "tap to close" and hides extra controls */
+/* Adjusts the layout for smaller screens. */
 @media (max-width: 600px) {
+/* Sets the base styling for the modal. */
   .viewer .layout-modal-overlay-client .layout-modal-actions {
     padding: 10px 12px 8px;
   }
 
+/* Sets the base styling for the modal. */
   .viewer .layout-modal-overlay-client .layout-modal {
     width: 94vw;
     max-width: 94vw;
@@ -325,13 +378,16 @@
     max-height: 82vh;
   }
 
+/* Sets the base styling for the modal. */
   .viewer .layout-modal-overlay-client .layout-magnifier-controls {
     display: none !important;
   }
 }
 
 /* Easier tapping on hotspots (viewer only) */
+/* Adjusts the layout for smaller screens. */
 @media (max-width: 1024px) {
+/* Sets the base styling for the hotspot marker. */
   .viewer .app-hotspot-pin {
     margin-left: -20px;
     margin-top: -20px;
@@ -342,6 +398,7 @@
     justify-content: center;
   }
 
+/* Sets the base styling for the hotspot marker. */
   .viewer .app-hotspot-pin-dot {
     width: 30px;
     height: 30px;
@@ -349,6 +406,7 @@
     min-height: 30px;
   }
 
+/* Shares the same styling across related elements. */
   .viewer .layout-hotspot-pin-dot.hotspot-preview,
   .viewer .layout-hotspot-pin-dot.hotspot-modal {
     width: 20px;
@@ -358,10 +416,12 @@
   }
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-modal {
   position: relative;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-magnifier-controls {
   display: flex;
   flex-direction: row;
@@ -370,6 +430,7 @@
   gap: 10px;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-modal-actions {
   display: flex;
   align-items: center;
@@ -378,10 +439,12 @@
   padding: 10px 16px 6px;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-modal-spacer {
   flex: 1;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-nav {
   display: flex;
   align-items: center;
@@ -390,10 +453,12 @@
   flex: 1 1 auto;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-magnifier-controls {
   flex: 0 0 auto;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-nav-btn {
   min-width: 0;
   padding: 0;
@@ -408,6 +473,7 @@
   transition: transform 140ms ease, opacity 140ms ease;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-nav-btn img {
   width: 28px;
   height: 28px;
@@ -416,25 +482,30 @@
   filter: none;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-modal-body .layout-image-wrap {
   gap: 0;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-modal-body .layout-image-stage {
   flex: 0 0 auto;
   width: auto;
   height: auto;
 }
 
+/* Hover state for the modal. */
 .layout-modal-overlay-client .layout-nav-btn:hover {
   opacity: 0.85;
 }
 
+/* Disabled state for the modal. */
 .layout-modal-overlay-client .layout-nav-btn:disabled {
   cursor: default;
   opacity: 0.5;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-magnifier-levels {
   display: none;
   flex-direction: row;
@@ -446,10 +517,12 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-magnifier-levels.enabled {
   display: flex;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-magnifier-levels button {
   min-width: 46px;
   padding: 6px 10px;
@@ -463,16 +536,19 @@
   transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
 }
 
+/* Disabled state for the modal. */
 .layout-modal-overlay-client .layout-magnifier-levels button:disabled {
   cursor: default;
 }
 
+/* Highlights the active modal. */
 .layout-modal-overlay-client .layout-magnifier-levels button.active {
   background: #ffffff;
   color: #115272;
   border-color: #ffffff;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-magnifier-toggle {
   width: 48px;
   height: 48px;
@@ -488,35 +564,42 @@
   transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease;
 }
 
+/* Hover state for the modal. */
 .layout-modal-overlay-client .layout-magnifier-toggle:hover {
   transform: scale(1.05);
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-magnifier-toggle img {
   width: 22px;
   height: 22px;
   display: block;
 }
 
+/* Highlights the active modal. */
 .layout-modal-overlay-client .layout-magnifier-toggle.active {
   background: #ffffff;
   border-color: #0d3d52;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-hotspot-layer[data-layer='expanded'] {
   transition: opacity 150ms ease, visibility 0s linear 150ms;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-hotspot-layer[data-layer='expanded'].layout-hotspots-hidden {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client #layout-modal-img.magnifier-active {
   cursor: none;
 }
 
+/* Sets the base styling for the modal. */
 .layout-modal-overlay-client .layout-magnifier-lens {
   position: absolute;
   left: 0;
@@ -536,6 +619,7 @@
   transition: opacity 100ms ease;
 }
 
+/* Shows the modal when it becomes active. */
 .layout-modal-overlay-client .layout-magnifier-lens.visible {
   opacity: 1;
   visibility: visible;

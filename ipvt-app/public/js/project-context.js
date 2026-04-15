@@ -1,7 +1,9 @@
+/* Reads shared project context from the current page URL. */
 /**
  * Project context: read ?project= from URL, provide helpers for API URLs and asset paths.
  */
 
+/* Gets get project id. */
 function getProjectId() {
   const params = new URLSearchParams(window.location.search);
   const explicit = params.get('project');

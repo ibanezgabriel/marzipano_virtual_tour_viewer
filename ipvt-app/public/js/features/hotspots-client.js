@@ -1,3 +1,4 @@
+/* Handles hotspot rendering and interaction in the client. */
 /**
  * Client-only hotspots: display pins from server (or localStorage fallback) and navigate on click.
  * No place mode, no remove buttons. Admin saves to server so clients on any device can see hotspots.
@@ -16,6 +17,7 @@ const STORAGE_KEY = 'marzipano-hotspots';
 /** imageName -> Array<{ id, yaw, pitch, linkTo? }> */
 const hotspotsByImage = new Map();
 
+/* Handles parse hotspots payload. */
 function parseHotspotsPayload(obj) {
   if (typeof obj !== 'object' || obj === null) return;
   Object.entries(obj).forEach(([imageName, list]) => {
@@ -32,6 +34,7 @@ function parseHotspotsPayload(obj) {
   });
 }
 
+/* Gets load hotspots from local storage. */
 function loadHotspotsFromLocalStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -58,6 +61,7 @@ async function loadHotspots() {
   loadHotspotsFromLocalStorage();
 }
 
+/* Sets up create client hotspot element. */
 function createClientHotspotElement(entry) {
   const wrapper = document.createElement('div');
   wrapper.className = HOTSPOT_CLASS;
@@ -80,6 +84,7 @@ function createClientHotspotElement(entry) {
   return wrapper;
 }
 
+/* Handles bind client hotspot click. */
 function bindClientHotspotClick(el, entry) {
   if (!entry.linkTo) return;
   // Bind on the wrapper so the hotspot is easier to tap on mobile (larger hit target via CSS).
@@ -90,6 +95,7 @@ function bindClientHotspotClick(el, entry) {
   });
 }
 
+/* Handles restore hotspots for current scene. */
 function restoreHotspotsForCurrentScene() {
   const scene = getCurrentScene();
   const imageName = getSelectedImageName();

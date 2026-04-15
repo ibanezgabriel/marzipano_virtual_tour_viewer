@@ -1,3 +1,4 @@
+/* Persists blur mask changes for project panoramas. */
 import {
   getCurrentScene,
   getSelectedImageName,
@@ -38,29 +39,35 @@ let pendingMask = null;
 let editingMask = null;
 let queuedSaveTimer = null;
 
+/* Handles clamp. */
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+/* Gets get viewer rect. */
 function getViewerRect() {
   return panoViewerEl ? panoViewerEl.getBoundingClientRect() : null;
 }
 
+/* Gets get viewer base size. */
 function getViewerBaseSize() {
   const rect = getViewerRect();
   if (!rect) return 1;
   return Math.max(1, Math.min(rect.width, rect.height));
 }
 
+/* Handles radius px to ratio. */
 function radiusPxToRatio(radiusPx) {
   return clamp(radiusPx / getViewerBaseSize(), 0.01, 0.35);
 }
 
+/* Handles ratio to radius px. */
 function ratioToRadiusPx(radiusRatio) {
   const px = Number(radiusRatio) * getViewerBaseSize();
   return clamp(px, MIN_BLUR_RADIUS_PX, MAX_BLUR_RADIUS_PX);
 }
 
+/* Handles apply mask size. */
 function applyMaskSize(maskEl, radiusRatio) {
   if (!maskEl) return;
   const radiusPx = ratioToRadiusPx(radiusRatio);
@@ -71,6 +78,7 @@ function applyMaskSize(maskEl, radiusRatio) {
   maskEl.style.marginTop = `${-radiusPx}px`;
 }
 
+/* Updates update preview size. */
 function updatePreviewSize() {
   if (!previewEl) return;
   const diameter = placementRadiusPx * 2;
@@ -78,11 +86,13 @@ function updatePreviewSize() {
   previewEl.style.height = `${diameter}px`;
 }
 
+/* Cleans up hide preview. */
 function hidePreview() {
   if (!previewEl) return;
   previewEl.classList.remove('visible');
 }
 
+/* Shows show preview at. */
 function showPreviewAt(clientX, clientY) {
   if (!previewEl || !placementModeActive) return;
   const rect = getViewerRect();
@@ -92,6 +102,7 @@ function showPreviewAt(clientX, clientY) {
   previewEl.classList.add('visible');
 }
 
+/* Sets up ensure preview element. */
 function ensurePreviewElement() {
   if (!panoViewerEl || previewEl) return;
   previewEl = document.createElement('div');
@@ -100,6 +111,7 @@ function ensurePreviewElement() {
   panoViewerEl.appendChild(previewEl);
 }
 
+/* Handles screen to view coords. */
 function screenToViewCoords(clientX, clientY) {
   const scene = getCurrentScene();
   if (!scene) return null;
@@ -115,6 +127,7 @@ function screenToViewCoords(clientX, clientY) {
   return view.screenToCoordinates({ x, y });
 }
 
+/* Handles serialize blur masks. */
 function serializeBlurMasks() {
   const obj = {};
   blurMasksByImage.forEach((list, imageName) => {
@@ -128,6 +141,7 @@ function serializeBlurMasks() {
   return obj;
 }
 
+/* Updates save blur masks to storage. */
 function saveBlurMasksToStorage() {
   const payload = serializeBlurMasks();
   try {
@@ -142,6 +156,7 @@ function saveBlurMasksToStorage() {
   }).catch((err) => console.warn('Could not save blur masks to server', err));
 }
 
+/* Handles queue save blur masks. */
 function queueSaveBlurMasks() {
   if (queuedSaveTimer) {
     clearTimeout(queuedSaveTimer);
@@ -152,6 +167,7 @@ function queueSaveBlurMasks() {
   }, SAVE_DEBOUNCE_MS);
 }
 
+/* Handles flush queued save. */
 function flushQueuedSave() {
   if (!queuedSaveTimer) return;
   clearTimeout(queuedSaveTimer);
@@ -159,6 +175,7 @@ function flushQueuedSave() {
   saveBlurMasksToStorage();
 }
 
+/* Handles parse blur masks payload. */
 function parseBlurMasksPayload(obj) {
   if (typeof obj !== 'object' || obj === null) return;
   let maxId = -1;
@@ -180,6 +197,7 @@ function parseBlurMasksPayload(obj) {
   if (maxId >= 0) nextBlurMaskId = maxId + 1;
 }
 
+/* Gets load blur masks from storage. */
 function loadBlurMasksFromStorage() {
   try {
     const raw = localStorage.getItem(BLUR_STORAGE_KEY);
@@ -190,6 +208,7 @@ function loadBlurMasksFromStorage() {
   }
 }
 
+/* Gets load blur masks from server. */
 async function loadBlurMasksFromServer() {
   const res = await fetch(appendProjectParams('/api/blur-masks'));
   if (!res.ok) throw new Error('Blur masks fetch failed');
@@ -199,6 +218,7 @@ async function loadBlurMasksFromServer() {
   restoreBlurMasksForCurrentScene();
 }
 
+/* Updates update blur mode ui. */
 function updateBlurModeUi() {
   if (actionPanelEl) {
     actionPanelEl.classList.toggle('blur-mode', blurModeEnabled);
@@ -215,6 +235,7 @@ function updateBlurModeUi() {
   }
 }
 
+/* Cleans up clear editing mask. */
 function clearEditingMask() {
   if (!editingMask) return;
   if (editingMask.element) {
@@ -223,6 +244,7 @@ function clearEditingMask() {
   editingMask = null;
 }
 
+/* Updates set editing mask. */
 function setEditingMask(entry, imageName, element) {
   if (!blurModeEnabled || addModeEnabled || pendingMask) return;
   if (editingMask && editingMask.entry === entry) return;
@@ -231,6 +253,7 @@ function setEditingMask(entry, imageName, element) {
   element.classList.add('editing');
 }
 
+/* Cleans up destroy pending mask. */
 function destroyPendingMask() {
   if (!pendingMask) return;
   try {
@@ -248,6 +271,7 @@ function destroyPendingMask() {
   pendingMask = null;
 }
 
+/* Updates set placement mode active. */
 function setPlacementModeActive(active) {
   placementModeActive = Boolean(active) && blurModeEnabled && addModeEnabled && !pendingMask;
   if (!panoViewerEl) return;
@@ -263,6 +287,7 @@ function setPlacementModeActive(active) {
   updateBlurModeUi();
 }
 
+/* Updates set add mode enabled. */
 function setAddModeEnabled(enabled) {
   addModeEnabled = Boolean(enabled) && blurModeEnabled;
   if (addModeEnabled) {
@@ -272,6 +297,7 @@ function setAddModeEnabled(enabled) {
   updateBlurModeUi();
 }
 
+/* Updates set blur mode enabled. */
 function setBlurModeEnabled(enabled) {
   blurModeEnabled = Boolean(enabled);
   if (!blurModeEnabled) {
@@ -294,6 +320,7 @@ function setBlurModeEnabled(enabled) {
   restoreBlurMasksForCurrentScene();
 }
 
+/* Cleans up remove mask entry. */
 function removeMaskEntry(entry, imageName) {
   const list = blurMasksByImage.get(imageName) || [];
   const idx = list.findIndex((x) => x.id === entry.id);
@@ -317,6 +344,7 @@ function removeMaskEntry(entry, imageName) {
   restoreBlurMasksForCurrentScene();
 }
 
+/* Sets up create confirmed mask element. */
 function createConfirmedMaskElement(entry, imageName) {
   const wrapper = document.createElement('div');
   wrapper.className = `${BLUR_MASK_CLASS} app-blur-mask-confirmed`;
@@ -372,6 +400,7 @@ function createConfirmedMaskElement(entry, imageName) {
   return wrapper;
 }
 
+/* Handles finalize pending mask. */
 function finalizePendingMask(confirm) {
   if (!pendingMask) return;
   const { entry, imageName } = pendingMask;
@@ -396,6 +425,7 @@ function finalizePendingMask(confirm) {
   setPlacementModeActive(addModeEnabled);
 }
 
+/* Handles adjust pending mask radius. */
 function adjustPendingMaskRadius(deltaPx) {
   if (!pendingMask) return;
   const currentPx = ratioToRadiusPx(pendingMask.entry.radiusRatio);
@@ -404,6 +434,7 @@ function adjustPendingMaskRadius(deltaPx) {
   applyMaskSize(pendingMask.element, pendingMask.entry.radiusRatio);
 }
 
+/* Sets up create pending mask element. */
 function createPendingMaskElement(entry) {
   const wrapper = document.createElement('div');
   wrapper.className = `${BLUR_MASK_CLASS} ${BLUR_MASK_PENDING_CLASS}`;
@@ -455,6 +486,7 @@ function createPendingMaskElement(entry) {
   return wrapper;
 }
 
+/* Sets up create pending mask at. */
 function createPendingMaskAt(clientX, clientY) {
   const scene = getCurrentScene();
   const imageName = getSelectedImageName();
@@ -480,6 +512,7 @@ function createPendingMaskAt(clientX, clientY) {
   setPlacementModeActive(false);
 }
 
+/* Handles restore blur masks for current scene. */
 function restoreBlurMasksForCurrentScene() {
   const scene = getCurrentScene();
   const imageName = getSelectedImageName();
@@ -506,6 +539,7 @@ function restoreBlurMasksForCurrentScene() {
   updateBlurModeUi();
 }
 
+/* Handles is interactive overlay target. */
 function isInteractiveOverlayTarget(target) {
   if (!target || !target.closest) return false;
   return Boolean(
@@ -515,6 +549,7 @@ function isInteractiveOverlayTarget(target) {
   );
 }
 
+/* Handles on viewer pointer move. */
 function onViewerPointerMove(e) {
   lastPointerClientX = e.clientX;
   lastPointerClientY = e.clientY;
@@ -522,10 +557,12 @@ function onViewerPointerMove(e) {
   showPreviewAt(e.clientX, e.clientY);
 }
 
+/* Handles on viewer pointer leave. */
 function onViewerPointerLeave() {
   hidePreview();
 }
 
+/* Handles on viewer wheel. */
 function onViewerWheel(e) {
   if (!placementModeActive) return;
   e.preventDefault();
@@ -540,6 +577,7 @@ function onViewerWheel(e) {
   }
 }
 
+/* Handles on viewer click. */
 function onViewerClick(e) {
   if (!blurModeEnabled) return;
   if (!getCurrentScene() || !getSelectedImageName()) return;

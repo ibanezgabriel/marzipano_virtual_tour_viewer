@@ -1,3 +1,4 @@
+/* Handles project CRUD requests and sync side effects. */
 const fs = require('fs');
 const {
   MAX_PROJECT_NUMBER_LENGTH,
@@ -14,6 +15,7 @@ const { emitProjectsChanged } = require('../services/project-events.service');
 const { syncProjectToDatabaseOrThrow } = require('../services/project-sync.service');
 const { appendAuditEntry, buildAuditMeta } = require('../services/audit.service');
 
+/* Builds audit file paths for a project. */
 function makeAuditPathsForProject(projectId) {
   const projectPaths = getProjectPaths(projectId);
   if (!projectPaths) return null;
@@ -22,11 +24,13 @@ function makeAuditPathsForProject(projectId) {
   };
 }
 
+/* Returns the requested collection or record. */
 function list(_req, res) {
   const projects = getProjectsManifest();
   res.json(projects);
 }
 
+/* Creates a new record from the request data. */
 async function create(req, res) {
   const { name, number, status } = req.body || {};
   if (number === undefined || number === null || !String(number).trim()) {
@@ -107,6 +111,7 @@ async function create(req, res) {
   return res.json(project);
 }
 
+/* Updates an existing record from the request data. */
 async function update(req, res) {
   const projectToken = String(req.params.id || '').trim();
   if (!projectToken || projectToken.includes('..') || projectToken.includes('/') || projectToken.includes('\\')) {
@@ -239,6 +244,7 @@ async function update(req, res) {
   return res.json(projects[index]);
 }
 
+/* Deletes the requested record and its related data. */
 function remove(_req, res) {
   return res.status(403).json({ success: false, message: 'Project deletion is disabled.' });
 }

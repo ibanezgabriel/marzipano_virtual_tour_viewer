@@ -1,3 +1,4 @@
+/* Handles delete workflows for project assets and scenes. */
 import { cleanupHotspotsForDeletedImages } from './hotspots.js';
 import { showAlert, showConfirm, showTimedAlert } from '../dialog.js';
 import { appendProjectParams } from '../project-context.js';
@@ -34,6 +35,7 @@ export function initDelete() {
   });
 }
 
+/* Handles enter delete selection mode. */
 async function enterDeleteSelectionMode({ deleteSelectionBtnEl, actionPanelEl }) {
   const { isDeleteSelectionMode, setDeleteSelectionMode } = await import('../marzipano-viewer.js');
   if (isDeleteSelectionMode()) return;
@@ -52,6 +54,7 @@ async function enterDeleteSelectionMode({ deleteSelectionBtnEl, actionPanelEl })
   );
 }
 
+/* Handles exit delete selection mode. */
 async function exitDeleteSelectionMode({ deleteSelectionBtnEl, actionPanelEl }) {
   const { isDeleteSelectionMode, setDeleteSelectionMode } = await import('../marzipano-viewer.js');
   if (!isDeleteSelectionMode()) {
@@ -71,6 +74,7 @@ async function exitDeleteSelectionMode({ deleteSelectionBtnEl, actionPanelEl }) 
   }
 }
 
+/* Handles handle delete marked. */
 async function handleDeleteMarked({ deleteSelectionBtnEl, actionPanelEl }) {
   const { getMultiSelectedImageNames, isDeleteSelectionMode } = await import('../marzipano-viewer.js');
   if (!isDeleteSelectionMode()) return;
@@ -95,6 +99,7 @@ async function handleDeleteMarked({ deleteSelectionBtnEl, actionPanelEl }) {
   }
 }
 
+/* Handles handle delete single. */
 async function handleDeleteSingle() {
   const { getSelectedImageName } = await import('../marzipano-viewer.js');
   const selectedName = getSelectedImageName();
@@ -110,6 +115,7 @@ async function handleDeleteSingle() {
   await deleteImages([selectedName], 'Delete');
 }
 
+/* Cleans up delete images. */
 async function deleteImages(imageNames, title) {
   if (!Array.isArray(imageNames) || imageNames.length === 0) return;
 

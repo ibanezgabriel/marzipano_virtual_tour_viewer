@@ -1,4 +1,5 @@
 /* Centered dialog overlay and box */
+/* Covers the page behind the dialog. */
 .app-dialog-overlay {
   position: fixed;
   inset: 0;
@@ -12,11 +13,13 @@
   transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
+/* Shows the dialog when it becomes active. */
 .app-dialog-overlay.app-dialog-visible {
   opacity: 1;
   visibility: visible;
 }
 
+/* Styles the main dialog container. */
 .app-dialog-box {
   background: #2d2d2d;
   color: #e0e0e0;
@@ -29,10 +32,12 @@
   transition: transform 0.2s ease;
 }
 
+/* Shows the dialog when it becomes active. */
 .app-dialog-overlay.app-dialog-visible .app-dialog-box {
   transform: scale(1);
 }
 
+/* Sets the base styling for the dialog. */
 .app-dialog-title {
   font-size: 1.1rem;
   font-weight: 600;
@@ -41,6 +46,7 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Sets the base styling for the dialog. */
 .app-dialog-message {
   font-size: 0.95rem;
   line-height: 1.4;
@@ -49,10 +55,12 @@
   word-break: break-word;
 }
 
+/* Sets the base styling for the dialog. */
 .app-dialog-input-wrap {
   margin-bottom: 1.25rem;
 }
 
+/* Sets the base styling for the dialog. */
 .app-dialog-input {
   width: 100%;
   padding: 0.5rem 0.75rem;
@@ -64,15 +72,18 @@
   outline: none;
 }
 
+/* Focus state for the dialog. */
 .app-dialog-input:focus {
   border-color: #6b9bd1;
   box-shadow: 0 0 0 2px rgba(107, 155, 209, 0.25);
 }
 
+/* Sets the base styling for the dialog. */
 .app-dialog-select-wrap {
   margin-bottom: 1.25rem;
 }
 
+/* Sets the base styling for the dialog. */
 .app-dialog-select {
   width: 100%;
   padding: 0.5rem 0.75rem;
@@ -84,10 +95,12 @@
   outline: none;
 }
 
+/* Focus state for the dialog. */
 .app-dialog-select:focus {
   border-color: #6b9bd1;
 }
 
+/* Sets the base styling for the dialog. */
 .app-dialog-actions {
   display: flex;
   gap: 0.75rem;
@@ -95,6 +108,7 @@
   flex-wrap: wrap;
 }
 
+/* Sets the base styling for the dialog. */
 .app-dialog-btn {
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
@@ -105,29 +119,35 @@
   transition: background 0.2s, color 0.2s;
 }
 
+/* Sets the base styling for the dialog. */
 .app-dialog-btn-primary {
   background: #4a7ab8;
   color: #fff;
 }
 
+/* Hover state for the dialog. */
 .app-dialog-btn-primary:hover {
   background: #5a8ac8;
 }
 
+/* Sets the base styling for the dialog. */
 .app-dialog-btn-secondary {
   background: #404040;
   color: #e0e0e0;
 }
 
+/* Hover state for the dialog. */
 .app-dialog-btn-secondary:hover {
   background: #505050;
 }
 
 /* Progress */
+/* Sets the base styling for the dialog. */
 .app-dialog-progress-wrap {
   display: none;
   margin-top: 0.5rem;
 }
+/* Sets the base styling for the dialog. */
 .app-dialog-progress-bar {
   width: 100%;
   height: 8px;
@@ -135,12 +155,14 @@
   border-radius: 4px;
   overflow: hidden;
 }
+/* Sets the base styling for the dialog. */
 .app-dialog-progress-fill {
   height: 100%;
   width: 0%;
   background: #4a7ab8;
   transition: width 0.1s linear;
 }
+/* Sets the base styling for the dialog. */
 .app-dialog-progress-label {
   margin-top: 8px;
   text-align: right;
@@ -149,6 +171,7 @@
 }
 
 /* Preview bar (shown when user clicks Preview in link selection - dialog hidden, user sees panorama) */
+/* Sets the base styling for the dialog. */
 .app-dialog-preview-bar {
   position: fixed;
   bottom: 24px;
@@ -165,6 +188,7 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
+/* Sets the base styling for the dialog. */
 .app-dialog-preview-bar-label {
   font-size: 0.95rem;
   font-weight: 500;

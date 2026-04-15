@@ -1,3 +1,4 @@
+/* Bootstraps the read-only project viewer experience. */
 import { initViewer, loadImages, setProjectName } from './marzipano-viewer.js';
 import { initHotspotsClient, reloadHotspots as reloadHotspotsClient } from './features/hotspots-client.js';
 import { initBlurMasksClient, reloadBlurMasksClient } from './features/blur-masks-client.js';
@@ -8,6 +9,7 @@ import { io } from '/socket.io/socket.io.esm.min.js';
 
 let projectNameResizeBound = false;
 
+/* Sets up init viewer mode toggle. */
 function initViewerModeToggle() {
   const panoBtn = document.getElementById('viewer-pano-toggle');
   const layoutBtn = document.getElementById('pano-layout-toggle');
@@ -73,6 +75,7 @@ function initViewerModeToggle() {
   });
 }
 
+/* Updates setup project name modal. */
 function setupProjectNameModal() {
   const modal = document.getElementById('project-name-modal');
   const closeBtn = document.getElementById('project-name-modal-close');
@@ -110,6 +113,7 @@ function setupProjectNameModal() {
   });
 }
 
+/* Updates sync project name info button visibility. */
 function syncProjectNameInfoButtonVisibility() {
   const headerText = document.getElementById('pano-header-text');
   if (!headerText) return;
@@ -130,6 +134,7 @@ function syncProjectNameInfoButtonVisibility() {
   }
 }
 
+/* Updates update project name ui. */
 function updateProjectNameUi(name) {
   const projectName = typeof name === 'string' ? name : '';
   setProjectName(projectName);
@@ -149,6 +154,7 @@ function updateProjectNameUi(name) {
   }
 }
 
+/* Handles resolve project id. */
 function resolveProjectId(projects, token) {
   const value = (token || '').trim();
   if (!value || !Array.isArray(projects)) return value;

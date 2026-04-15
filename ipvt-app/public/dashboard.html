@@ -8,7 +8,9 @@
     <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
+    <!-- Main dashboard area for project actions and listings. -->
     <main class="dashboard">
+        <!-- Top bar with branding and the logout control. -->
         <section id="dashboard-title">
             <img src="assets/icons/NEW-LOGO-QCDE.png"> 
             <h1>QCDE - IPVT (Infrastructure Projects Virtual Tour)</h1>
@@ -19,7 +21,9 @@
                 </button>
             </div>
         </section>
+        <!-- Main content wrapper for toolbar and project table. -->
         <div id="project-container">
+            <!-- Toolbar for project actions and quick search. -->
             <section id="project-toolbar">
                 <div class="action-bar">
                     <button type="button" class="action-btn" id="btn-new-project">
@@ -36,6 +40,7 @@
                     <input type="text" id="project-search-input" class="project-search-input" placeholder="Search" autocomplete="off">
                 </div>
             </section>
+            <!-- Scrollable project table with a fixed header row. -->
             <div class="project-table-scroll" id="project-table-scroll">
                 <section id="project-container-header">
                     <p>Project Number</p>
@@ -43,12 +48,15 @@
                     <p>Status</p>
                     <p id="header-action">Action</p>
                 </section>
+                <!-- Project rows are injected here by JavaScript. -->
                 <section class="project-list" id="project-list"></section>
             </div>
         </div>
+        <!-- Empty-state message shown when no projects exist yet. -->
         <p class="empty-state" id="empty-state">No projects yet. Create one to get started.</p>
     </main>
 
+    <!-- Modal for creating a new project record. -->
     <div class="modal-overlay" id="new-project-modal">
         <div class="modal">
             <h2>NEW PROJECT</h2>
@@ -74,6 +82,7 @@
         </div>
     </div>
 
+    <!-- Modal for browsing and opening existing projects. -->
     <div class="modal-overlay" id="open-project-modal">
         <div class="modal open-project-modal">
             <div class="open-project-modal-header">
@@ -82,6 +91,7 @@
                     <input type="text" id="open-project-search-input" class="project-search-input" placeholder="Search" autocomplete="off">
                 </div>
             </div>
+            <!-- Matching projects are rendered here dynamically. -->
             <div class="project-list" id="open-project-list"></div>
             <div class="modal-actions" style="margin-top: 16px;">
                 <button type="button" class="btn-secondary" id="open-modal-close">Close</button>
@@ -89,6 +99,7 @@
         </div>
     </div>
 
+    <!-- Modal for updating project details. -->
     <div class="modal-overlay" id="rename-project-modal">
          <div class="modal">
              <h2>EDIT PROJECT</h2>
@@ -121,6 +132,7 @@
          </div>
      </div>
 
+    <!-- Dashboard behavior and session checks. -->
     <script type="module" src="js/dashboard.js"></script>
     <script src="js/login.js"></script>
 </body>
