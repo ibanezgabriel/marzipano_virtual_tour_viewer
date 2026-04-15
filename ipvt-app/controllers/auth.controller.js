@@ -32,6 +32,12 @@ async function login(req, res) {
       return res.status(401).json({ message: 'Invalid username or password.' });
     }
 
+    // Admin/superadmin usernames are case-sensitive at login time.
+    // Example: stored "Aeon" must be entered as "Aeon" (not "aeon").
+    if (isAdministrativeUser(user) && user.username !== username) {
+      return res.status(401).json({ message: 'Invalid username or password.' });
+    }
+
     if (!user.is_active) {
       clearSessionCookie(res);
       return res.status(403).json({ message: 'This account is suspended.' });
