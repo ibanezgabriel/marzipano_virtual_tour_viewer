@@ -80,14 +80,29 @@ const imageListEl = document.getElementById('pano-image-list');
 const panoViewerEl = document.getElementById('pano-viewer');
 const headerTextEl = document.getElementById('pano-header-text');
 const headerEl = document.getElementById('pano-header');
+const IS_ADMIN_CONTEXT = typeof window !== 'undefined' && /project-editor\.html$/i.test(window.location.pathname);
+
+function stripViewerExtension(filename) {
+  if (typeof filename !== 'string') return '';
+  const lastDotIndex = filename.lastIndexOf('.');
+  if (lastDotIndex <= 0) return filename;
+  const ext = filename.slice(lastDotIndex).toLowerCase();
+  if (ext === '.jpg' || ext === '.jpeg') return filename.slice(0, lastDotIndex);
+  return filename;
+}
+
+function getDisplayFilename(filename) {
+  return IS_ADMIN_CONTEXT ? filename : stripViewerExtension(filename);
+}
 
 /* Updates set list item filename. */
 function setListItemFilename(li, filename) {
   li.dataset.filename = filename;
   const nameEl = li.querySelector('.pano-item-name');
   if (nameEl) {
-    nameEl.textContent = filename;
-    nameEl.title = filename;
+    const displayName = getDisplayFilename(filename);
+    nameEl.textContent = displayName;
+    nameEl.title = displayName;
   }
 }
 
@@ -296,7 +311,7 @@ export async function loadImages(onImagesLoaded) {
       const li = document.createElement('li');
       const nameEl = document.createElement('span');
       nameEl.className = 'pano-item-name';
-      nameEl.textContent = filename;
+      nameEl.textContent = getDisplayFilename(filename);
       li.appendChild(nameEl);
 
       if (isAdmin) {
@@ -665,4 +680,3 @@ export async function getImageList() {
   const panos = await res.json();
   return Array.isArray(panos) ? panos.map(p => p.filename) : [];
 }
-
