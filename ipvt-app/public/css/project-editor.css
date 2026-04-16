@@ -17,7 +17,7 @@
   display: flex;
   flex-direction: column;
 }
-/* Styles the top header bar. */
+/* Styles the top header bar. */  
 #pano-header {
   position: fixed;
   top: 0;

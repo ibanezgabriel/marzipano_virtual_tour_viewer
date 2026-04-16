@@ -10,7 +10,7 @@
 @import url("scrollbar-styles.css");
 /* Loads another stylesheet for this page. */
 @import url("login.css");
-
+@import url(viewer-resposive.css);
 /* global styles */
 /* Shares the same styling across related elements. */
 *, *::before, *::after {

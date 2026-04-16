@@ -193,3 +193,46 @@
   font-size: 0.95rem;
   font-weight: 500;
 }
+
+/* Idle logout countdown (shown after 2 minutes inactivity) */
+.idle-countdown {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 10002;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 10px;
+  background: rgba(45, 45, 45, 0.95);
+  color: #e0e0e0;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  max-width: calc(100vw - 24px);
+}
+
+.idle-countdown.visible {
+  display: flex;
+}
+
+.idle-countdown-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 600px) {
+  .idle-countdown {
+    bottom: 12px;
+    padding: 0.65rem 0.95rem;
+    border-radius: 12px;
+  }
+  .idle-countdown-label {
+    font-size: 0.9rem;
+  }
+}

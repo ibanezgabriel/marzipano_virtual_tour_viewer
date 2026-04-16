@@ -1,15 +1,169 @@
 /* Handles login state, form submission, and logout behavior. */
 const REDIRECT_KEY = 'ipvt_redirect_url';
 const PUBLIC_PAGES = new Set(['login.html', 'project-viewer.html', 'project-viewer-panoramas.html', 'project-viewer-layout.html']);
+const PROJECT_VIEWER_PAGES = new Set(['project-viewer.html', 'project-viewer-panoramas.html', 'project-viewer-layout.html']);
 const SUPERADMIN_HOME_PAGE = 'user-management.html';
 const ADMIN_HOME_PAGE = 'dashboard.html';
 
 let currentUser = null;
 let currentUserPromise = null;
 
+const IDLE_GRACE_MS = 2 * 60 * 1000; // 2 minutes
+const IDLE_COUNTDOWN_MS = 10 * 60 * 1000; // 10 minutes
+
+let idleLogoutInitialized = false;
+let lastActivityAt = Date.now();
+let idleTimeoutId = null;
+let countdownIntervalId = null;
+let countdownEndAt = null;
+let idleCountdownEl = null;
+let idleCountdownLabelEl = null;
+let idleCountdownVisible = false;
+let idleLogoutInProgress = false;
+let tabCloseLogoutInitialized = false;
+let tabCloseLogoutInProgress = false;
+
+const INTERNAL_NAV_KEY = 'ipvt_internal_nav_ts';
+
+function markInternalNavigation() {
+  try {
+    sessionStorage.setItem(INTERNAL_NAV_KEY, String(Date.now()));
+  } catch (_e) {}
+}
+
+function isInternalNavigationRecent() {
+  try {
+    const raw = sessionStorage.getItem(INTERNAL_NAV_KEY);
+    const ts = Number(raw || 0);
+    return Boolean(ts) && Date.now() - ts < 2000;
+  } catch (_e) {
+    return false;
+  }
+}
+
 /* Gets get current page. */
 function getCurrentPage() {
   return window.location.pathname.split('/').pop() || 'dashboard.html';
+}
+
+function formatCountdownMs(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function ensureIdleCountdownUi() {
+  if (idleCountdownEl) return;
+  const el = document.createElement('div');
+  el.id = 'idle-countdown';
+  el.className = 'idle-countdown';
+  el.setAttribute('role', 'status');
+  el.setAttribute('aria-live', 'polite');
+  el.setAttribute('aria-atomic', 'true');
+  el.style.display = 'none';
+
+  const label = document.createElement('div');
+  label.className = 'idle-countdown-label';
+  label.textContent = '';
+  el.appendChild(label);
+
+  document.body.appendChild(el);
+  idleCountdownEl = el;
+  idleCountdownLabelEl = label;
+}
+
+function showIdleCountdownUi() {
+  ensureIdleCountdownUi();
+  if (!idleCountdownEl) return;
+  idleCountdownVisible = true;
+  idleCountdownEl.style.display = 'flex';
+  idleCountdownEl.classList.add('visible');
+}
+
+function hideIdleCountdownUi() {
+  if (!idleCountdownEl) return;
+  idleCountdownVisible = false;
+  idleCountdownEl.classList.remove('visible');
+  idleCountdownEl.style.display = 'none';
+}
+
+function stopIdleCountdown() {
+  if (countdownIntervalId) {
+    clearInterval(countdownIntervalId);
+    countdownIntervalId = null;
+  }
+  countdownEndAt = null;
+  if (idleCountdownVisible) hideIdleCountdownUi();
+}
+
+function tickIdleCountdown() {
+  if (!countdownEndAt) return;
+  const remaining = countdownEndAt - Date.now();
+  if (remaining <= 0) {
+    stopIdleCountdown();
+    if (!idleLogoutInProgress) {
+      idleLogoutInProgress = true;
+      logout();
+    }
+    return;
+  }
+  if (idleCountdownLabelEl) {
+    idleCountdownLabelEl.textContent = `Idle detected — logging out in ${formatCountdownMs(remaining)}`;
+  }
+}
+
+function enterIdleCountdown() {
+  if (idleLogoutInProgress) return;
+  stopIdleCountdown();
+  countdownEndAt = Date.now() + IDLE_COUNTDOWN_MS;
+  showIdleCountdownUi();
+  tickIdleCountdown();
+  countdownIntervalId = setInterval(tickIdleCountdown, 1000);
+}
+
+function scheduleIdleTrigger() {
+  if (idleTimeoutId) {
+    clearTimeout(idleTimeoutId);
+    idleTimeoutId = null;
+  }
+  if (idleLogoutInProgress) return;
+  const elapsed = Date.now() - lastActivityAt;
+  const remaining = Math.max(0, IDLE_GRACE_MS - elapsed);
+  idleTimeoutId = setTimeout(() => {
+    // If activity happened while the timeout was queued, reschedule.
+    if (Date.now() - lastActivityAt < IDLE_GRACE_MS) {
+      scheduleIdleTrigger();
+      return;
+    }
+    enterIdleCountdown();
+  }, remaining);
+}
+
+function recordActivity() {
+  if (!idleLogoutInitialized) return;
+  if (idleLogoutInProgress) return;
+  lastActivityAt = Date.now();
+  if (countdownEndAt) stopIdleCountdown();
+  scheduleIdleTrigger();
+}
+
+function initIdleLogoutTimer() {
+  if (idleLogoutInitialized) return;
+  idleLogoutInitialized = true;
+  lastActivityAt = Date.now();
+
+  const opts = { passive: true };
+  window.addEventListener('mousemove', recordActivity, opts);
+  window.addEventListener('mousedown', recordActivity, opts);
+  window.addEventListener('keydown', recordActivity, opts);
+  window.addEventListener('touchstart', recordActivity, opts);
+  window.addEventListener('touchmove', recordActivity, opts);
+  window.addEventListener('wheel', recordActivity, opts);
+  // scroll doesn't bubble; capture catches scroll on nested containers too.
+  document.addEventListener('scroll', recordActivity, { passive: true, capture: true });
+
+  scheduleIdleTrigger();
 }
 
 /* Updates sanitize redirect target. */
@@ -115,6 +269,7 @@ async function checkAuthentication() {
   const user = await getCurrentUser();
   if (!user) {
     setStoredRedirect(window.location.href);
+    markInternalNavigation();
     window.location.href = `login.html?redirect=${encodeURIComponent(window.location.href)}`;
     return null;
   }
@@ -122,11 +277,13 @@ async function checkAuthentication() {
   const homePage = getHomePageForUser(user);
 
   if (user.role === 'superadmin' && currentPage !== SUPERADMIN_HOME_PAGE) {
+    markInternalNavigation();
     window.location.href = SUPERADMIN_HOME_PAGE;
     return null;
   }
 
   if (currentPage === SUPERADMIN_HOME_PAGE && user.role !== 'superadmin') {
+    markInternalNavigation();
     window.location.href = homePage;
     return null;
   }
@@ -148,17 +305,21 @@ async function redirectToStoredPage() {
   const redirectUrl = getStoredRedirect() || homePage;
   localStorage.removeItem(REDIRECT_KEY);
   if (!user) {
+    markInternalNavigation();
     window.location.href = 'login.html';
     return;
   }
   if (user.role === 'superadmin') {
+    markInternalNavigation();
     window.location.href = SUPERADMIN_HOME_PAGE;
     return;
   }
   if (redirectUrl.includes(SUPERADMIN_HOME_PAGE) && user.role !== 'superadmin') {
+    markInternalNavigation();
     window.location.href = homePage;
     return;
   }
+  markInternalNavigation();
   window.location.href = redirectUrl;
 }
 
@@ -173,6 +334,13 @@ function showError(message) {
 
 /* Handles logout. */
 async function logout() {
+  tabCloseLogoutInProgress = true;
+  idleLogoutInProgress = true;
+  if (idleTimeoutId) {
+    clearTimeout(idleTimeoutId);
+    idleTimeoutId = null;
+  }
+  stopIdleCountdown();
   try {
     await fetch('/api/auth/logout', { method: 'POST' });
   } catch (error) {}
@@ -180,6 +348,65 @@ async function logout() {
   currentUserPromise = null;
   localStorage.removeItem(REDIRECT_KEY);
   window.location.href = 'login.html';
+}
+
+function attemptLogoutBeacon() {
+  try {
+    if (typeof navigator === 'undefined') return false;
+    if (typeof navigator.sendBeacon !== 'function') return false;
+    const blob = new Blob([JSON.stringify({ reason: 'tab_close' })], { type: 'application/json' });
+    return navigator.sendBeacon('/api/auth/logout', blob);
+  } catch (_e) {
+    return false;
+  }
+}
+
+function attemptLogoutKeepaliveFetch() {
+  try {
+    fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'tab_close' }),
+      keepalive: true,
+      cache: 'no-store',
+    }).catch(() => {});
+  } catch (_e) {}
+}
+
+function initLogoutOnTabClose() {
+  if (tabCloseLogoutInitialized) return;
+  tabCloseLogoutInitialized = true;
+
+  // Mark internal navigations so we don't log the user out when they click links/forms inside the app.
+  // This is best-effort; browser APIs do not reliably distinguish navigation vs tab close.
+  try {
+    document.addEventListener('click', (e) => {
+      const a = e && e.target && e.target.closest ? e.target.closest('a[href]') : null;
+      if (!a) return;
+      const href = a.getAttribute('href') || '';
+      const target = (a.getAttribute('target') || '').toLowerCase();
+      if (!href || href.startsWith('#')) return;
+      if (target === '_blank') return;
+      if (a.hasAttribute('download')) return;
+      markInternalNavigation();
+    }, { capture: true, passive: true });
+
+    document.addEventListener('submit', () => markInternalNavigation(), { capture: true, passive: true });
+  } catch (_e) {}
+
+  const handlePotentialClose = (ev) => {
+    if (tabCloseLogoutInProgress || idleLogoutInProgress) return;
+    if (isInternalNavigationRecent()) return;
+    if (ev && ev.persisted) return; // bfcache
+    tabCloseLogoutInProgress = true;
+    const ok = attemptLogoutBeacon();
+    if (!ok) attemptLogoutKeepaliveFetch();
+  };
+
+  // pagehide fires for tab close and navigation; best-effort skip internal nav via the marker above.
+  window.addEventListener('pagehide', handlePotentialClose);
+  // beforeunload is a fallback in browsers that don't reliably fire pagehide.
+  window.addEventListener('beforeunload', handlePotentialClose);
 }
 
 const DIALOG_OVERLAY_ID = 'app-dialog-overlay';
@@ -340,12 +567,33 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (user) {
       currentUser = user;
       updateCurrentUserUi(user);
+      markInternalNavigation();
       await redirectToStoredPage();
     }
     return;
   }
 
-  await checkAuthentication();
+  if (PUBLIC_PAGES.has(currentPage)) {
+    // Project viewers are intended for non-admin use; do not apply idle logout there.
+    if (PROJECT_VIEWER_PAGES.has(currentPage)) return;
+    // Public pages should not redirect, but if a user is currently signed in,
+    // still apply idle logout.
+    const status = await fetchAuthStatus().catch(() => ({ authenticated: false, user: null }));
+    const user = status && status.authenticated ? status.user : null;
+    if (user) {
+      currentUser = user;
+      updateCurrentUserUi(user);
+      initIdleLogoutTimer();
+      initLogoutOnTabClose();
+    }
+    return;
+  }
+
+  const user = await checkAuthentication();
+  if (user) {
+    initIdleLogoutTimer();
+    initLogoutOnTabClose();
+  }
 });
 
 document.addEventListener('DOMContentLoaded', function() {

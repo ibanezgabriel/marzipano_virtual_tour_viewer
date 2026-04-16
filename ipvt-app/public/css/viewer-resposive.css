@@ -1,0 +1,176 @@
+@media (max-width: 426px) {
+  .viewer #pano-sidebar-wrapper {
+    top: 3rem;
+  }
+}
+@media (max-width: 600px) {
+    .viewer #pano-sidebar-content {
+        padding-left: 0;
+        padding-right: 0;
+    }
+    .viewer #pano-sidebar-container {
+        position: relative;
+        overflow: visible;
+        background-color: #115272;
+    }
+    .viewer #pano-sidebar-container #pano-layout-list {
+        display: block;
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 43px;  
+        /* transform: translateX(-105%);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: transform 240ms ease, opacity 240ms ease, visibility 0s linear 240ms; */
+        transform: translateX(0);
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transition: transform 240ms ease, opacity 240ms ease;
+        z-index: 3;
+    }
+    .viewer .layout-modal-overlay-client .layout-modal-actions {
+        padding: 10px 12px 8px;
+    }
+    .viewer .layout-modal-overlay-client .layout-modal {
+        width: 94vw;
+        max-width: 94vw;
+        height: auto;
+        max-height: 82vh;
+    }
+    .viewer .layout-modal-overlay-client .layout-magnifier-controls {
+        display: none !important;
+    }
+    .viewer.viewer-mode-layout #pano-layout-list > li {
+        margin-left: 0;
+        margin-right: 0;
+    }
+}
+@media (max-width: 1024px) {
+    .viewer { 
+        --pano-sidebar-width: min(82vw, 320px);
+    }
+    .viewer #pano-sidebar-container {
+        max-height: calc(100vh - var(--pano-header-height));
+        background-color: #115272;
+    }
+}
+@media (max-width: 768px) {
+/* Sets the base styling for the preview panel. */
+  .viewer .layout-preview {
+    max-width: min(76vw, 340px);
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(6px);
+    transform: translateX(0);
+    transition: opacity 280ms ease, transform 280ms ease, background-color 280ms ease, visibility 0s linear 280ms;
+  }
+
+/* Shows the preview panel when it becomes active. */
+  .viewer .layout-preview.visible {
+    transform: translateX(0);
+    transition: opacity 280ms ease, transform 280ms ease, background-color 280ms ease;
+  }
+
+/* Hover state for the preview panel. */
+  .viewer .layout-preview.visible:hover {
+    transform: translateX(0);
+  }
+
+/* Shows the preview panel when it becomes active. */
+  .viewer .layout-preview.visible.layout-preview-collapsed {
+    padding: 0;
+    background: transparent;
+    backdrop-filter: none;
+    transform: translateX(calc(-100% + var(--layout-preview-toggle-size)));
+  }
+
+/* Sets the base styling for the preview panel. */
+  .viewer .layout-preview-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--layout-preview-toggle-size);
+    height: var(--layout-preview-toggle-size);
+    /* border-radius: 50%; */
+    /* border: 2px solid rgba(255, 255, 255, 0.85); */
+    background: rgba(17, 82, 114, 0.95);
+    color: #fff;
+    font-weight: 800;
+    cursor: pointer;
+    position: absolute;
+    right: calc(-1 * var(--layout-preview-toggle-half));
+    top: 50%;
+    transform: translateY(-50%);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+    z-index: 6;
+  }
+
+/* Sets the base styling for the preview panel. */
+  .viewer .layout-preview .layout-image-wrap {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 280ms ease, visibility 0s linear 0s;
+  }
+
+/* Shows the preview panel when it becomes active. */
+  .viewer .layout-preview.visible.layout-preview-collapsed .layout-image-wrap {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 280ms ease, visibility 0s linear 280ms;
+  }
+
+/* Shows the preview panel when it becomes active. */
+  .viewer .layout-preview.visible.layout-preview-collapsed .layout-preview-toggle {
+    right: 0;
+  }
+
+/* Sets the base styling for the preview panel. */
+  .viewer .layout-preview-toggle .arrow {
+    display: block;
+    width: 0;
+    height: 0;
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
+    border-left: 10px solid #fff; /* points right by default */
+    transform: translateX(1px);
+  }
+
+/* Sets the base styling for the preview panel. */
+  .viewer .layout-preview:not(.layout-preview-collapsed) .layout-preview-toggle .arrow {
+    border-left: 0;
+    border-right: 10px solid #fff; /* points left when expanded */
+    transform: translateX(-1px);
+  }
+}
+@media (max-width: 1024px) {
+/* Sets the base styling for the hotspot marker. */
+  .viewer .app-hotspot-pin {
+    margin-left: -20px;
+    margin-top: -20px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+/* Sets the base styling for the hotspot marker. */
+  .viewer .app-hotspot-pin-dot {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+  }
+
+/* Shares the same styling across related elements. */
+  .viewer .layout-hotspot-pin-dot.hotspot-preview,
+  .viewer .layout-hotspot-pin-dot.hotspot-modal {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    min-height: 20px;
+  }
+}

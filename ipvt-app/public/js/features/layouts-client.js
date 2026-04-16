@@ -34,6 +34,7 @@ let layoutPrevBtn = null;
 let layoutNextBtn = null;
 let previewToggleBtn = null;
 let previewCollapsed = false;
+let onPreviewWillExpand = null;
 
 const MAGNIFIER_DEFAULT_LEVEL = 2;
 const MAGNIFIER_LEVEL_OPTIONS = [2, 2.5];
@@ -212,6 +213,12 @@ function setPreviewCollapsed(collapsed) {
   previewContainer.classList.toggle('layout-preview-collapsed', previewCollapsed);
 }
 
+function notifyPreviewWillExpand() {
+  try {
+    if (typeof onPreviewWillExpand === 'function') onPreviewWillExpand();
+  } catch (_e) {}
+}
+
 /* Handles is phone viewport. */
 function isPhoneViewport() {
   try {
@@ -354,7 +361,9 @@ function ensurePreviewElements() {
       if (previewToggleBtn.dataset && previewToggleBtn.dataset.suppressClick) return;
       e.preventDefault();
       e.stopPropagation();
-      setPreviewCollapsed(!previewCollapsed);
+      const nextCollapsed = !previewCollapsed;
+      if (!nextCollapsed) notifyPreviewWillExpand();
+      setPreviewCollapsed(nextCollapsed);
     });
   }
 
@@ -396,6 +405,7 @@ function ensurePreviewElements() {
         (swipeCaptureEl || previewContainer).releasePointerCapture(e.pointerId);
       } catch (_err) {}
     } else if (dx > 50) {
+      notifyPreviewWillExpand();
       setPreviewCollapsed(false);
       previewContainer.dataset.suppressNextClick = '1';
       if (previewToggleBtn && previewToggleBtn.dataset) previewToggleBtn.dataset.suppressClick = '1';
@@ -795,6 +805,9 @@ export function initLayoutsClient() {
   const toggleBtn = document.getElementById('pano-layout-toggle');
   floorList = document.getElementById('pano-layout-list');
   const sidebarContainer = document.getElementById('pano-sidebar-container');
+  const sidebarWrapper = document.getElementById('pano-sidebar-wrapper');
+  const sidebarBtn = document.getElementById('pano-sidebar-btn');
+  const sidebarImg = sidebarBtn ? sidebarBtn.querySelector('img') : null;
 
   if (!toggleBtn || !floorList || !sidebarContainer) return;
 
@@ -819,6 +832,23 @@ export function initLayoutsClient() {
       return window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
     } catch (_e) {
       return false;
+    }
+  };
+
+  const shouldEnforceExclusivePanels = () => {
+    try {
+      return window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+    } catch (_e) {
+      return false;
+    }
+  };
+
+  const setSidebarCollapsed = (collapsed) => {
+    if (!sidebarWrapper) return;
+    const nextCollapsed = Boolean(collapsed);
+    sidebarWrapper.classList.toggle('collapsed', nextCollapsed);
+    if (sidebarImg) {
+      sidebarImg.src = nextCollapsed ? '../assets/side-bar-show.png' : '../assets/side-bar-hide.png';
     }
   };
 
@@ -870,6 +900,10 @@ export function initLayoutsClient() {
   const setLayoutListOpen = (nextOpen) => {
     layoutListOpen = Boolean(nextOpen);
     syncLayoutListState();
+    if (layoutListOpen && shouldEnforceExclusivePanels()) {
+      setSidebarCollapsed(false);
+      setPreviewCollapsed(true);
+    }
   };
 
   const toggleLayoutList = () => setLayoutListOpen(!layoutListOpen);
@@ -937,7 +971,36 @@ export function initLayoutsClient() {
 
   // Default: open on desktop, closed on mobile.
   syncLayoutListState();
+  if (layoutListOpen && shouldEnforceExclusivePanels()) {
+    setPreviewCollapsed(true);
+  }
+
+  // Ensure the sidebar "list" and the layout preview aren't both open on mobile/tablet.
+  // - Opening the preview hides the sidebar (same slide behavior as existing collapse).
+  // - Opening the sidebar/list collapses the preview (same slide-left behavior as existing preview collapse).
+  onPreviewWillExpand = () => {
+    if (!shouldEnforceExclusivePanels()) return;
+    setSidebarCollapsed(true);
+  };
+
+  if (sidebarWrapper) {
+    try {
+      const observer = new MutationObserver(() => {
+        if (!shouldEnforceExclusivePanels()) return;
+        const isCollapsed = sidebarWrapper.classList.contains('collapsed');
+        if (!isCollapsed) {
+          setPreviewCollapsed(true);
+          if (viewMode === 'layout') setLayoutListOpen(true);
+        }
+      });
+      observer.observe(sidebarWrapper, { attributes: true, attributeFilter: ['class'] });
+    } catch (_e) {}
+  }
+
   window.addEventListener('resize', () => {
+    if (shouldEnforceExclusivePanels() && sidebarWrapper && !sidebarWrapper.classList.contains('collapsed')) {
+      setPreviewCollapsed(true);
+    }
     if (viewMode) return;
     const isMobile = isMobileLayoutListViewport();
     if (isMobile === lastIsMobileLayoutListViewport) return;
