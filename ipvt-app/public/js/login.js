@@ -1,7 +1,7 @@
 /* Handles login state, form submission, and logout behavior. */
 const REDIRECT_KEY = 'ipvt_redirect_url';
-const PUBLIC_PAGES = new Set(['login.html', 'project-viewer.html', 'project-viewer-panoramas.html', 'project-viewer-layout.html']);
-const PROJECT_VIEWER_PAGES = new Set(['project-viewer.html', 'project-viewer-panoramas.html', 'project-viewer-layout.html']);
+const PUBLIC_PAGES = new Set(['login.html', 'project-viewer-panoramas.html', 'project-viewer-layout.html']);
+const PROJECT_VIEWER_PAGES = new Set(['project-viewer-panoramas.html', 'project-viewer-layout.html']);
 const SUPERADMIN_HOME_PAGE = 'user-management.html';
 const ADMIN_HOME_PAGE = 'dashboard.html';
 

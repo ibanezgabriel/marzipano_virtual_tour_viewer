@@ -37,7 +37,6 @@ function guardProjectPages(req, res, next) {
   const requestPath = req.path || '';
   if (
     requestPath !== '/dashboard.html' &&
-    requestPath !== '/project-viewer.html' &&
     requestPath !== '/project-viewer-panoramas.html' &&
     requestPath !== '/project-viewer-layout.html'
   ) return next();
