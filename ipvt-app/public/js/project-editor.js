@@ -12,6 +12,7 @@ import { initMenuCollapsible } from './menu-collapsible.js';
 import { initInitialView } from './features/initial-view.js';
 import { reloadInitialViews } from './marzipano-viewer.js';
 import { io } from '/socket.io/socket.io.esm.min.js';
+import { registerTabStateSocket } from './socket-tab-state.js';
 
 /* Handles resolve project id. */
 function resolveProjectId(projects, token) {
@@ -61,6 +62,7 @@ if (!getProjectId()) {
   // Realtime project name updates
   try {
     const socket = io();
+    registerTabStateSocket(socket);
     (async () => {
       try {
         const res = await fetch('/api/projects');
@@ -69,10 +71,16 @@ if (!getProjectId()) {
         const pid = resolveProjectId(projects, raw);
         if (pid) socket.emit('joinProject', pid);
         socket.on('projects:changed', (projectsUpdate) => {
-          const projId = resolveProjectId(projectsUpdate, raw);
-          if (!projId) return;
-          const proj = Array.isArray(projectsUpdate) ? projectsUpdate.find(p => p.id === projId) : null;
-          if (proj && proj.name) setProjectName(proj.name);
+          (async () => {
+            try {
+              const nextRes = await fetch('/api/projects');
+              const nextProjects = await nextRes.json();
+              const projId = resolveProjectId(nextProjects, raw);
+              if (!projId) return;
+              const proj = Array.isArray(nextProjects) ? nextProjects.find(p => p.id === projId) : null;
+              if (proj && proj.name) setProjectName(proj.name);
+            } catch (_e) {}
+          })();
         });
       } catch (e) {}
     })();

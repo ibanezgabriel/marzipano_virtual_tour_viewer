@@ -1,17 +1,18 @@
 /* Broadcasts project-related socket events. */
-const { getProjectsManifest } = require('./project-manifest.service');
-
 /* Gets get io. */
 function getIo(app) {
   return app && typeof app.get === 'function' ? app.get('io') : null;
 }
 
 /* Notifies listeners about emit projects changed. */
-function emitProjectsChanged(app) {
+function emitProjectsChanged(app, { projectId = null, type = 'changed' } = {}) {
   try {
     const io = getIo(app);
     if (!io) return;
-    io.emit('projects:changed', getProjectsManifest());
+    io.emit('projects:changed', {
+      type: String(type || 'changed'),
+      projectId: projectId ? String(projectId) : null,
+    });
   } catch (error) {
     console.error('Socket emit error:', error);
   }

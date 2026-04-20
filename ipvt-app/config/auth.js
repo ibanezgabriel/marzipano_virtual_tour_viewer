@@ -1,9 +1,10 @@
 /* Stores authentication-related configuration values. */
 const SESSION_COOKIE_NAME = 'ipvt_session';
+const IS_PRODUCTION = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
 const SESSION_COOKIE_OPTIONS = {
   httpOnly: true,
-  sameSite: 'lax',
-  secure: false,
+  sameSite: 'strict',
+  secure: IS_PRODUCTION,
   path: '/',
 };
 

@@ -4,11 +4,18 @@ const path = require('path');
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3152;
 
-const sslOptions = {
-  key: fs.readFileSync(path.join(__dirname, '..', 'certificates/key.pem')),
-  cert: fs.readFileSync(path.join(__dirname, '..', 'certificates/cert.pem')),
-};
+const SSL_KEY_PATH = path.join(__dirname, '..', 'certificates', 'key.pem');
+const SSL_CERT_PATH = path.join(__dirname, '..', 'certificates', 'cert.pem');
+
+function getSslOptions() {
+  return {
+    key: fs.readFileSync(SSL_KEY_PATH),
+    cert: fs.readFileSync(SSL_CERT_PATH),
+  };
+}
 module.exports = {
   PORT,
-  sslOptions,
+  SSL_KEY_PATH,
+  SSL_CERT_PATH,
+  getSslOptions,
 };

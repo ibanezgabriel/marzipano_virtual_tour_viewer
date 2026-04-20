@@ -411,6 +411,53 @@ function initLogoutOnTabClose() {
   window.addEventListener('beforeunload', handlePotentialClose);
 }
 
+let tabStateSocketBound = false;
+
+function getCurrentTabState() {
+  try {
+    return document.visibilityState === 'hidden' ? 'hidden' : 'visible';
+  } catch (_e) {
+    return 'visible';
+  }
+}
+
+function bindTabStateSocket(socket) {
+  if (!socket || typeof socket.emit !== 'function') return;
+
+  try {
+    socket.emit('tabState', { state: getCurrentTabState() });
+  } catch (_e) {}
+
+  if (tabStateSocketBound) return;
+  tabStateSocketBound = true;
+
+  try {
+    document.addEventListener(
+      'visibilitychange',
+      () => {
+        try {
+          socket.emit('tabState', { state: getCurrentTabState() });
+        } catch (_e) {}
+      },
+      { passive: true }
+    );
+  } catch (_e) {}
+
+  const closing = (ev) => {
+    try {
+      if (ev && ev.persisted) return; // bfcache
+    } catch (_e) {}
+    try {
+      socket.emit('tabState', { state: 'closing' });
+    } catch (_e) {}
+  };
+
+  try {
+    window.addEventListener('pagehide', closing, { passive: true });
+    window.addEventListener('beforeunload', closing, { capture: true });
+  } catch (_e) {}
+}
+
 function initSessionPresenceSocket() {
   try {
     if (sessionPresenceSocket) return;
@@ -418,6 +465,7 @@ function initSessionPresenceSocket() {
     // Requires the Socket.IO client to be available as a global `io` function.
     if (typeof window.io !== 'function') return;
     sessionPresenceSocket = window.io();
+    bindTabStateSocket(sessionPresenceSocket);
   } catch (_e) {}
 }
 

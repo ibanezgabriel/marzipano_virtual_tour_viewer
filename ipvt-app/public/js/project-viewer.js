@@ -6,6 +6,7 @@ import { initLayoutsClient, reloadLayoutHotspotsClient, reloadLayoutsListClient 
 import { getProjectId } from './project-context.js';
 import { initMenuCollapsible } from './menu-collapsible.js';
 import { io } from '/socket.io/socket.io.esm.min.js';
+import { registerTabStateSocket } from './socket-tab-state.js';
 
 let projectNameResizeBound = false;
 
@@ -176,14 +177,6 @@ if (!getProjectId()) {
     initViewerModeToggle();
     await initHotspotsClient();
     await initBlurMasksClient();
-    let canonicalId = getProjectId();
-    try {
-      const res = await fetch('/api/projects');
-      const projects = await res.json();
-      canonicalId = resolveProjectId(projects, getProjectId());
-      const project = Array.isArray(projects) ? projects.find(p => p.id === canonicalId) : null;
-      if (project && project.name) updateProjectNameUi(project.name);
-    } catch {}
     loadImages();
     initLayoutsClient();
   });
@@ -191,18 +184,16 @@ if (!getProjectId()) {
   // Realtime project name updates for client viewers
   try {
     const socket = io();
+    registerTabStateSocket(socket);
     (async () => {
       try {
-        const res = await fetch('/api/projects');
-        const projects = await res.json();
+        // Project list is admin-only; for public viewers we can still attempt to join
+        // by project token (server will validate token -> manifest id).
         const raw = getProjectId();
-        const pid = resolveProjectId(projects, raw);
-        if (pid) socket.emit('joinProject', pid);
+        if (raw) socket.emit('joinProject', raw);
         socket.on('projects:changed', (projectsUpdate) => {
-          const projId = resolveProjectId(projectsUpdate, raw);
-          if (!projId) return;
-          const proj = Array.isArray(projectsUpdate) ? projectsUpdate.find(p => p.id === projId) : null;
-          if (proj && proj.name) updateProjectNameUi(proj.name);
+          // Project list updates are private; ignore in public viewer mode.
+          void projectsUpdate;
         });
       } catch (e) {}
     })();

@@ -24,9 +24,32 @@ const {
 
 const router = express.Router();
 
+const SAFE_RENAME_PATTERN = /^[a-zA-Z0-9-_ ]+$/;
+
+function validateRenameFilename(filename, label) {
+  const value = String(filename || '').trim();
+  if (!value) return `${label} is required`;
+  if (value.length > 50) return `${label} must be 50 characters or less`;
+  if (value.includes('..') || value.includes('/') || value.includes('\\')) return `Invalid ${label.toLowerCase()}`;
+  if (value.endsWith('.') || value.endsWith(' ')) return `Invalid ${label.toLowerCase()}`;
+
+  const ext = path.extname(value);
+  const base = ext ? value.slice(0, -ext.length) : value;
+  const baseName = path.basename(base);
+  if (!SAFE_RENAME_PATTERN.test(baseName)) return `Invalid ${label.toLowerCase()}`;
+  if (ext) {
+    const extValue = ext.slice(1);
+    if (!/^[a-zA-Z0-9]+$/.test(extValue)) return `Invalid ${label.toLowerCase()}`;
+  }
+  return null;
+}
+
 /* Wires HTTP endpoints to their controller handlers. */
 router.post('/upload-layout', layoutUpload.array('layout', 20), async (req, res) => {
   if (!req.files || req.files.length === 0) {
+    if (req.fileValidationError) {
+      return res.status(400).json({ success: false, message: req.fileValidationError });
+    }
     return res.status(400).json({ success: false, message: 'no file uploaded' });
   }
   const paths = resolvePaths(req);
@@ -76,6 +99,10 @@ router.put('/upload-layout/update', layoutUpload.single('layout'), async (req, r
   if (!oldFilename) {
     await cleanupUploadedFile();
     return res.status(400).json({ success: false, message: 'Old filename is required' });
+  }
+  if (req.fileValidationError) {
+    await cleanupUploadedFile();
+    return res.status(400).json({ success: false, message: req.fileValidationError });
   }
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'No new file uploaded' });
@@ -190,9 +217,10 @@ router.put('/upload-layout/update', layoutUpload.single('layout'), async (req, r
 
 router.put('/api/layouts/rename', async (req, res) => {
   const { oldFilename, newFilename } = req.body || {};
-  if (!oldFilename || !newFilename) {
-    return res.status(400).json({ success: false, message: 'Both old and new filenames are required' });
-  }
+  const oldError = validateRenameFilename(oldFilename, 'Old filename');
+  if (oldError) return res.status(400).json({ success: false, message: oldError });
+  const newError = validateRenameFilename(newFilename, 'New filename');
+  if (newError) return res.status(400).json({ success: false, message: newError });
   if (
     oldFilename.includes('..') || oldFilename.includes('/') || oldFilename.includes('\\') ||
     newFilename.includes('..') || newFilename.includes('/') || newFilename.includes('\\')
@@ -274,6 +302,14 @@ router.put('/api/layouts/order', (req, res) => {
     console.error('Error writing layout order:', error);
     return res.status(500).json({ error: 'Unable to save order' });
   }
+});
+
+router.use((err, _req, res, next) => {
+  if (!err) return next();
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ success: false, message: 'File too large. Maximum size is 30MB.' });
+  }
+  return next(err);
 });
 
 module.exports = router;

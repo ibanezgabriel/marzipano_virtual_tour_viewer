@@ -20,6 +20,7 @@ const renameProjectErrorEl = document.getElementById('rename-project-error');
 const renameModalCancelBtn = document.getElementById('rename-modal-cancel');
 const renameModalSaveBtn = document.getElementById('rename-modal-save');
 import { io } from '/socket.io/socket.io.esm.min.js';
+import { registerTabStateSocket } from './socket-tab-state.js';
 
 const MAX_PROJECT_NAME_LENGTH = 150;
 const MAX_PROJECT_NUMBER_LENGTH = 20;
@@ -704,14 +705,21 @@ loadProjects();
 // Realtime updates: update project list when other clients change it
 try {
   const socket = io();
+  registerTabStateSocket(socket);
   socket.on('projects:changed', (projects) => {
-    if (!Array.isArray(projects)) return;
-    allProjects = mergeProjectStatuses(allProjects, projects);
-    applyProjectSearch();
-    if (openProjectModal && openProjectModal.classList.contains('visible')) {
-      openProjectProjects = mergeProjectStatuses(openProjectProjects, projects);
-      applyOpenProjectSearch();
-    }
+    // Server no longer broadcasts the full manifest for privacy.
+    // Refresh from the authenticated API instead.
+    (async () => {
+      try {
+        const fetched = await fetchProjects();
+        allProjects = mergeProjectStatuses(allProjects, fetched);
+        applyProjectSearch();
+        if (openProjectModal && openProjectModal.classList.contains('visible')) {
+          openProjectProjects = mergeProjectStatuses(openProjectProjects, fetched);
+          applyOpenProjectSearch();
+        }
+      } catch (_e) {}
+    })();
   });
 } catch (e) {
   // ignore if sockets unavailable

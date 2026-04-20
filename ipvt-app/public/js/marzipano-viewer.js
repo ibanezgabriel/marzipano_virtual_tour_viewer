@@ -81,6 +81,8 @@ const panoViewerEl = document.getElementById('pano-viewer');
 const headerTextEl = document.getElementById('pano-header-text');
 const headerEl = document.getElementById('pano-header');
 const IS_ADMIN_CONTEXT = typeof window !== 'undefined' && /project-editor\.html$/i.test(window.location.pathname);
+const FORCE_HEADER_VISIBLE = Boolean(document.body && document.body.dataset && document.body.dataset.headerAlwaysVisible === '1');
+const DEFAULT_HEADER_TITLE = (document.body && document.body.dataset && document.body.dataset.headerTitle) ? String(document.body.dataset.headerTitle) : '';
 
 function stripViewerExtension(filename) {
   if (typeof filename !== 'string') return '';
@@ -152,7 +154,15 @@ function syncMultiSelectionClasses() {
 /* Updates update header text. */
 function updateHeaderText() {
   if (headerTextEl && headerEl) {
-    headerTextEl.textContent = projectName || '';
+    const title = projectName || DEFAULT_HEADER_TITLE || '';
+    headerTextEl.textContent = title;
+
+    if (FORCE_HEADER_VISIBLE) {
+      headerEl.style.display = '';
+      document.body.classList.remove('no-pano-header');
+      return;
+    }
+
     headerEl.style.display = projectName ? '' : 'none';
     if (projectName) document.body.classList.remove('no-pano-header');
     else document.body.classList.add('no-pano-header');

@@ -107,7 +107,7 @@ async function create(req, res) {
     return res.status(500).json({ success: false, message: 'Project saved, but database sync failed.' });
   }
 
-  emitProjectsChanged(req.app);
+  emitProjectsChanged(req.app, { projectId: id, type: 'created' });
   return res.json(project);
 }
 
@@ -240,7 +240,7 @@ async function update(req, res) {
     return res.status(500).json({ success: false, message: 'Project updated, but database sync failed.' });
   }
 
-  emitProjectsChanged(req.app);
+  emitProjectsChanged(req.app, { projectId: projects[index].id, type: 'updated' });
   return res.json(projects[index]);
 }
 
