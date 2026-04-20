@@ -16,7 +16,9 @@ async function startServer() {
   app.set('io', io);
   registerSocketHandlers(io);
 
-  await clearAllSessions();
+  if (String(process.env.CLEAR_ALL_SESSIONS_ON_START || '').trim() === 'true') {
+    await clearAllSessions();
+  }
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running at https://localhost:${PORT}`);

@@ -18,6 +18,23 @@ const {
 
 const router = express.Router();
 
+// In-memory per-file lock to serialize writes and avoid duplicate audit entries
+// when multiple identical POSTs arrive nearly simultaneously (e.g., retry/refresh/race).
+const fileWriteLocks = new Map();
+
+function withFileWriteLock(lockKey, task) {
+  const key = String(lockKey || '').trim();
+  if (!key) return task();
+  const prev = fileWriteLocks.get(key);
+  const start = prev ? prev.catch(() => {}) : Promise.resolve();
+  const next = start.then(() => task());
+  fileWriteLocks.set(key, next);
+  next.finally(() => {
+    if (fileWriteLocks.get(key) === next) fileWriteLocks.delete(key);
+  });
+  return next;
+}
+
 /* Handles round hotspot number. */
 function roundHotspotNumber(value) {
   const num = Number(value);
@@ -278,51 +295,53 @@ router.post('/api/hotspots', async (req, res) => {
   }
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  const beforeRaw = readJsonFileOrDefault(paths.hotspotsPath, {});
-  const before = normalizeTopLevelArrayMap(beforeRaw);
-  const normalizedBody = normalizeTopLevelArrayMap(body);
-  const changed = diffChangedTopLevelKeys(before, normalizedBody);
-  const json = JSON.stringify(normalizedBody, null, 2);
-  try {
-    await fs.promises.mkdir(path.dirname(paths.hotspotsPath), { recursive: true });
-    await fs.promises.writeFile(paths.hotspotsPath, json, 'utf8');
+  return withFileWriteLock(paths.hotspotsPath, async () => {
+    const beforeRaw = readJsonFileOrDefault(paths.hotspotsPath, {});
+    const before = normalizeTopLevelArrayMap(beforeRaw);
+    const normalizedBody = normalizeTopLevelArrayMap(body);
+    const changed = diffChangedTopLevelKeys(before, normalizedBody);
+    const json = JSON.stringify(normalizedBody, null, 2);
     try {
-      changed.forEach((filename) => {
-        const imagePath = path.join(paths.uploadsDir, filename);
-        if (!fs.existsSync(imagePath)) return;
-        const beforeList = before && before[filename];
-        const afterList = normalizedBody && normalizedBody[filename];
-        const beforeCount = Array.isArray(beforeList) ? beforeList.length : 0;
-        const afterCount = Array.isArray(afterList) ? afterList.length : 0;
-        const { created, deleted } = diffHotspotEntryKeys(beforeList, afterList, 'pano');
+      await fs.promises.mkdir(path.dirname(paths.hotspotsPath), { recursive: true });
+      await fs.promises.writeFile(paths.hotspotsPath, json, 'utf8');
+      try {
+        changed.forEach((filename) => {
+          const imagePath = path.join(paths.uploadsDir, filename);
+          if (!fs.existsSync(imagePath)) return;
+          const beforeList = before && before[filename];
+          const afterList = normalizedBody && normalizedBody[filename];
+          const beforeCount = Array.isArray(beforeList) ? beforeList.length : 0;
+          const afterCount = Array.isArray(afterList) ? afterList.length : 0;
+          const { created, deleted } = diffHotspotEntryKeys(beforeList, afterList, 'pano');
 
-        created.forEach(() => {
-          const action = 'Pano_Hotspot_Create';
-          appendAuditEntry(paths, 'pano', filename, {
-            action,
-            message: formatEditorAuditMessage(action, { filename }),
-            meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
+          created.forEach(() => {
+            const action = 'Pano_Hotspot_Create';
+            appendAuditEntry(paths, 'pano', filename, {
+              action,
+              message: formatEditorAuditMessage(action, { filename }),
+              meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
+            });
+          });
+
+          deleted.forEach(() => {
+            const action = 'Pano_Hotspot_Delete';
+            appendAuditEntry(paths, 'pano', filename, {
+              action,
+              message: formatEditorAuditMessage(action, { filename }),
+              meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
+            });
           });
         });
-
-        deleted.forEach(() => {
-          const action = 'Pano_Hotspot_Delete';
-          appendAuditEntry(paths, 'pano', filename, {
-            action,
-            message: formatEditorAuditMessage(action, { filename }),
-            meta: buildAuditMeta({ beforeCount, afterCount }, req.authUser),
-          });
-        });
-      });
-    } catch (_error) {}
-    await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
-    res.json({ success: true, unchanged: changed.length === 0 });
-    if (changed.length === 0) return;
-    emitToProject(req.app, paths.projectId, 'hotspots:changed', normalizedBody);
-  } catch (error) {
-    console.error('Hotspot save failed:', error);
-    return res.status(500).json({ error: 'Unable to save hotspots' });
-  }
+      } catch (_error) {}
+      await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
+      res.json({ success: true, unchanged: changed.length === 0 });
+      if (changed.length === 0) return;
+      emitToProject(req.app, paths.projectId, 'hotspots:changed', normalizedBody);
+    } catch (error) {
+      console.error('Hotspot save failed:', error);
+      return res.status(500).json({ error: 'Unable to save hotspots' });
+    }
+  });
 });
 
 router.get('/api/initial-views', (req, res) => {

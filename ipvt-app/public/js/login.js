@@ -23,6 +23,8 @@ let idleLogoutInProgress = false;
 let tabCloseLogoutInitialized = false;
 let tabCloseLogoutInProgress = false;
 
+let sessionPresenceSocket = null;
+
 const INTERNAL_NAV_KEY = 'ipvt_internal_nav_ts';
 
 function markInternalNavigation() {
@@ -409,6 +411,16 @@ function initLogoutOnTabClose() {
   window.addEventListener('beforeunload', handlePotentialClose);
 }
 
+function initSessionPresenceSocket() {
+  try {
+    if (sessionPresenceSocket) return;
+    if (typeof window === 'undefined') return;
+    // Requires the Socket.IO client to be available as a global `io` function.
+    if (typeof window.io !== 'function') return;
+    sessionPresenceSocket = window.io();
+  } catch (_e) {}
+}
+
 const DIALOG_OVERLAY_ID = 'app-dialog-overlay';
 const DIALOG_BOX_ID = 'app-dialog-box';
 const DIALOG_TITLE_ID = 'app-dialog-title';
@@ -584,7 +596,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       currentUser = user;
       updateCurrentUserUi(user);
       initIdleLogoutTimer();
-      initLogoutOnTabClose();
+      initSessionPresenceSocket();
     }
     return;
   }
@@ -592,7 +604,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   const user = await checkAuthentication();
   if (user) {
     initIdleLogoutTimer();
-    initLogoutOnTabClose();
+    initSessionPresenceSocket();
   }
 });
 
