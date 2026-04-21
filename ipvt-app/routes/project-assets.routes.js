@@ -6,8 +6,10 @@ const {
   attachAuthenticatedUser,
   requireAuthenticatedApi,
 } = require('../middleware/auth.middleware');
+const { getHiddenPanosSet } = require('../services/project-media.service');
 const { findProjectByIdOrNumber } = require('../services/project-manifest.service');
 const { getProjectPaths } = require('../services/project-paths.service');
+const { tileIdFromFilename } = require('../public/js/tiler');
 
 function isUnsafeFilename(value) {
   const name = String(value || '');
@@ -50,7 +52,35 @@ function createProjectAssetsRouter() {
   });
 
   router.use('/layouts', createStaticProjectDirMiddleware('layouts'));
-  router.use('/tiles', createStaticProjectDirMiddleware('tiles'));
+  router.use(
+    '/tiles',
+    attachAuthenticatedUser,
+    (req, res, next) => {
+      if (req.authUser) return next();
+      const token = req.params.projectId;
+      const project = findProjectByIdOrNumber(token);
+      const projectId = project ? project.id : token;
+      const projectPaths = getProjectPaths(projectId);
+      if (!projectPaths) return res.status(400).send('Invalid project');
+
+      const requestedTileId = String(req.path || '')
+        .split('/')
+        .filter(Boolean)[0];
+      if (!requestedTileId) return next();
+
+      const hiddenPanosPath = path.join(projectPaths.data, 'hidden-panos.json');
+      const hiddenSet = getHiddenPanosSet({ hiddenPanosPath });
+      if (!hiddenSet || hiddenSet.size === 0) return next();
+
+      const hiddenTileIds = new Set(Array.from(hiddenSet).map((filename) => tileIdFromFilename(filename)));
+      if (hiddenTileIds.has(requestedTileId)) {
+        return res.status(404).send('Not found');
+      }
+
+      return next();
+    },
+    createStaticProjectDirMiddleware('tiles')
+  );
   return router;
 }
 

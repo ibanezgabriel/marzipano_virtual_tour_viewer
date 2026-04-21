@@ -92,6 +92,7 @@ function resolvePaths(req) {
     initialViewsPath: path.join(projectPaths.data, 'initial-views.json'),
     panoramaOrderPath: path.join(projectPaths.data, 'panorama-order.json'),
     layoutOrderPath: path.join(projectPaths.data, 'layout-order.json'),
+    hiddenPanosPath: path.join(projectPaths.data, 'hidden-panos.json'),
     projectId,
   };
 }

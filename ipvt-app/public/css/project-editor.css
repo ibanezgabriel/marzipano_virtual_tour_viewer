@@ -275,6 +275,13 @@
     background-color: #115272;
     color: #fff;
 }
+/* Hidden panoramas remain manageable in the editor, but are visually de-emphasized. */
+#pano-image-list li.pano-hidden:not(.active) {
+    opacity: 0.7;
+}
+#pano-image-list li.pano-hidden .pano-item-name {
+    font-style: italic;
+}
 /* Highlights the active form control. */
 #pano-image-list li.multi-selected:not(.active) {
     background-color: #d43f3f;

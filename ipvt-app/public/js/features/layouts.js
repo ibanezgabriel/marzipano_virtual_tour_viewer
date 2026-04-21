@@ -22,6 +22,7 @@ export const layoutApi = {
   updateForRenamedPano(_oldName, _newName) {},
   cleanupForDeletedPano(_deletedName) {},
   reloadList() {},
+  reloadHotspots() {},
 };
 
 export function initLayouts() {
@@ -84,6 +85,38 @@ export function initLayouts() {
       if (maxId >= 0) nextLayoutHotspotId = maxId + 1;
     } catch (e) {
       console.warn('Could not load layout hotspots from localStorage', e);
+    }
+  }
+
+  /* Loads layout hotspots from the server into memory. */
+  async function loadLayoutHotspotsFromServer() {
+    try {
+      const res = await fetch(appendProjectParams('/api/layout-hotspots'), { cache: 'no-store' });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!data || typeof data !== 'object') return false;
+
+      layoutHotspotsByFile.clear();
+      let maxId = -1;
+      Object.entries(data).forEach(([filename, list]) => {
+        if (!Array.isArray(list)) return;
+        const entries = list.map((entry) => {
+          const id = Number(entry.id);
+          if (id > maxId) maxId = id;
+          return {
+            id,
+            x: Number(entry.x),
+            y: Number(entry.y),
+            linkTo: entry.linkTo || undefined,
+          };
+        });
+        layoutHotspotsByFile.set(filename, entries);
+      });
+      if (maxId >= 0) nextLayoutHotspotId = maxId + 1;
+      return true;
+    } catch (e) {
+      console.warn('Could not load layout hotspots from server', e);
+      return false;
     }
   }
 
@@ -579,6 +612,13 @@ export function initLayouts() {
     return loadLayouts();
   };
 
+  layoutApi.reloadHotspots = async function () {
+    await loadLayoutHotspotsFromServer();
+    if (selectedLayout) {
+      showPreview(selectedLayout);
+    }
+  };
+
   // Highlight hotspot when panorama loads in viewer (admin)
   try {
     registerOnSceneLoad(() => {
@@ -943,33 +983,7 @@ export function initLayouts() {
   // Initial load: hotspots then layouts
   (async () => {
     loadLayoutHotspotsFromStorage();
-    try {
-      const res = await fetch(appendProjectParams('/api/layout-hotspots'), { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && typeof data === 'object') {
-          layoutHotspotsByFile.clear();
-          let maxId = -1;
-          Object.entries(data).forEach(([filename, list]) => {
-            if (!Array.isArray(list)) return;
-            const entries = list.map((entry) => {
-              const id = Number(entry.id);
-              if (id > maxId) maxId = id;
-              return {
-                id,
-                x: Number(entry.x),
-                y: Number(entry.y),
-                linkTo: entry.linkTo || undefined,
-              };
-            });
-            layoutHotspotsByFile.set(filename, entries);
-          });
-          if (maxId >= 0) nextLayoutHotspotId = maxId + 1;
-        }
-      }
-    } catch (e) {
-      console.warn('Could not load layout hotspots from server', e);
-    }
+    await loadLayoutHotspotsFromServer();
     loadLayouts();
   })();
 }

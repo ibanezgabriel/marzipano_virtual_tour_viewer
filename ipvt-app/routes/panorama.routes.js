@@ -6,6 +6,7 @@ const { panoramaUpload } = require('../middleware/upload.middleware');
 const { resolvePaths } = require('../services/project-paths.service');
 const { syncProjectToDatabaseOrThrow } = require('../services/project-sync.service');
 const { emitToProject } = require('../services/project-events.service');
+const { attachAuthenticatedUser, requireAuthenticatedApi } = require('../middleware/auth.middleware');
 const { createJob } = require('../services/job.service');
 const {
   appendAuditEntry,
@@ -23,6 +24,9 @@ const {
   ensureTilesForFilename,
   renameBlurMasksForPano,
   clearBlurMasksForFilenames,
+  getHiddenPanosSet,
+  isPanoramaHidden,
+  setPanoramaHidden,
 } = require('../services/project-media.service');
 const {
   buildTilesForImage,
@@ -124,7 +128,7 @@ router.post('/upload', panoramaUpload.array('panorama', 20), async (req, res) =>
   })();
 });
 
-router.get('/upload', async (req, res) => {
+router.get('/upload', attachAuthenticatedUser, requireAuthenticatedApi, async (req, res) => {
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
   try {
@@ -135,13 +139,20 @@ router.get('/upload', async (req, res) => {
   }
 });
 
-router.get('/api/panos', async (req, res) => {
+router.get('/api/panos', attachAuthenticatedUser, async (req, res) => {
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
+  const includeHidden = String(req.query && req.query.includeHidden || '').trim() === '1';
+  if (includeHidden && !req.authUser) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  const hiddenSet = getHiddenPanosSet(paths);
   try {
     const files = await getOrderedFilenames(paths);
     const result = [];
     for (const filename of files) {
+      const hidden = hiddenSet.has(filename);
+      if (hidden && !includeHidden) continue;
       const meta = await readTilesMeta({ tilesRootDir: paths.tilesDir, filename });
       result.push({
         filename,
@@ -150,6 +161,7 @@ router.get('/api/panos', async (req, res) => {
         tileSize: meta?.tileSize,
         levels: meta?.levels,
         aspectOk: meta?.aspectOk,
+        hidden,
       });
     }
     return res.json(result);
@@ -183,13 +195,37 @@ router.get('/api/panos/:filename', async (req, res) => {
   if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
     return res.status(400).json({ error: 'Invalid filename' });
   }
+  await attachAuthenticatedUser(req, res, () => {});
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
+  if (!req.authUser && isPanoramaHidden(paths, filename)) {
+    return res.status(404).json({ error: 'Not found' });
+  }
   try {
     const meta = await ensureTilesForFilename(paths, filename);
     return res.json(meta);
   } catch (error) {
     return res.status(500).json({ error: String(error.message || error) });
+  }
+});
+
+router.put('/api/panos/visibility', attachAuthenticatedUser, requireAuthenticatedApi, async (req, res) => {
+  const { filename, hidden } = req.body || {};
+  const value = String(filename || '').trim();
+  if (!value) return res.status(400).json({ success: false, message: 'filename required' });
+  if (value.includes('..') || value.includes('/') || value.includes('\\')) {
+    return res.status(400).json({ success: false, message: 'Invalid filename' });
+  }
+  const paths = resolvePaths(req);
+  if (!paths) return res.status(400).json({ success: false, message: 'Project required' });
+  const nextHidden = Boolean(hidden);
+  try {
+    setPanoramaHidden(paths, value, nextHidden);
+    emitToProject(req.app, paths.projectId, 'panos:visibility', { filename: value, hidden: nextHidden });
+    return res.json({ success: true, filename: value, hidden: nextHidden });
+  } catch (error) {
+    console.error('Error updating pano visibility:', error);
+    return res.status(500).json({ success: false, message: 'Unable to update visibility' });
   }
 });
 
@@ -246,6 +282,15 @@ router.put('/upload/rename', async (req, res) => {
     }
 
     panoramaOrderReplace(paths, oldFilename, newFilename);
+    try {
+      const wasHidden = isPanoramaHidden(paths, oldFilename);
+      if (wasHidden) {
+        setPanoramaHidden(paths, oldFilename, false);
+        setPanoramaHidden(paths, newFilename, true);
+      }
+    } catch (error) {
+      console.error('Could not preserve hidden status during rename:', error);
+    }
     const blurRename = renameBlurMasksForPano(paths, oldFilename, newFilename);
     if (blurRename.changed) {
       emitToProject(req.app, paths.projectId, 'blur-masks:changed', blurRename.blurMasks);
@@ -330,6 +375,15 @@ router.put('/upload/update', panoramaUpload.single('panorama'), (req, res) => {
         },
       });
       panoramaOrderReplace(paths, oldFilename, newFilename);
+      try {
+        const wasHidden = isPanoramaHidden(paths, oldFilename);
+        if (wasHidden) {
+          setPanoramaHidden(paths, oldFilename, false);
+          setPanoramaHidden(paths, newFilename, true);
+        }
+      } catch (error) {
+        console.error('Could not preserve hidden status during update:', error);
+      }
       // Updating a panorama replaces the image content; previous blur masks are no longer valid.
       // Remove them (and let DB sync delete them) without writing blur-mask audit logs.
       const blurClear = clearBlurMasksForFilenames(paths, [oldFilename, newFilename]);

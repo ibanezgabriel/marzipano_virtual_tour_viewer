@@ -8,6 +8,46 @@ const {
 
 const IMAGE_PATTERN = /\.(jpg|jpeg|png|gif|webp|jfif)$/i;
 
+function readHiddenPanosSet(hiddenPanosPath) {
+  try {
+    const raw = fs.readFileSync(hiddenPanosPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return new Set(parsed.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim()));
+    }
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.error('Error reading hidden panos:', error);
+  }
+  return new Set();
+}
+
+function writeHiddenPanosSet(hiddenPanosPath, set) {
+  const dir = path.dirname(hiddenPanosPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const list = Array.from(set || []).filter(Boolean);
+  fs.writeFileSync(hiddenPanosPath, JSON.stringify(list, null, 2), 'utf8');
+}
+
+function isPanoramaHidden(paths, filename) {
+  if (!paths || !paths.hiddenPanosPath || !filename) return false;
+  const set = readHiddenPanosSet(paths.hiddenPanosPath);
+  return set.has(filename);
+}
+
+function setPanoramaHidden(paths, filename, hidden) {
+  if (!paths || !paths.hiddenPanosPath) throw new Error('hiddenPanosPath missing');
+  const set = readHiddenPanosSet(paths.hiddenPanosPath);
+  if (hidden) set.add(filename);
+  else set.delete(filename);
+  writeHiddenPanosSet(paths.hiddenPanosPath, set);
+  return set;
+}
+
+function getHiddenPanosSet(paths) {
+  if (!paths || !paths.hiddenPanosPath) return new Set();
+  return readHiddenPanosSet(paths.hiddenPanosPath);
+}
+
 /* Returns uploaded panorama image filenames. */
 async function listUploadedImages(uploadsDir) {
   const files = await fs.promises.readdir(uploadsDir);
@@ -273,6 +313,9 @@ async function ensureTilesForFilename(paths, filename) {
 
 module.exports = {
   listUploadedImages,
+  getHiddenPanosSet,
+  isPanoramaHidden,
+  setPanoramaHidden,
   readLayoutOrder,
   writeLayoutOrder,
   getOrderedLayoutFilenames,

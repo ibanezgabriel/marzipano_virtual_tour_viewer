@@ -202,6 +202,12 @@ if (!getProjectId()) {
     socket.on('pano:updated', () => loadImages());
     socket.on('pano:removed', () => loadImages());
     socket.on('panos:order', () => loadImages());
+    socket.on('panos:visibility', () => {
+      loadImages();
+      try { reloadHotspotsClient(); } catch (e) {}
+      try { reloadLayoutHotspotsClient(); } catch (e) {}
+      try { reloadLayoutsListClient(); } catch (e) {}
+    });
     socket.on('hotspots:changed', () => { try { reloadHotspotsClient(); } catch (e) {} });
     socket.on('blur-masks:changed', () => { try { reloadBlurMasksClient(); } catch (e) {} });
     socket.on('layout-hotspots:changed', () => { try { reloadLayoutHotspotsClient(); } catch (e) {} });

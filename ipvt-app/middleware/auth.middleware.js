@@ -55,6 +55,7 @@ function isProtectedMutationRequest(req) {
     /^\/api\/layouts\/[^/]+$/.test(requestPath) ||
     requestPath === '/api/layouts/order' ||
     requestPath === '/api/panos/order' ||
+    requestPath === '/api/panos/visibility' ||
     requestPath === '/upload/rename' ||
     requestPath === '/upload/update' ||
     requestPath === '/api/layout-hotspots' ||

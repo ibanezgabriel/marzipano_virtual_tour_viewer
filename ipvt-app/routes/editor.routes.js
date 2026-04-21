@@ -5,6 +5,8 @@ const path = require('path');
 const { resolvePaths } = require('../services/project-paths.service');
 const { syncProjectToDatabaseOrThrow } = require('../services/project-sync.service');
 const { emitToProject } = require('../services/project-events.service');
+const { attachAuthenticatedUser } = require('../middleware/auth.middleware');
+const { getHiddenPanosSet } = require('../services/project-media.service');
 const {
   appendAuditEntry,
   buildAuditMeta,
@@ -17,6 +19,8 @@ const {
 } = require('../services/audit.service');
 
 const router = express.Router();
+
+router.use(attachAuthenticatedUser);
 
 // In-memory per-file lock to serialize writes and avoid duplicate audit entries
 // when multiple identical POSTs arrive nearly simultaneously (e.g., retry/refresh/race).
@@ -134,6 +138,67 @@ function diffBlurMaskEntries(beforeList, afterList) {
   return { created, deleted, updated };
 }
 
+function filterPanoramaHotspotsForResponse(data, hiddenSet, { authenticated } = {}) {
+  const out = {};
+  if (!data || typeof data !== 'object') return out;
+  Object.keys(data).forEach((key) => {
+    if (hiddenSet && hiddenSet.has(key)) return;
+    const list = Array.isArray(data[key]) ? data[key] : [];
+    const next = [];
+    list.forEach((entry) => {
+      if (!entry || typeof entry !== 'object') return;
+      const linkTo = typeof entry.linkTo === 'string' ? entry.linkTo : '';
+      if (linkTo && hiddenSet && hiddenSet.has(linkTo)) {
+        if (authenticated) {
+          next.push({ ...entry, linkTo: undefined });
+        }
+        return;
+      }
+      if (!authenticated && !linkTo) return;
+      next.push(entry);
+    });
+    if (next.length > 0) out[key] = next;
+  });
+  return out;
+}
+
+function filterLayoutHotspotsForResponse(data, hiddenSet, { authenticated } = {}) {
+  const out = {};
+  if (!data || typeof data !== 'object') return out;
+  Object.keys(data).forEach((key) => {
+    const list = Array.isArray(data[key]) ? data[key] : [];
+    const next = [];
+    list.forEach((entry) => {
+      if (!entry || typeof entry !== 'object') return;
+      const linkTo = typeof entry.linkTo === 'string' ? entry.linkTo : '';
+      if (linkTo && hiddenSet && hiddenSet.has(linkTo)) {
+        if (authenticated) {
+          next.push({ ...entry, linkTo: undefined });
+        }
+        return;
+      }
+      if (!authenticated && !linkTo) return;
+      next.push(entry);
+    });
+    if (next.length > 0) out[key] = next;
+  });
+  return out;
+}
+
+function findHiddenLinkTargets(body, hiddenSet) {
+  const found = new Set();
+  if (!body || typeof body !== 'object') return found;
+  Object.values(body).forEach((list) => {
+    (Array.isArray(list) ? list : []).forEach((entry) => {
+      const linkTo = entry && typeof entry === 'object' && typeof entry.linkTo === 'string'
+        ? entry.linkTo
+        : '';
+      if (linkTo && hiddenSet && hiddenSet.has(linkTo)) found.add(linkTo);
+    });
+  });
+  return found;
+}
+
 /* Gets read object file. */
 function readObjectFile(res, filePath, errorMessage) {
   fs.readFile(filePath, 'utf8', (error, data) => {
@@ -154,10 +219,21 @@ function readObjectFile(res, filePath, errorMessage) {
 router.get('/api/hotspots', (req, res) => {
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  return readObjectFile(res, paths.hotspotsPath, 'Unable to read hotspots');
+  return fs.promises.readFile(paths.hotspotsPath, 'utf8')
+    .then((raw) => {
+      const parsed = JSON.parse(raw);
+      const hiddenSet = getHiddenPanosSet(paths);
+      const authenticated = Boolean(req.authUser);
+      return res.json(filterPanoramaHotspotsForResponse(parsed, hiddenSet, { authenticated }));
+    })
+    .catch((error) => {
+      if (error && error.code === 'ENOENT') return res.json({});
+      return res.status(500).json({ error: 'Unable to read hotspots' });
+    });
 });
 
 router.get('/api/blur-masks', (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: 'Unauthorized' });
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
   return readObjectFile(res, paths.blurMasksPath, 'Unable to read blur masks');
@@ -166,7 +242,17 @@ router.get('/api/blur-masks', (req, res) => {
 router.get('/api/layout-hotspots', (req, res) => {
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
-  return readObjectFile(res, paths.layoutHotspotsPath, 'Unable to read layout hotspots');
+  return fs.promises.readFile(paths.layoutHotspotsPath, 'utf8')
+    .then((raw) => {
+      const parsed = JSON.parse(raw);
+      const hiddenSet = getHiddenPanosSet(paths);
+      const authenticated = Boolean(req.authUser);
+      return res.json(filterLayoutHotspotsForResponse(parsed, hiddenSet, { authenticated }));
+    })
+    .catch((error) => {
+      if (error && error.code === 'ENOENT') return res.json({});
+      return res.status(500).json({ error: 'Unable to read layout hotspots' });
+    });
 });
 
 router.post('/api/layout-hotspots', async (req, res) => {
@@ -176,6 +262,11 @@ router.post('/api/layout-hotspots', async (req, res) => {
   }
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
+  const hiddenSet = getHiddenPanosSet(paths);
+  const hiddenTargets = findHiddenLinkTargets(body, hiddenSet);
+  if (hiddenTargets.size > 0) {
+    return res.status(400).json({ error: `Cannot link hotspots to hidden panoramas: ${Array.from(hiddenTargets).join(', ')}` });
+  }
   const beforeRaw = readJsonFileOrDefault(paths.layoutHotspotsPath, {});
   const before = normalizeTopLevelArrayMap(beforeRaw);
   const normalizedBody = normalizeTopLevelArrayMap(body);
@@ -295,6 +386,11 @@ router.post('/api/hotspots', async (req, res) => {
   }
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
+  const hiddenSet = getHiddenPanosSet(paths);
+  const hiddenTargets = findHiddenLinkTargets(body, hiddenSet);
+  if (hiddenTargets.size > 0) {
+    return res.status(400).json({ error: `Cannot link hotspots to hidden panoramas: ${Array.from(hiddenTargets).join(', ')}` });
+  }
   return withFileWriteLock(paths.hotspotsPath, async () => {
     const beforeRaw = readJsonFileOrDefault(paths.hotspotsPath, {});
     const before = normalizeTopLevelArrayMap(beforeRaw);
@@ -345,12 +441,14 @@ router.post('/api/hotspots', async (req, res) => {
 });
 
 router.get('/api/initial-views', (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: 'Unauthorized' });
   const paths = resolvePaths(req);
   if (!paths) return res.status(400).json({ error: 'Project required' });
   return readObjectFile(res, paths.initialViewsPath, 'Unable to read initial views');
 });
 
 router.post('/api/initial-views', async (req, res) => {
+  if (!req.authUser) return res.status(401).json({ error: 'Unauthorized' });
   const body = req.body;
   if (typeof body !== 'object' || body === null) {
     return res.status(400).json({ error: 'Invalid payload' });

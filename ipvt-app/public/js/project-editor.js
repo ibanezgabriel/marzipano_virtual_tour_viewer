@@ -5,6 +5,7 @@ import { initLayouts, layoutApi } from './features/layouts.js';
 import { initAuditLogs, auditLogsApi } from './features/audit-logs.js';
 import { initRename } from './features/rename.js';
 import { initUpdate } from './features/update.js';
+import { initVisibility } from './features/visibility.js';
 import { initUpload } from './features/upload.js';
 import { initHotspots, cleanupHotspotsForDeletedImages, updateHotspotsForRenamedImage, reloadHotspots } from './features/hotspots.js';
 import { initBlurMasks, cleanupBlurMasksForDeletedImages, updateBlurMasksForRenamedImage, reloadBlurMasks } from './features/blur-masks.js';
@@ -37,6 +38,7 @@ if (!getProjectId()) {
 } else {
   initRename();
   initUpdate();
+  initVisibility();
   initUpload();
   initAuditLogs();
   initHotspots();
@@ -91,6 +93,12 @@ if (!getProjectId()) {
     });
     socket.on('panos:order', (payload) => {
       loadImages(cleanupSceneLinkedData);
+      try { auditLogsApi.refreshIfVisible(); } catch (e) {}
+    });
+    socket.on('panos:visibility', async () => {
+      loadImages(cleanupSceneLinkedData);
+      try { await reloadHotspots(); } catch (e) {}
+      try { await layoutApi.reloadHotspots(); } catch (e) {}
       try { auditLogsApi.refreshIfVisible(); } catch (e) {}
     });
     socket.on('pano:renamed', (payload) => {

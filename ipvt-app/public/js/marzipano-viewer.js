@@ -17,6 +17,8 @@ let selectedImageName = null;
 let multiSelectedImageNames = new Set();
 let lastMultiSelectIndex = null;
 let deleteSelectionMode = false;
+/** @type {Map<string, boolean>} filename -> hidden */
+let panoHiddenByFilename = new Map();
 /** @type {Array<() => void>} Callbacks run when a scene has finished loading (after switchTo). */
 let onSceneLoadCallbacks = [];
 let projectName = null;
@@ -100,6 +102,11 @@ function getDisplayFilename(filename) {
 /* Updates set list item filename. */
 function setListItemFilename(li, filename) {
   li.dataset.filename = filename;
+  const hidden = panoHiddenByFilename && panoHiddenByFilename.get(filename);
+  if (li.dataset) {
+    li.dataset.hidden = hidden ? '1' : '0';
+  }
+  li.classList.toggle('pano-hidden', Boolean(hidden));
   const nameEl = li.querySelector('.pano-item-name');
   if (nameEl) {
     const displayName = getDisplayFilename(filename);
@@ -112,15 +119,22 @@ function setListItemFilename(li, filename) {
 function updateListItemActionIcons(li) {
   if (!li) return;
   const isActive = li.classList.contains('active');
+  const isHidden = li.dataset && li.dataset.hidden === '1';
   const iconByAction = {
     update: isActive ? 'assets/icons/update-w.png' : 'assets/icons/update.png',
-    rename: isActive ? 'assets/icons/rename-w.png' : 'assets/icons/rename.png'
+    rename: isActive ? 'assets/icons/rename-w.png' : 'assets/icons/rename.png',
+    visibility: isHidden ? 'assets/icons/hide.png' : 'assets/icons/eye.png'
   };
   li.querySelectorAll('.pano-item-action-btn').forEach((btn) => {
     const action = btn.dataset.panoAction;
     const img = btn.querySelector('img');
     if (!img || !iconByAction[action]) return;
     img.src = iconByAction[action];
+    if (action === 'visibility') {
+      const title = isHidden ? 'Unhide' : 'Hide';
+      btn.title = title;
+      btn.setAttribute('aria-label', title);
+    }
   });
 }
 
@@ -276,9 +290,26 @@ export async function loadPanorama(imageName) {
 /** @param {(files: string[]) => void} [onImagesLoaded] Called with the list of image names after fetch. */
 export async function loadImages(onImagesLoaded) {
   try {
-    const res = await fetch(appendProjectParams("/api/panos"));
+    // Detect admin context so hidden items can be managed in the editor.
+    const isAdmin = typeof window !== 'undefined' && /project-editor\.html$/i.test(window.location.pathname);
+    const listUrl = isAdmin ? '/api/panos?includeHidden=1' : '/api/panos';
+
+    let res = await fetch(appendProjectParams(listUrl));
+    if (!res.ok && isAdmin && res.status === 401) {
+      // Fall back to public list if the session is missing/expired.
+      res = await fetch(appendProjectParams('/api/panos'));
+    }
+    if (!res.ok) {
+      throw new Error(`Server responded with ${res.status}`);
+    }
     const panos = await res.json();
-    const fileList = Array.isArray(panos) ? panos.map(p => p.filename) : [];
+    const panoItems = Array.isArray(panos) ? panos : [];
+    panoHiddenByFilename = new Map(
+      panoItems
+        .filter((p) => p && typeof p === 'object' && typeof p.filename === 'string')
+        .map((p) => [p.filename, Boolean(p.hidden)])
+    );
+    const fileList = panoItems.map((p) => p.filename).filter(Boolean);
     multiSelectedImageNames = new Set(
       Array.from(multiSelectedImageNames).filter((name) => fileList.includes(name))
     );
@@ -289,8 +320,7 @@ export async function loadImages(onImagesLoaded) {
     await ensureInitialViewsLoaded();
     if (typeof onImagesLoaded === 'function') onImagesLoaded(fileList);
     if (imageListEl) imageListEl.innerHTML = "";
-    // Detect admin context so drag/reorder is enabled only in admin UI
-    const isAdmin = typeof window !== 'undefined' && /project-editor\.html$/i.test(window.location.pathname);
+    // Admin context enables drag/reorder and extra actions.
 
     if (fileList.length > 0) {
       // Admin: ensure viewer ready for immediate panorama loading
@@ -329,6 +359,7 @@ export async function loadImages(onImagesLoaded) {
         actionsEl.className = 'pano-item-actions';
 
         const actionButtons = [
+          { action: 'visibility', icon: 'assets/icons/eye.png', alt: 'Hide' },
           { action: 'update', icon: 'assets/icons/update.png', alt: 'Update' },
           { action: 'rename', icon: 'assets/icons/rename.png', alt: 'Rename' }
         ];
