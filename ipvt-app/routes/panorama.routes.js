@@ -221,6 +221,21 @@ router.put('/api/panos/visibility', attachAuthenticatedUser, requireAuthenticate
   const nextHidden = Boolean(hidden);
   try {
     setPanoramaHidden(paths, value, nextHidden);
+    try {
+      const visibilityLabel = nextHidden ? 'Hidden' : 'Published';
+      appendAuditEntry(paths, 'pano', value, {
+        action: 'Pano_Visibility_Update',
+        message: formatEditorAuditMessage('Pano_Visibility_Update', { filename: value, visibility: visibilityLabel }),
+        meta: buildAuditMeta({ visibility: visibilityLabel, hidden: nextHidden }, req.authUser),
+      });
+    } catch (_error) {}
+
+    try {
+      await syncProjectToDatabaseOrThrow(paths.projectId, req.authUser && req.authUser.id);
+    } catch (error) {
+      console.error('Project database sync failed after panorama visibility update:', error);
+      return res.status(500).json({ success: false, message: 'Visibility updated, but database sync failed.' });
+    }
     emitToProject(req.app, paths.projectId, 'panos:visibility', { filename: value, hidden: nextHidden });
     return res.json({ success: true, filename: value, hidden: nextHidden });
   } catch (error) {

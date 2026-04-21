@@ -120,10 +120,13 @@ function updateListItemActionIcons(li) {
   if (!li) return;
   const isActive = li.classList.contains('active');
   const isHidden = li.dataset && li.dataset.hidden === '1';
+  const isHovered = Boolean(li.matches && li.matches(':hover'));
   const iconByAction = {
     update: isActive ? 'assets/icons/update-w.png' : 'assets/icons/update.png',
     rename: isActive ? 'assets/icons/rename-w.png' : 'assets/icons/rename.png',
-    visibility: isHidden ? 'assets/icons/hide.png' : 'assets/icons/eye.png'
+    visibility: isHidden
+      ? 'assets/icons/hide.png'
+      : (!isActive && isHovered ? 'assets/icons/eye-black.png' : 'assets/icons/eye.png')
   };
   li.querySelectorAll('.pano-item-action-btn').forEach((btn) => {
     const action = btn.dataset.panoAction;
@@ -131,7 +134,7 @@ function updateListItemActionIcons(li) {
     if (!img || !iconByAction[action]) return;
     img.src = iconByAction[action];
     if (action === 'visibility') {
-      const title = isHidden ? 'Unhide' : 'Hide';
+      const title = isHidden ? 'Publish' : 'Hide';
       btn.title = title;
       btn.setAttribute('aria-label', title);
     }
@@ -389,6 +392,10 @@ export async function loadImages(onImagesLoaded) {
         li.classList.add('multi-selected');
       }
       updateListItemActionIcons(li);
+      if (isAdmin) {
+        li.addEventListener('mouseenter', () => updateListItemActionIcons(li));
+        li.addEventListener('mouseleave', () => updateListItemActionIcons(li));
+      }
 
       li.addEventListener('click', async (ev) => {
         if (ev.target.closest('.pano-item-actions')) return;

@@ -41,10 +41,9 @@ export function initVisibility() {
       try { await reloadHotspots(); } catch (_e) {}
       try { await layoutApi.reloadHotspots(); } catch (_e) {}
 
-      await showTimedAlert(nextHidden ? 'Panorama hidden.' : 'Panorama unhidden.', 'Visibility', 400);
+      await showTimedAlert(nextHidden ? 'Panorama hidden.' : 'Panorama published.', 'Visibility', 400);
     } catch (error) {
       await showAlert('Unable to update visibility: ' + (error?.message || error), 'Visibility');
     }
   });
 }
-

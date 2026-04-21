@@ -445,6 +445,11 @@ function formatEditorAuditMessage(action, payload = {}) {
       return `Hotspot Deleted: '${filename}'`;
     case 'Pano_Initial_View_Set':
       return `Initial View Set for ${filename}`;
+    case 'Pano_Visibility_Update': {
+      const visibility = String(payload.visibility || '').trim();
+      const state = visibility ? quoteAuditValue(visibility) : '';
+      return `Updated [${filename}] visibility to [${state || 'Updated'}]`;
+    }
     case 'Layout_Hotspot_Create':
       return `Layout Hotspot Created: '${filename}'`;
     case 'Layout_Hotspot_Delete':
